@@ -25,6 +25,11 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
   },
+  container: {
+    flex: 1,
+    paddingHorizontal: 20,
+    backgroundColor: '#1F2229', // Added transparency for readability
+  },
   title: {
     fontSize: 24,
     marginBottom: 10,

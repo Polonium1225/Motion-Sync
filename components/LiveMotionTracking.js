@@ -24,7 +24,7 @@ export default function LiveMotionTrackingCard() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#f1f1f1',
+    backgroundColor: '#2D343C',
     borderRadius: 10,
     padding: 20,
     marginVertical: 15,
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#333',
+    color: '#01C594',
   },
   imageContainer: {
     backgroundColor: '#ddd', // Grey background for the image placeholder
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     tintColor: '#999', // Grey color to match the placeholder effect
   },
   button: {
-    backgroundColor: '#007BFF',
+    backgroundColor: 'rgba(0,0,0,0)',
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderRadius: 20,

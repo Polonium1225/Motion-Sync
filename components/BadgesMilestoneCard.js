@@ -33,7 +33,7 @@ export default function BadgesMilestoneCard() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#9fc5e8',
+    backgroundColor: '#2D343C',
     borderRadius: 10,
     padding: 20,
     marginVertical: 15,
@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#333',
+    color: '#fff',
   },
   listItem: {
     flexDirection: 'row',
@@ -54,19 +54,24 @@ const styles = StyleSheet.create({
   listText: {
     marginLeft: 10,
     fontSize: 16,
-    color: '#333',
+    color: '#fff',
   },
   button: {
-    backgroundColor: '#007BFF',
+    backgroundColor: '#2D343C',
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderRadius: 20,
+    borderColor: "#01CC97",  // Correct property
+    width:200,
+    borderWidth: 2,          // Required for the border to appear
+    borderRadius: 30,
     marginTop: 15,
-    alignSelf: 'flex-end',
+    justifyContent: 'center',
+    alignSelf: 'center',
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    textAlign:'center',
   },
 });
