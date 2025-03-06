@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, Platform } from "react";
 import {
   StyleSheet,
   Text,
@@ -81,32 +81,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e5e5",
   },
   topSection: {
-    height: "40%",
-    justifyContent: "center",
-    alignItems: "center",
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
+    height: "50%",
   },
   welcomeText: {
-    color: "#fff",
-    fontSize: 24,
+    color: "#F5F5F5",
+    fontSize: 28,
     fontWeight: "bold",
+    marginTop: 35,
+    marginLeft:25
   },
   formContainer: {
     flex: 1,
     backgroundColor: "#fff",
     marginTop: -30,
-    borderTopLeftRadius: 50,
-    borderTopRightRadius: 50,
+    alignItems: 'center',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
     padding: 20,
-    alignItems: "center",
   },
   signInText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "bold",
+    marginTop: 35,
     marginBottom: 20,
+    marginLeft: -210
   },
   inputWrapper: {
+    backgroundColor: 'red',
     flexDirection: "row",
     alignItems: "center",
     width: "90%",
@@ -130,12 +131,25 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   loginButton: {
+    position: 'absolute',
+    top: -30,
+    right: 40,
     backgroundColor: "#333",
-    padding: 12,
+    padding: 16,
     borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    // ...Platform.select({
+    //   ios: {
+    //     shadowColor: '#000',
+    //     shadowOffset: { width: 0, height: 2 },
+    //     shadowOpacity: 0.5,
+    //     shadowRadius: 4,
+    //   },
+    //   android: {
+    //     elevation: 5,
+    //   },
+    // }),
   },
   signUpText: {
     marginTop: 20,
