@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -7,6 +7,7 @@ import ProgressScreen from './screens/ProgressScreen';
 import CommunityScreen from './screens/CommunityScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import CameraScreen from './screens/camera';
+import Login from './components/Login'; 
 import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -50,20 +51,26 @@ function TabNavigator() {
 }
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // State to track login status
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="TabNavigator">
-        <Stack.Screen
-          name="TabNavigator"
-          component={TabNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CameraScreen"
-          component={CameraScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
+      {isLoggedIn ? (
+        <Stack.Navigator initialRouteName="TabNavigator">
+          <Stack.Screen
+            name="TabNavigator"
+            component={TabNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="CameraScreen"
+            component={CameraScreen}
+            options={{ headerShown: false }}
+          />
+        </Stack.Navigator>
+      ) : (
+        <Login setIsLoggedIn={setIsLoggedIn} /> // Pass setIsLoggedIn to Login component
+      )}
     </NavigationContainer>
   );
 }
