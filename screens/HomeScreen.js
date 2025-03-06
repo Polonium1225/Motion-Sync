@@ -2,12 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
 
-export default function HomeScreen() {
+export default function HomeScreen(navigation ) {
   return (
       <View style={styles.container}>
         {/* Profile Image in the top-right */}
         <Image
-          source={{ uri: 'https://www.pngegg.com/en/png-wbapv' }} // Corrected image source for online images
+          source={{ require: 'https://www.pngegg.com/en/png-wbapv' }} // Corrected image source for online images
           style={styles.profileImage}
         />
 

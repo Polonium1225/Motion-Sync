@@ -1,7 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { useNavigation } from '@react-navigation/native'; // Import the hook
 
 export default function LiveMotionTrackingCard() {
+  const navigation = useNavigation(); // Get the navigation object using the hook
+  
+  const handleNavigate = () => {
+    navigation.navigate('CameraScreen');  // Navigate to CameraScreen when the button is pressed
+  };
+
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Live Motion Tracking</Text>
@@ -9,13 +16,13 @@ export default function LiveMotionTrackingCard() {
       {/* Image Placeholder */}
       <View style={styles.imageContainer}>
         <Image
-          source={require('../assets/favicon.png')} // Replace with a real image if needed
+          source={require('../assets/f.png')} // Replace with actual image
           style={styles.image}
         />
       </View>
 
       {/* Start Button */}
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={handleNavigate}>
         <Text style={styles.buttonText}>Start</Text>
       </TouchableOpacity>
     </View>
@@ -38,28 +45,27 @@ const styles = StyleSheet.create({
     color: '#01C594',
   },
   imageContainer: {
-    backgroundColor: '#ddd', // Grey background for the image placeholder
+    backgroundColor: '#ddd',
     width: '100%',
     height: 150,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
+    overflow: 'hidden',
   },
   image: {
-    width: 50, // You can adjust the size of the placeholder image
-    height: 50,
-    tintColor: '#999', // Grey color to match the placeholder effect
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   button: {
-    backgroundColor: 'rgba(0,0,0,0)',
+    marginTop: 20,
+    backgroundColor: '#01C594',
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderRadius: 20,
+    borderRadius: 30,
     alignSelf: 'flex-end',
   },
   buttonText: {
-    color: '#fff',
+    color: '#2D343C',
     fontSize: 16,
     fontWeight: '600',
   },

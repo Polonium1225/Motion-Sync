@@ -1,92 +1,84 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome'; // You can use FontAwesome icons
+import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
-export default function PostCard({ userName, profileImage, postText, postImage }) {
+const PostCard = () => {
   return (
-    <View style={styles.card}>
-      {/* Profile Image */}
-      <View style={styles.profileContainer}>
-        <Image
-          source={profileImage}  // Image passed as a prop
-          style={styles.profileImage}
-        />
-        <Text style={styles.userName}>{userName}</Text>
+    <LinearGradient
+      colors={['#2D343C', '#2b4240']} // Gradient colors from dark blue to green
+      style={styles.card}
+    >
+      {/* User Info */}
+      <View style={styles.userInfo}>
+        <Ionicons name="person-circle" size={24} color="white" />
+        <Text style={styles.username}>USER 1</Text>
       </View>
 
-      {/* Post Text */}
-      <Text style={styles.postText}>{postText}</Text>
+      {/* Post Content */}
+      <Text style={styles.content}>
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc maximus, nulla ut commodo sagittis, sapien dui mattis dui, non pulvinar lorem felis nec erat.
+      </Text>
 
-      {/* Post Image */}
-      <View style={styles.imageContainer}>
-        <Image
-          source={postImage}  // Image passed as a prop
-          style={styles.postImage}
-        />
+      {/* Image Placeholder */}
+      <View style={styles.imagePlaceholder}>
+        <Ionicons name="image" size={80} color="white" />
       </View>
 
-      {/* Icons for like and comment */}
-      <View style={styles.iconContainer}>
-        <TouchableOpacity style={styles.icon}>
-          <Icon name="heart" size={20} color="#333" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.icon}>
-          <Icon name="comment" size={20} color="#333" />
-        </TouchableOpacity>
+      {/* Footer (Like & Comment Icons) */}
+      <View style={styles.footer}>
+        <Ionicons name="heart" size={24} color="white" />
+        <Text style={styles.likeText}>20</Text>
+        <Ionicons name="chatbubble" size={24} color="white" />
+        <Text style={styles.commentText}>20</Text>
       </View>
-    </View>
+    </LinearGradient>
   );
-}
+};
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#f1f1f1',
-    borderRadius: 10,
     padding: 15,
-    marginVertical: 10,
-    width: '90%',
+    borderRadius: 10,
+    width: 340, // Adjust as needed
     alignSelf: 'center',
+    borderColor: 'black',
+    marginBottom:20,
   },
-  profileContainer: {
+  userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
   },
-  profileImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
+  likeText:{
+    color:"white",
   },
-  userName: {
-    fontSize: 16,
+  commentText:{
+    color:"white",
+  },
+  username: {
     fontWeight: 'bold',
-    color: '#333',
+    marginLeft: 8,
+    color: 'white',
   },
-  postText: {
-    fontSize: 14,
-    color: '#333',
-    marginBottom: 15,
+  content: {
+    fontSize: 12,
+    color: 'white',
+    marginBottom: 10,
   },
-  imageContainer: {
-    backgroundColor: '#ddd',
-    height: 200,
-    marginBottom: 15,
-    borderRadius: 10,
+  imagePlaceholder: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)', // Light transparent background
+    height: 200, 
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 10,
+    borderRadius: 8,
   },
-  postImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 10,
-  },
-  iconContainer: {
+  footer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  icon: {
-    marginRight: 20,
+    justifyContent: 'flex-start',
+    gap: 10,
   },
 });
+
+export default PostCard;

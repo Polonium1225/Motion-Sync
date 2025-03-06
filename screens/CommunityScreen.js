@@ -1,43 +1,78 @@
 import React from 'react';
-import { View, Text, Button, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import PostCard from '../components/PostCard';
 
 export default function CommunityScreen() {
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Community</Text>
-      <Button title="Post" onPress={() => {}} />
-      <Button title="Chat" onPress={() => {}} />
-      
-      {/* Example Posts */}
-      <View style={styles.postContainer}>
-        <Text>User 1</Text>
-        <Text>Lorem ipsum dolor sit amet...</Text>
+    <View style={styles.container}>
+      {/* Buttons Row (Centered) */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button}>
+          <Text style={styles.buttonText}>Post</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.button}>
+          <Text style={styles.buttonText}>Chat</Text>
+        </TouchableOpacity>
       </View>
-      <View style={styles.postContainer}>
-        <Text>User 2</Text>
-        <Text>Lorem ipsum dolor sit amet...</Text>
-      </View>
-    </ScrollView>
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>Community</Text>
+
+        {/* Community Posts */}
+        <View style={styles.posts}>
+          <PostCard />
+          <PostCard />
+          <PostCard />
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-  },
-  container: {
     flex: 1,
+    backgroundColor: '#1F2229',
     paddingHorizontal: 20,
-    backgroundColor: '#1F2229', // Added transparency for readability
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center', // Centers buttons horizontally
+    alignItems: 'center', // Centers buttons vertically
+    marginVertical: 15,
+    height: 100,
+    gap: 20, // Space between buttons
+  },
+  button: {
+    backgroundColor: '#22272B',
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderColor: "#01CC97",
+    borderWidth: 2,
+    borderRadius: 30,
+    width: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#01CC97',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 20,
   },
   title: {
     fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
     marginBottom: 10,
+    textAlign: 'center',
   },
-  postContainer: {
+  posts: {
     marginTop: 10,
-    backgroundColor: '#f4f4f4',
-    padding: 10,
-    borderRadius: 8,
   },
 });
+
