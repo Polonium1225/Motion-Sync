@@ -25,51 +25,69 @@ export default function Login({ setIsLoggedIn }) {
       </LinearGradient>
 
       <View style={styles.formContainer}>
-        <Text style={styles.signInText}>Sign in</Text>
-
-        <View style={styles.inputWrapper}>
-          <Octicons name="person" size={20} color="#555" />
-          <TextInput
-            style={styles.input}
-            placeholder="Email or Mobile Number"
-            placeholderTextColor="#777"
-            cursorColor={"#000"}
-            value={userName}
-            onChangeText={setUserName}
-          />
-        </View>
-
-        <View style={styles.inputWrapper}>
-          <Octicons name="lock" size={20} color="#555" />
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Your Password"
-            placeholderTextColor="#777"
-            cursorColor={"#000"}
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-            <Ionicons
-              name={showPassword ? "eye-off" : "eye"}
-              size={20}
-              color="#555"
+        <Text style={styles.signInText}>Sign In</Text>
+        <View>
+            <Text style={styles.inputText}>Email or Mobile Number</Text>
+            <View style={styles.inputWrapper}>
+            <Octicons name="person" size={20} color="#555" />
+            <TextInput
+                style={styles.input}
+                placeholder="Email or Mobile Number"
+                placeholderTextColor="#777"
+                cursorColor={"#000"}
+                value={userName}
+                onChangeText={setUserName}
             />
-          </TouchableOpacity>
+            </View>
         </View>
 
-        <TouchableOpacity>
-          <Text style={styles.forgotPassword}>Forgot Password?</Text>
-        </TouchableOpacity>
+        <View>
+            <Text style={styles.inputText}>Password</Text>
+            <View style={styles.inputWrapper}>
+            <Octicons name="lock" size={20} color="#555" />
+            <TextInput
+                style={[styles.input]}
+                placeholder="Enter Your Password"
+                placeholderTextColor="#777"
+                cursorColor={"#000"}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+            />
+            <TouchableOpacity style={{padding:10}} onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={20}
+                color="#555"
+                />
+            </TouchableOpacity>
+    
+            </View>
+        </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          <Ionicons name="arrow-forward" size={28} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.buttonWrapper}>
+            <TouchableOpacity>
+            <Text style={styles.forgotPassword}>Forgot Password?</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity>
-          <Text style={styles.signUpText}>Sign up</Text>
-        </TouchableOpacity>
+            <TouchableOpacity>
+            <Text style={[styles.signUpText]}>Sign Up</Text>
+            </TouchableOpacity>
+        </View>
+        <LinearGradient
+        colors={['#D3D3D3', '#000000']} 
+        start={{ x: 0, y: 0 }} 
+        end={{ x: 0.2, y: 1 }} 
+        style={[styles.loginButton, styles.androidShadow]}
+        >
+            <TouchableOpacity style={styles.buttonInner} onPress={handleLogin}>
+            <Ionicons name="arrow-forward" size={28} color="#fff" />
+            </TouchableOpacity>
+        </LinearGradient>
+
+        
+
+        
       </View>
     </View>
   );
@@ -87,7 +105,7 @@ const styles = StyleSheet.create({
     color: "#F5F5F5",
     fontSize: 28,
     fontWeight: "bold",
-    marginTop: 35,
+    marginTop: 40,
     marginLeft:25
   },
   formContainer: {
@@ -107,16 +125,15 @@ const styles = StyleSheet.create({
     marginLeft: -210
   },
   inputWrapper: {
-    backgroundColor: 'red',
     flexDirection: "row",
     alignItems: "center",
     width: "90%",
-    backgroundColor: "#f7f9ef",
+    backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#ccc",
-    borderRadius: 8,
+    borderRadius: 4,
     paddingLeft: 10,
-    marginBottom: 15,
+    marginBottom: 20,
   },
   input: {
     flex: 1,
@@ -124,10 +141,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#000",
   },
+  inputText: {
+    fontSize: 16,
+    marginBottom: 10,
+  },
   forgotPassword: {
     color: "#555",
     alignSelf: "flex-start",
-    marginLeft: "6%",
     marginBottom: 20,
   },
   loginButton: {
@@ -139,20 +159,27 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
-    // ...Platform.select({
-    //   ios: {
-    //     shadowColor: '#000',
-    //     shadowOffset: { width: 0, height: 2 },
-    //     shadowOpacity: 0.5,
-    //     shadowRadius: 4,
-    //   },
-    //   android: {
-    //     elevation: 5,
-    //   },
-    // }),
   },
   signUpText: {
-    marginTop: 20,
     color: "#555",
+    fontWeight: 'bold',
   },
+  boxShadow: {
+    shadowColor: '#333333',
+    shadowOffset: {
+        width: 6,
+        height: 6,
+    },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+  },
+  androidShadow:{
+    elevation: 10 
+  },
+  buttonWrapper: {
+    marginTop: 15,
+    width: '90%',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+  }
 });
