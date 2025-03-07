@@ -22,7 +22,7 @@ function TabNavigator() {
           backgroundColor: '#1A1F23',
           borderTopWidth: 0,
         },
-        tabBarActiveTintColor: '#05907A',
+        tabBarActiveTintColor: '#00ffc0',
         tabBarInactiveTintColor: '#888',
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
