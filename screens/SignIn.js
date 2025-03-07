@@ -9,13 +9,14 @@ import {
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-export default function Login({ setIsLoggedIn }) { 
+export default function SignIn({ setIsLoggedIn }) { 
   const [userName, setUserName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = () => {
-    setIsLoggedIn(true);
+    // The logic of Sign in Perform here (backend) 
+    setIsLoggedIn(true); //Updating the state!
   };
 
   return (
