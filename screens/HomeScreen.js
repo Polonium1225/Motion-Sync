@@ -6,38 +6,28 @@ export default function HomeScreen(navigation ) {
   return (
       <View style={styles.container}>
         {/* Profile Image in the top-right */}
-        <View style={styles.header}>
+        <Image
+          source={{ require: 'https://www.pngegg.com/en/png-wbapv' }} // Corrected image source for online images
+          style={styles.profileImage}
+        />
+
         <View style={styles.contentContainer}>
-            <Text style={styles.greeting}>Hello, Welcome 👋</Text>
-            <Text style={styles.name}>Name</Text>
-          </View>
-
-          <Image
-            source={require('../assets/avatar.png')} // Corrected online image source
-            style={styles.profileImage}
-          />
-
+          {/* Greeting and User Name */}
+          <Text style={styles.greeting}>Hello, Welcome 👋</Text>
+          <Text style={styles.name}>Name</Text>
         </View>
-
 
         {/* Live Motion Tracking Component */}
-        <View style={styles.card}>
-          <LiveMotionTracking />
-        </View>
+        <LiveMotionTracking />
 
         {/* Buttons Section */}
-        <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button}>
+          <Text style={styles.buttonText}>Error Detection & Feedback</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Error Detection & Feedback</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Compare with Professional Model</Text>
-          </TouchableOpacity>
-
-        </View>
-
+        <TouchableOpacity style={styles.button}>
+          <Text style={styles.buttonText}>Compare with Professional Model</Text>
+        </TouchableOpacity>
       </View>
   );
 }
@@ -46,13 +36,6 @@ const styles = StyleSheet.create({
   background: {
     flex: 1,
     resizeMode: 'cover', // Ensures the background image covers the entire screen
-  },
-  header: {
-    flexDirection: 'row', 
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 20,
-    justifyContent: 'space-between',
   },
   container: {
     flex: 1,
@@ -67,7 +50,20 @@ const styles = StyleSheet.create({
     top: 20,
     right: 20,
   },
-
+  contentContainer: {
+    marginTop: 80, // Increased to prevent overlap with profile image
+    marginLeft: 20,
+  },
+  greeting: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff', // Changed to white for better contrast
+  },
+  name: {
+    fontSize: 20,
+    color: '#ddd', // Lightened text for better visibility
+    marginTop: 10,
+  },
   button: {
     backgroundColor: '#22272B',
     paddingVertical: 12,
@@ -88,28 +84,4 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
   },
-  profileImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 40,
-    marginRight: 15, 
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  name: {
-    fontSize: 18,
-    color: '#ddd',
-    marginTop: 5,
-  },
-  buttonContainer: {
-    flexDirection: 'column', 
-    alignItems: 'center', 
-    marginTop: 70,
-  },
-  card: {
-    paddingTop: 20,
-  }
 });
