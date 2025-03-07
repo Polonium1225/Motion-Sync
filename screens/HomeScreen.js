@@ -1,9 +1,51 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function HomeScreen(navigation ) {
+export default function HomeScreen({ navigation }) {
+  const [profileData, setProfileData] = React.useState({
+    profileImage: require('../assets/icon.png'),
+    fullName: 'Name'
+  });
+
+  // Load profile data when component mounts
+  React.useEffect(() => {
+    const loadProfileData = async () => {
+      try {
+        const savedProfileName = await AsyncStorage.getItem('profile_name');
+        const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
+        
+        if (savedProfileName) {
+          setProfileData(prevData => ({ 
+            ...prevData, 
+            fullName: savedProfileName 
+          }));
+        }
+        
+        if (savedProfileImageUri) {
+          setProfileData(prevData => ({ 
+            ...prevData, 
+            profileImage: { uri: savedProfileImageUri } 
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load profile data:', error);
+      }
+    };
+
+    loadProfileData();
+
+    // Set up a focus listener to reload data when screen comes into focus
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadProfileData();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   return (
+
       <View style={styles.container}>
         {/* Profile Image in the top-right */}
         <View style={styles.header}>
@@ -38,7 +80,7 @@ export default function HomeScreen(navigation ) {
 
         </View>
 
-      </View>
+      </View>      
   );
 }
 
@@ -59,25 +101,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#22272B', // Added transparency to blend with background
     padding: 20,
   },
+  profileImageContainer: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+  },
   profileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    position: 'absolute',
-    top: 20,
-    right: 20,
   },
 
   button: {
     backgroundColor: '#22272B',
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: "#01CC97",  // Correct property
-    borderWidth: 2,          // Required for the border to appear
+    borderColor: "#01CC97",
+    borderWidth: 2,
     borderRadius: 30,
     marginTop: 15,
     width: '80%',
-    height:'70',
+    height: 70,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
