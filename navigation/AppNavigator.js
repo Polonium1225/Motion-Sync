@@ -1,17 +1,12 @@
-// App.js
-import React, { useState } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-
-import AppNavigator from './navigation/AppNavigator';
+import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import HomeScreen from './screens/HomeScreen';
-import ProgressScreen from './screens/ProgressScreen';
-import CommunityScreen from './screens/CommunityScreen';
-import SettingsScreen from './screens/SettingsScreen';
-import CameraScreen from './screens/camera';
-import Performance from './screens/Performance';
-import PerformanceComparisonScreen from './screens/PerformanceComparisonScreen';
+import HomeScreen from '../screens/HomeScreen';
+import ProgressScreen from '../screens/ProgressScreen';
+import CommunityScreen from '../screens/CommunityScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import CameraScreen from '../screens/camera';
+import SignIn from '../screens/SignIn';
 import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -27,7 +22,7 @@ function TabNavigator() {
           backgroundColor: '#1A1F23',
           borderTopWidth: 0,
         },
-        tabBarActiveTintColor: '#00ffc0',
+        tabBarActiveTintColor: '#05907A',
         tabBarInactiveTintColor: '#888',
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
@@ -54,38 +49,31 @@ function TabNavigator() {
   );
 }
 
-
-export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false); 
-
+// Main App Navigator
+export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
   return (
-    <NavigationContainer>
-
-      <AppNavigator isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
-
-      <Stack.Navigator initialRouteName="TabNavigator">
+    <Stack.Navigator>
+      {isLoggedIn ? (
+        <>
+          <Stack.Screen
+            name="TabNavigator"
+            component={TabNavigator}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="CameraScreen"
+            component={CameraScreen}
+            options={{ headerShown: false }}
+          />
+        </>
+      ) : (
         <Stack.Screen
-          name="TabNavigator"
-          component={TabNavigator}
+          name="SignIn"
           options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CameraScreen"
-          component={CameraScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Performance"
-          component={Performance}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="PerformanceComparisonScreen"
-          component={PerformanceComparisonScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
-
-    </NavigationContainer>
+        >
+          {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
+        </Stack.Screen>
+      )}
+    </Stack.Navigator>
   );
 }
