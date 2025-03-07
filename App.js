@@ -63,28 +63,6 @@ export default function App() {
 
       <AppNavigator isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
 
-      <Stack.Navigator initialRouteName="TabNavigator">
-        <Stack.Screen
-          name="TabNavigator"
-          component={TabNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CameraScreen"
-          component={CameraScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Performance"
-          component={Performance}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="PerformanceComparisonScreen"
-          component={PerformanceComparisonScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
 
     </NavigationContainer>
   );

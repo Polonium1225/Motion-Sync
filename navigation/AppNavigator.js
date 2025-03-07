@@ -7,6 +7,8 @@ import CommunityScreen from '../screens/CommunityScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
+import Performance from '../screens/Performance';
+import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
 import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -65,6 +67,16 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             component={CameraScreen}
             options={{ headerShown: false }}
           />
+          <Stack.Screen
+            name="Performance"
+            component={Performance}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
+            name="PerformanceComparisonScreen"
+            component={PerformanceComparisonScreen}
+            options={{ headerShown: false }}
+          />
         </>
       ) : (
         <Stack.Screen
@@ -73,6 +85,8 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
         >
           {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
         </Stack.Screen>
+
+        
       )}
     </Stack.Navigator>
   );
