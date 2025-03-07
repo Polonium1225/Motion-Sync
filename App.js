@@ -7,6 +7,8 @@ import ProgressScreen from './screens/ProgressScreen';
 import CommunityScreen from './screens/CommunityScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import CameraScreen from './screens/camera';
+import Performance from './screens/Performance';
+import PerformanceComparisonScreen from './screens/PerformanceComparisonScreen';
 import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -61,6 +63,16 @@ export default function App() {
         <Stack.Screen
           name="CameraScreen"
           component={CameraScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Performance"
+          component={Performance}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="PerformanceComparisonScreen"
+          component={PerformanceComparisonScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
