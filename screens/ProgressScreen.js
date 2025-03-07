@@ -1,8 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ImageBackground } from 'react-native';
 import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
+import { useNavigation } from '@react-navigation/native';
 
 export default function ProgressScreen() {
+  const navigation = useNavigation();
+  const handleNavigate = () => {
+    navigation.navigate('Performance');
+  };
   return (
     
       <View style={styles.container}>
@@ -11,8 +16,8 @@ export default function ProgressScreen() {
           Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc maximus, nulla ut commodo sagittis, sapien dui mattis dui, non pulvinar lorem felis nec erat.
         </Text>
 
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>See</Text>
+        <TouchableOpacity style={styles.button} onPress={handleNavigate}>
+          <Text style={styles.buttonText} >Enter</Text>
         </TouchableOpacity>
 
         {/* Milestone Card Component */}
