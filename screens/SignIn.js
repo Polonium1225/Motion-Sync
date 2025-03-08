@@ -21,7 +21,7 @@ export default function SignIn({ setIsLoggedIn }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#0a0a0f", "#15151e"]} style={styles.topSection}>
+      <LinearGradient colors={["#01CC97","#22272B"]} style={styles.topSection}>
         <Text style={styles.welcomeText}>Welcome Back</Text>
       </LinearGradient>
 
@@ -30,7 +30,7 @@ export default function SignIn({ setIsLoggedIn }) {
         <View>
             <Text style={styles.inputText}>Email or Mobile Number</Text>
             <View style={styles.inputWrapper}>
-            <Octicons name="person" size={20} color="#555" />
+            <Octicons name="person" size={20} color="#01CC97" />
             <TextInput
                 style={styles.input}
                 placeholder="Email or Mobile Number"
@@ -45,7 +45,7 @@ export default function SignIn({ setIsLoggedIn }) {
         <View>
             <Text style={styles.inputText}>Password</Text>
             <View style={styles.inputWrapper}>
-            <Octicons name="lock" size={20} color="#555" />
+            <Octicons name="lock" size={20} color="#01CC97" />
             <TextInput
                 style={[styles.input]}
                 placeholder="Enter Your Password"
@@ -76,7 +76,7 @@ export default function SignIn({ setIsLoggedIn }) {
             </TouchableOpacity>
         </View>
         <LinearGradient
-        colors={['#D3D3D3', '#000000']} 
+        colors={['#01CC97', '#000000']} 
         start={{ x: 0, y: 0 }} 
         end={{ x: 0.2, y: 1 }} 
         style={[styles.loginButton, styles.androidShadow]}
@@ -103,22 +103,23 @@ const styles = StyleSheet.create({
     height: "50%",
   },
   welcomeText: {
-    color: "#F5F5F5",
-    fontSize: 28,
+    color: "#fff",
+    fontSize: 40,
     fontWeight: "bold",
-    marginTop: 40,
-    marginLeft:25
+    marginTop: "40%",
+    textAlign: "center",
   },
   formContainer: {
     flex: 1,
-    backgroundColor: "#fff",
-    marginTop: -30,
+    backgroundColor: "#1F2229",
+    marginTop: -80,
     alignItems: 'center',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 20,
   },
   signInText: {
+    color: "#01CC97",
     fontSize: 24,
     fontWeight: "bold",
     marginTop: 35,
@@ -129,10 +130,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "90%",
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 4,
+    backgroundColor: "#1F2229",
+    borderColor: "#01CC97",
+    borderWidth: 2,
+    borderRadius: 30,
     paddingLeft: 10,
     marginBottom: 20,
   },
@@ -140,14 +141,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     fontSize: 16,
-    color: "#000",
+    color: "#fff",
   },
   inputText: {
+    color:"white",
     fontSize: 16,
     marginBottom: 10,
   },
   forgotPassword: {
-    color: "#555",
+    color: "#fff",
     alignSelf: "flex-start",
     marginBottom: 20,
   },
@@ -162,7 +164,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   signUpText: {
-    color: "#555",
+    color: "#01CC97",
     fontWeight: 'bold',
   },
   boxShadow: {
