@@ -1,5 +1,8 @@
-import React from 'react';
+// App.js
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+
+import AppNavigator from './navigation/AppNavigator';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from './screens/HomeScreen';
@@ -51,31 +54,16 @@ function TabNavigator() {
   );
 }
 
+
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="TabNavigator">
-        <Stack.Screen
-          name="TabNavigator"
-          component={TabNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CameraScreen"
-          component={CameraScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Performance"
-          component={Performance}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="PerformanceComparisonScreen"
-          component={PerformanceComparisonScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
+
+      <AppNavigator isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
+
+
     </NavigationContainer>
   );
 }
