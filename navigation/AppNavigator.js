@@ -7,6 +7,7 @@ import CommunityScreen from '../screens/CommunityScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
+import SignUp from '../screens/SignUp';
 import Performance from '../screens/Performance';
 import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
 import { Ionicons } from 'react-native-vector-icons';
@@ -14,8 +15,7 @@ import { Ionicons } from 'react-native-vector-icons';
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-// Tab Navigator Component
-function TabNavigator() {
+function TabNavigator({ setIsLoggedIn }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -43,7 +43,9 @@ function TabNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Analyze" component={HomeScreen} />
+      <Tab.Screen name="Analyze">
+        {(props) => <HomeScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
+      </Tab.Screen>
       <Tab.Screen name="Progress" component={ProgressScreen} />
       <Tab.Screen name="Community" component={CommunityScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
@@ -59,9 +61,10 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
         <>
           <Stack.Screen
             name="TabNavigator"
-            component={TabNavigator}
             options={{ headerShown: false }}
-          />
+          >
+            {(props) => <TabNavigator {...props} setIsLoggedIn={setIsLoggedIn} />}
+          </Stack.Screen>
           <Stack.Screen
             name="CameraScreen"
             component={CameraScreen}
@@ -79,14 +82,20 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           />
         </>
       ) : (
-        <Stack.Screen
-          name="SignIn"
-          options={{ headerShown: false }}
-        >
-          {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
-        </Stack.Screen>
-
-        
+        <>
+          <Stack.Screen
+            name="SignIn"
+            options={{ headerShown: false }}
+          >
+            {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
+          </Stack.Screen>
+          <Stack.Screen
+            name="SignUp"
+            options={{ headerShown: false }}
+          >
+            {(props) => <SignUp {...props} setIsLoggedIn={setIsLoggedIn} />}
+          </Stack.Screen>
+        </>
       )}
     </Stack.Navigator>
   );

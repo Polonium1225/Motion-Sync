@@ -1,22 +1,52 @@
-import React, { useState, Platform } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
   View,
   TextInput,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { account, databases, Query} from "../lib/AppwriteService"
+import { useNavigation } from "@react-navigation/native";
+import bcrypt from 'react-native-bcrypt';
 
 export default function SignIn({ setIsLoggedIn }) { 
-  const [userName, setUserName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const navigation = useNavigation();
 
-  const handleLogin = () => {
-    // The logic of Sign in Perform here (backend) 
-    setIsLoggedIn(true); //Updating the state!
+  const handleLogin = async () => {
+    try {
+      const response = await databases.listDocuments(
+        '67cf7c320035a1dd0e62', // Database ID
+        '67cf7ceb002ef53618ef', // Collection ID
+        [Query.equal('email', email)] // Query by email
+      );
+
+      // Check if a user was found
+      if (response.documents.length === 0) {
+        Alert.alert("Error", "User not found");
+        return;
+      }
+
+      const user = response.documents[0];
+
+      // Compare the input password with the hashed password
+      //const isPasswordValid = bcrypt.compareSync(password, user.password);
+      if (password == user.password) {
+        setIsLoggedIn(true); // Log the user in
+        Alert.alert("Success", "Logged in successfully!");
+      } else {
+        Alert.alert("Error", "Invalid email or password");
+      }
+    } catch (error) {
+      Alert.alert("Error", error.message);
+      
+    }
   };
 
   return (
@@ -36,8 +66,8 @@ export default function SignIn({ setIsLoggedIn }) {
                 placeholder="Email or Mobile Number"
                 placeholderTextColor="#777"
                 cursorColor={"#000"}
-                value={userName}
-                onChangeText={setUserName}
+                value={email}
+                onChangeText={setEmail}
             />
             </View>
         </View>
@@ -62,7 +92,6 @@ export default function SignIn({ setIsLoggedIn }) {
                 color="#555"
                 />
             </TouchableOpacity>
-    
             </View>
         </View>
 
@@ -71,7 +100,7 @@ export default function SignIn({ setIsLoggedIn }) {
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate("SignUp")}>
             <Text style={[styles.signUpText]}>Sign Up</Text>
             </TouchableOpacity>
         </View>
@@ -85,10 +114,6 @@ export default function SignIn({ setIsLoggedIn }) {
             <Ionicons name="arrow-forward" size={28} color="#fff" />
             </TouchableOpacity>
         </LinearGradient>
-
-        
-
-        
       </View>
     </View>
   );

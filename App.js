@@ -10,7 +10,6 @@ export default function App() {
 
       <AppNavigator isLoggedIn={isLoggedIn} setIsLoggedIn={setIsLoggedIn} />
 
-
     </NavigationContainer>
   );
 }
