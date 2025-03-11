@@ -43,7 +43,7 @@ export default function SignIn({ setIsLoggedIn }) {
         await AsyncStorage.setItem('profile_name', user.name);
   
         setIsLoggedIn(true); // Log the user in
-        Alert.alert("Success", "Logged in successfully!");
+
       } else {
         Alert.alert("Error", "Invalid email or password");
       }

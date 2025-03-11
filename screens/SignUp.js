@@ -66,7 +66,6 @@ export default function SignUp({ setIsLoggedIn }) {
       await account.createEmailPasswordSession(email, password);
       console.log("User logged in successfully");
   
-      Alert.alert("Success", "Account created and logged in successfully!");
       setIsLoggedIn(true);
     } catch (error) {
       console.error("SignUp Error:", error); // Log the full error
@@ -81,7 +80,7 @@ export default function SignUp({ setIsLoggedIn }) {
       </LinearGradient>
 
       <View style={styles.formContainer}>
-        <Text style={styles.signInText}>Sign Up</Text>
+        <Text style={styles.signUpText}>Sign Up</Text>
 
         <View>
           <Text style={styles.inputText}>Name</Text>
@@ -143,20 +142,20 @@ export default function SignUp({ setIsLoggedIn }) {
 
         <View style={styles.buttonWrapper}>
           <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
-            <Text style={[styles.signUpText]}>Sign In</Text>
+            <Text style={[styles.signInText]}>Sign In</Text>
           </TouchableOpacity>
         </View>
-
         <LinearGradient
-          colors={["#01CC97", "#000000"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.2, y: 1 }}
-          style={[styles.loginButton, styles.androidShadow]}
+                  colors={['#01CC97', '#000000']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.2, y: 1 }}
+                  style={[styles.loginButton, styles.androidShadow]}
         >
           <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
-            <Text style={styles.buttonText}>Sign Up</Text>
+            <Ionicons name="arrow-forward" size={28} color="#fff" />
           </TouchableOpacity>
         </LinearGradient>
+
       </View>
     </View>
   );
@@ -186,13 +185,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     padding: 20,
   },
-  signInText: {
+  signUpText: {
     color: "#01CC97",
     fontSize: 24,
     fontWeight: "bold",
     marginTop: 35,
     marginBottom: 20,
-    marginLeft: -210,
+    marginLeft: -210
   },
   inputWrapper: {
     flexDirection: "row",
@@ -237,5 +236,9 @@ const styles = StyleSheet.create({
   },
   androidShadow: {
     elevation: 10,
+  },
+  signInText: {
+    color: "#01CC97",
+    fontWeight: 'bold',
   },
 });
