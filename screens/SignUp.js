@@ -9,14 +9,16 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, databases, Query } from "./AppwriteService";
-import bcrypt from "bcryptjs";
+import { useNavigation } from "@react-navigation/native"; 
+import { account, databases} from "../lib/AppwriteService";
+import bcrypt from 'react-native-bcrypt';
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const navigation = useNavigation();
 
   const handleSignUp = async () => {
     try {
@@ -25,7 +27,7 @@ export default function SignUp({ setIsLoggedIn }) {
         return;
       }
       // Hashing bien sur
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = bcrypt.hashSync(password, 10);
 
       //create user account in Appwrite (backend sure)
       const user = await account.create(email, password, name);
@@ -117,6 +119,12 @@ export default function SignUp({ setIsLoggedIn }) {
           </View>
         </View>
 
+        <View style={styles.buttonWrapper}>
+            <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
+            <Text style={[styles.signUpText]}>Sign In</Text>
+            </TouchableOpacity>
+        </View>
+
         <LinearGradient
           colors={["#01CC97", "#000000"]}
           start={{ x: 0, y: 0 }}
@@ -127,6 +135,7 @@ export default function SignUp({ setIsLoggedIn }) {
             <Text style={styles.buttonText}>Sign Up</Text>
           </TouchableOpacity>
         </LinearGradient>
+
       </View>
     </View>
   );

@@ -7,6 +7,7 @@ import CommunityScreen from '../screens/CommunityScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
+import SignUp from '../screens/SignUp';
 import Performance from '../screens/Performance';
 import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
 import { Ionicons } from 'react-native-vector-icons';
@@ -79,14 +80,20 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           />
         </>
       ) : (
-        <Stack.Screen
-          name="SignIn"
-          options={{ headerShown: false }}
-        >
-          {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
-        </Stack.Screen>
-
-        
+        <>
+          <Stack.Screen
+            name="SignIn"
+            options={{ headerShown: false }}
+          >
+            {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
+          </Stack.Screen>
+          <Stack.Screen
+            name="SignUp"
+            options={{ headerShown: false }}
+          >
+            {(props) => <SignUp {...props} setIsLoggedIn={setIsLoggedIn} />}
+          </Stack.Screen>
+        </>
       )}
     </Stack.Navigator>
   );
