@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -10,9 +11,8 @@ import {
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native"; 
-import { account, databases, Query} from "../lib/AppwriteService";
-import bcrypt from 'react-native-bcrypt';
-import { v4 as uuidv4 } from 'uuid';
+import { account } from "../lib/AppwriteService";
+import { v4 as uuidv4 } from 'uuid'; // Now this will work
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -23,45 +23,20 @@ export default function SignUp({ setIsLoggedIn }) {
 
   const handleSignUp = async () => {
     try {
-      // Validate inputs
+      // Validate input fields
       if (!name || !email || !password) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
   
-      // Check if the user already exists in the collection
-      const existingUser = await databases.listDocuments(
-        '67cf7c320035a1dd0e62', // Database ID
-        '67cf7ceb002ef53618ef', // Collection ID
-        [Query.equal('email', email)] // Query by email
-      );
+      // Create user account in Appwrite
+      const user = await account.create(uuidv4(), email, password, name); // Use uuidv4() to generate a unique ID
   
-      if (existingUser.documents.length > 0) {
-        Alert.alert("Error", "User with this email already exists");
-        return;
-      }
+      // Log the user in
+      await account.createEmailPasswordSession(email, password); // Corrected method name
   
-      const hashedPassword = bcrypt.hashSync(password, 10); // Hash the password
-  
-      // Create the user account in Appwrite
-      const user = await account.create('unique()', email, password, name);
-      console.log("User Object:", user);
-  
-      // Store the user data in the collection
-      await databases.createDocument(
-        '67cf7c320035a1dd0e62', // Database ID
-        '67cf7ceb002ef53618ef', // Collection ID
-        uuidv4(), // Generate a unique document ID
-        {
-          name: name,
-          email: email,
-          password: hashedPassword, // Store the hashed password
-          createdAt: new Date().toISOString(),
-        }
-      );
-  
-      Alert.alert("Success", "Account created successfully!");
-      setIsLoggedIn(true); // Log the user in
+      Alert.alert("Success", "Account created and logged in successfully!");
+      setIsLoggedIn(true);
     } catch (error) {
       Alert.alert("Error", error.message);
     }
