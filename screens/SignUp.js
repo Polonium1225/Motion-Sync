@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { account, databases, ID } from "../lib/AppwriteService"; 
 import { useNavigation } from "@react-navigation/native";
 import bcrypt from 'react-native-bcrypt'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -30,20 +31,19 @@ export default function SignUp({ setIsLoggedIn }) {
   
       // Hash the password
       const saltRounds = 10; 
-      const hashedPassword = bcrypt.hashSync(password, saltRounds);
+      const hashedPassword = bcrypt.hashSync(password, saltRounds); 
   
-      const userId = ID.unique(); // Generate a unique ID for the user
+      const userId = ID.unique();
       console.log("Creating user account with ID:", userId);
       const user = await account.create(userId, email, password, name);
       console.log("User account created:", user);
   
-      // Adding the data
-      const documentId = ID.unique();
+      const documentId = ID.unique(); 
       console.log("Creating document with ID:", documentId);
       await databases.createDocument(
         '67d0bba1000e9caec4f2', // Database ID
         '67d0bbf8003206b11780', // Collection ID
-        documentId,
+        documentId, 
         {
           name: name,
           email: email,
@@ -52,6 +52,9 @@ export default function SignUp({ setIsLoggedIn }) {
       );
       console.log("Document created successfully");
   
+      // Store the user name for homepage
+      await AsyncStorage.setItem('profile_name', name);
+  
       try {
         await account.deleteSessions(); // Delete all active sessions
         console.log("Existing sessions deleted");
@@ -59,10 +62,11 @@ export default function SignUp({ setIsLoggedIn }) {
         console.log("No existing sessions to delete:", sessionError.message);
       }
   
-      // Loging
+      //Logging !!
       await account.createEmailPasswordSession(email, password);
       console.log("User logged in successfully");
   
+      Alert.alert("Success", "Account created and logged in successfully!");
       setIsLoggedIn(true);
     } catch (error) {
       console.error("SignUp Error:", error); // Log the full error

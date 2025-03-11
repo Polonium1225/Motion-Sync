@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { account, databases, Query } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import bcrypt from 'react-native-bcrypt'; // Use react-native-bcrypt
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignIn({ setIsLoggedIn }) {
   const [email, setEmail] = useState("");
@@ -26,19 +27,23 @@ export default function SignIn({ setIsLoggedIn }) {
         '67d0bbf8003206b11780', // Collection ID
         [Query.equal('email', email)] // Query by email
       );
-
+  
       // Check if a user was found
       if (response.documents.length === 0) {
         Alert.alert("Error", "User not found");
         return;
       }
-
+  
       const user = response.documents[0];
-
+  
       // Compare the input password with the hashed password
       const isPasswordValid = bcrypt.compareSync(password, user.password); // Use bcrypt.compareSync
       if (isPasswordValid) {
+        // Store the user's name in AsyncStorage
+        await AsyncStorage.setItem('profile_name', user.name);
+  
         setIsLoggedIn(true); // Log the user in
+        Alert.alert("Success", "Logged in successfully!");
       } else {
         Alert.alert("Error", "Invalid email or password");
       }
@@ -48,7 +53,7 @@ export default function SignIn({ setIsLoggedIn }) {
   };
 
   const handleNavigateToSignUp = () => {
-    navigation.navigate("SignUp"); // Simply navigate to SignUp screen
+    navigation.navigate("SignUp"); 
   };
 
   return (
