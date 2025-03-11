@@ -10,8 +10,9 @@ import {
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native"; 
-import { account, databases} from "../lib/AppwriteService";
+import { account, databases, Query} from "../lib/AppwriteService";
 import bcrypt from 'react-native-bcrypt';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -22,30 +23,45 @@ export default function SignUp({ setIsLoggedIn }) {
 
   const handleSignUp = async () => {
     try {
-      // Validat inputs
+      // Validate inputs
       if (!name || !email || !password) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
   
-      //create thi user account in Appwrite (backend)
-      const user = await account.create('unique()', email, password, name);
+      // Check if the user already exists in the collection
+      const existingUser = await databases.listDocuments(
+        '67cf7c320035a1dd0e62', // Database ID
+        '67cf7ceb002ef53618ef', // Collection ID
+        [Query.equal('email', email)] // Query by email
+      );
   
-      // Store thi DATA
+      if (existingUser.documents.length > 0) {
+        Alert.alert("Error", "User with this email already exists");
+        return;
+      }
+  
+      const hashedPassword = bcrypt.hashSync(password, 10); // Hash the password
+  
+      // Create the user account in Appwrite
+      const user = await account.create('unique()', email, password, name);
+      console.log("User Object:", user);
+  
+      // Store the user data in the collection
       await databases.createDocument(
-        '67cf7c320035a1dd0e62', // DBID
-        '67cf7ceb002ef53618ef', // ColID
-        'unique()',
+        '67cf7c320035a1dd0e62', // Database ID
+        '67cf7ceb002ef53618ef', // Collection ID
+        uuidv4(), // Generate a unique document ID
         {
           name: name,
           email: email,
-          password: password, 
+          password: hashedPassword, // Store the hashed password
           createdAt: new Date().toISOString(),
         }
       );
   
       Alert.alert("Success", "Account created successfully!");
-      setIsLoggedIn(true); // Loging the user nchaAllah!!
+      setIsLoggedIn(true); // Log the user in
     } catch (error) {
       Alert.alert("Error", error.message);
     }

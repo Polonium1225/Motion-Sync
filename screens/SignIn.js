@@ -36,8 +36,8 @@ export default function SignIn({ setIsLoggedIn }) {
       const user = response.documents[0];
 
       // Compare the input password with the hashed password
-      const isPasswordValid = bcrypt.compareSync(password, user.password);
-      if (isPasswordValid) {
+      //const isPasswordValid = bcrypt.compareSync(password, user.password);
+      if (password == user.password) {
         setIsLoggedIn(true); // Log the user in
         Alert.alert("Success", "Logged in successfully!");
       } else {
