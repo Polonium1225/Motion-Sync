@@ -1,4 +1,3 @@
-import 'react-native-get-random-values';
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -10,9 +9,8 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native"; 
-import { account } from "../lib/AppwriteService";
-import { v4 as uuidv4 } from 'uuid'; // Now this will work
+import { account, databases, ID } from "../lib/AppwriteService"; // Import ID from Appwrite
+import { useNavigation } from "@react-navigation/native";
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -28,13 +26,25 @@ export default function SignUp({ setIsLoggedIn }) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
-  
-      // Create user account in Appwrite
-      const user = await account.create(uuidv4(), email, password, name); // Use uuidv4() to generate a unique ID
-  
+
+      // Step 1: Create the user account in Appwrite Auth
+      const user = await account.create(ID.unique(), email, password, name);
+
+      // Step 2: Add the user data to your database collection
+      await databases.createDocument(
+        '67cf7c320035a1dd0e62', // Database ID
+        '67cf7ceb002ef53618ef', // Collection ID
+        ID.unique(), // Document ID (unique for each user)
+        {
+          name: name,
+          email: email,
+          password: password, // Note: Never store plain-text passwords in production!
+        }
+      );
+
       // Log the user in
-      await account.createEmailPasswordSession(email, password); // Corrected method name
-  
+      await account.createEmailPasswordSession(email, password);
+
       Alert.alert("Success", "Account created and logged in successfully!");
       setIsLoggedIn(true);
     } catch (error) {
@@ -110,9 +120,9 @@ export default function SignUp({ setIsLoggedIn }) {
         </View>
 
         <View style={styles.buttonWrapper}>
-            <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
+          <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
             <Text style={[styles.signUpText]}>Sign In</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
 
         <LinearGradient
@@ -125,7 +135,6 @@ export default function SignUp({ setIsLoggedIn }) {
             <Text style={styles.buttonText}>Sign Up</Text>
           </TouchableOpacity>
         </LinearGradient>
-
       </View>
     </View>
   );
