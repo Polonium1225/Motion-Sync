@@ -26,28 +26,36 @@ export default function SignUp({ setIsLoggedIn }) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
-
+  
       // Step 1: Create the user account in Appwrite Auth
-      const user = await account.create(ID.unique(), email, password, name);
-
+      const userId = ID.unique(); // Generate a unique ID for the user
+      console.log("Creating user account with ID:", userId);
+      const user = await account.create(userId, email, password, name);
+      console.log("User account created:", user);
+  
       // Step 2: Add the user data to your database collection
+      const documentId = ID.unique(); // Generate a unique document ID
+      console.log("Creating document with ID:", documentId);
       await databases.createDocument(
-        '67cf7c320035a1dd0e62', // Database ID
-        '67cf7ceb002ef53618ef', // Collection ID
-        ID.unique(), // Document ID (unique for each user)
+        '67d0bba1000e9caec4f2', // Database ID
+        '67d0bbf8003206b11780', // Collection ID
+        documentId, // Let Appwrite generate a unique document ID
         {
           name: name,
           email: email,
           password: password, // Note: Never store plain-text passwords in production!
         }
       );
-
+      console.log("Document created successfully");
+  
       // Log the user in
       await account.createEmailPasswordSession(email, password);
-
+      console.log("User logged in successfully");
+  
       Alert.alert("Success", "Account created and logged in successfully!");
       setIsLoggedIn(true);
     } catch (error) {
+      console.error("SignUp Error:", error); // Log the full error
       Alert.alert("Error", error.message);
     }
   };

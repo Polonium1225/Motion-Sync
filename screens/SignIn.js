@@ -21,8 +21,8 @@ export default function SignIn({ setIsLoggedIn }) {
   const handleLogin = async () => {
     try {
       const response = await databases.listDocuments(
-        '67cf7c320035a1dd0e62', // Database ID
-        '67cf7ceb002ef53618ef', // Collection ID
+        '67d0bba1000e9caec4f2', // Database ID
+        '67d0bbf8003206b11780', // Collection ID
         [Query.equal('email', email)] // Query by email
       );
 
@@ -46,16 +46,8 @@ export default function SignIn({ setIsLoggedIn }) {
     }
   };
 
-  // Log out the current user before navigating to SignUp
-  const handleNavigateToSignUp = async () => {
-    try {
-      // Delete the current session if it exists
-      await account.deleteSession('current');
-      navigation.navigate("SignUp"); // Navigate to SignUp screen
-    } catch (error) {
-      console.error("Error logging out:", error);
-      navigation.navigate("SignUp"); // Still navigate to SignUp even if logout fails
-    }
+  const handleNavigateToSignUp = () => {
+    navigation.navigate("SignUp"); // Simply navigate to SignUp screen
   };
 
   return (
