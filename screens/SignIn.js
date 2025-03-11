@@ -1,22 +1,49 @@
-import React, { useState, Platform } from "react";
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
   View,
   TextInput,
   TouchableOpacity,
+  Alert,
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { account, databases, Query} from "../lib/AppwriteService"
 
 export default function SignIn({ setIsLoggedIn }) { 
-  const [userName, setUserName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = () => {
-    // The logic of Sign in Perform here (backend) 
-    setIsLoggedIn(true); //Updating the state!
+  const handleLogin = async () => {
+    try {
+      const response = await databases.listDocuments(
+        '67cf7c320035a1dd0e62', // Database ID
+        '67cf7ceb002ef53618ef', // Collection ID
+        [Query.equal('email', email)] // Query by email
+      );
+
+      // Check if a user was found
+      if (response.documents.length === 0) {
+        Alert.alert("Error", "User not found");
+        return;
+      }
+
+      const user = response.documents[0];
+
+      // Compare the input password with the hashed password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (isPasswordValid) {
+        setIsLoggedIn(true); // Log the user in
+        Alert.alert("Success", "Logged in successfully!");
+      } else {
+        Alert.alert("Error", "Invalid email or password");
+      }
+    } catch (error) {
+      Alert.alert("Error", error.message);
+      
+    }
   };
 
   return (
@@ -28,67 +55,64 @@ export default function SignIn({ setIsLoggedIn }) {
       <View style={styles.formContainer}>
         <Text style={styles.signInText}>Sign In</Text>
         <View>
-            <Text style={styles.inputText}>Email or Mobile Number</Text>
-            <View style={styles.inputWrapper}>
+          <Text style={styles.inputText}>Email</Text>
+          <View style={styles.inputWrapper}>
             <Octicons name="person" size={20} color="#01CC97" />
             <TextInput
-                style={styles.input}
-                placeholder="Email or Mobile Number"
-                placeholderTextColor="#777"
-                cursorColor={"#000"}
-                value={userName}
-                onChangeText={setUserName}
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor="#777"
+              cursorColor={"#000"}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
-            </View>
+          </View>
         </View>
 
         <View>
-            <Text style={styles.inputText}>Password</Text>
-            <View style={styles.inputWrapper}>
+          <Text style={styles.inputText}>Password</Text>
+          <View style={styles.inputWrapper}>
             <Octicons name="lock" size={20} color="#01CC97" />
             <TextInput
-                style={[styles.input]}
-                placeholder="Enter Your Password"
-                placeholderTextColor="#777"
-                cursorColor={"#000"}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
+              style={[styles.input]}
+              placeholder="Enter Your Password"
+              placeholderTextColor="#777"
+              cursorColor={"#000"}
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
             />
             <TouchableOpacity style={{padding:10}} onPress={() => setShowPassword(!showPassword)}>
-                <Ionicons
+              <Ionicons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
                 color="#555"
-                />
+              />
             </TouchableOpacity>
-    
-            </View>
+          </View>
         </View>
 
         <View style={styles.buttonWrapper}>
-            <TouchableOpacity>
+          <TouchableOpacity>
             <Text style={styles.forgotPassword}>Forgot Password?</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
 
-            <TouchableOpacity>
+          <TouchableOpacity>
             <Text style={[styles.signUpText]}>Sign Up</Text>
-            </TouchableOpacity>
+          </TouchableOpacity>
         </View>
         <LinearGradient
-        colors={['#01CC97', '#000000']} 
-        start={{ x: 0, y: 0 }} 
-        end={{ x: 0.2, y: 1 }} 
-        style={[styles.loginButton, styles.androidShadow]}
+          colors={['#01CC97', '#000000']} 
+          start={{ x: 0, y: 0 }} 
+          end={{ x: 0.2, y: 1 }} 
+          style={[styles.loginButton, styles.androidShadow]}
         >
-            <TouchableOpacity style={styles.buttonInner} onPress={handleLogin}>
+          <TouchableOpacity style={styles.buttonInner} onPress={handleLogin}>
             <Ionicons name="arrow-forward" size={28} color="#fff" />
-            </TouchableOpacity>
+          </TouchableOpacity>
         </LinearGradient>
-
-        
-
-        
       </View>
     </View>
   );
