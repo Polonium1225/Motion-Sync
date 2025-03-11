@@ -9,8 +9,9 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, databases, ID } from "../lib/AppwriteService"; // Import ID from Appwrite
+import { account, databases, ID } from "../lib/AppwriteService"; 
 import { useNavigation } from "@react-navigation/native";
+import bcrypt from 'react-native-bcrypt'; 
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -27,32 +28,41 @@ export default function SignUp({ setIsLoggedIn }) {
         return;
       }
   
-      // Step 1: Create the user account in Appwrite Auth
+      // Hash the password
+      const saltRounds = 10; 
+      const hashedPassword = bcrypt.hashSync(password, saltRounds);
+  
       const userId = ID.unique(); // Generate a unique ID for the user
       console.log("Creating user account with ID:", userId);
       const user = await account.create(userId, email, password, name);
       console.log("User account created:", user);
   
-      // Step 2: Add the user data to your database collection
-      const documentId = ID.unique(); // Generate a unique document ID
+      // Adding the data
+      const documentId = ID.unique();
       console.log("Creating document with ID:", documentId);
       await databases.createDocument(
         '67d0bba1000e9caec4f2', // Database ID
         '67d0bbf8003206b11780', // Collection ID
-        documentId, // Let Appwrite generate a unique document ID
+        documentId,
         {
           name: name,
           email: email,
-          password: password, // Note: Never store plain-text passwords in production!
+          password: hashedPassword, // Store the hashed password
         }
       );
       console.log("Document created successfully");
   
-      // Log the user in
+      try {
+        await account.deleteSessions(); // Delete all active sessions
+        console.log("Existing sessions deleted");
+      } catch (sessionError) {
+        console.log("No existing sessions to delete:", sessionError.message);
+      }
+  
+      // Loging
       await account.createEmailPasswordSession(email, password);
       console.log("User logged in successfully");
   
-      Alert.alert("Success", "Account created and logged in successfully!");
       setIsLoggedIn(true);
     } catch (error) {
       console.error("SignUp Error:", error); // Log the full error

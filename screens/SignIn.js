@@ -11,6 +11,7 @@ import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { account, databases, Query } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
+import bcrypt from 'react-native-bcrypt'; // Use react-native-bcrypt
 
 export default function SignIn({ setIsLoggedIn }) {
   const [email, setEmail] = useState("");
@@ -35,9 +36,9 @@ export default function SignIn({ setIsLoggedIn }) {
       const user = response.documents[0];
 
       // Compare the input password with the hashed password
-      if (password == user.password) {
+      const isPasswordValid = bcrypt.compareSync(password, user.password); // Use bcrypt.compareSync
+      if (isPasswordValid) {
         setIsLoggedIn(true); // Log the user in
-        Alert.alert("Success", "Logged in successfully!");
       } else {
         Alert.alert("Error", "Invalid email or password");
       }
