@@ -22,31 +22,30 @@ export default function SignUp({ setIsLoggedIn }) {
 
   const handleSignUp = async () => {
     try {
+      // Validat inputs
       if (!name || !email || !password) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
-      // Hashing bien sur
-      const hashedPassword = bcrypt.hashSync(password, 10);
-
-      //create user account in Appwrite (backend sure)
-      const user = await account.create(email, password, name);
-
-      // Store thi data
+  
+      //create thi user account in Appwrite (backend)
+      const user = await account.create('unique()', email, password, name);
+  
+      // Store thi DATA
       await databases.createDocument(
-        "67cf7c320035a1dd0e62", // DatabaseID
-        "67cf7ceb002ef53618ef", // ColID
-        "unique()", 
+        '67cf7c320035a1dd0e62', // DBID
+        '67cf7ceb002ef53618ef', // ColID
+        'unique()',
         {
           name: name,
           email: email,
-          password: hashedPassword,
+          password: password, 
           createdAt: new Date().toISOString(),
         }
       );
-
+  
       Alert.alert("Success", "Account created successfully!");
-      setIsLoggedIn(true); // Log the user in after sign UP
+      setIsLoggedIn(true); // Loging the user nchaAllah!!
     } catch (error) {
       Alert.alert("Error", error.message);
     }
