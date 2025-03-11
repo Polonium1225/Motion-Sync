@@ -2,17 +2,32 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import { Video } from 'expo-av';
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
   const [modalVisible, setModalVisible] = useState(false);
-  
+  const [videoUri, setVideoUri] = useState(null);
+
   const historyData = [
     { id: '1', image: require('../assets/record-placeholder.png') },
     { id: '2', image: require('../assets/record-placeholder.png') },
     { id: '3', image: require('../assets/record-placeholder.png') },
     { id: '4', image: require('../assets/record-placeholder.png') },
   ];
+
+  const pickVideo = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setVideoUri(result.assets[0].uri);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -62,8 +77,24 @@ export default function PerformanceScreen() {
               <Ionicons name="close" size={24} color="black" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Upload video from gallery</Text>
-            <Image source={require('../assets/record-placeholder.png')} style={styles.modalImage} />
-            <TouchableOpacity style={styles.proceedButton}>
+            
+            {/* Show video preview if available */}
+            {videoUri ? (
+              <Video
+                source={{ uri: videoUri }}
+                style={styles.videoPreview}
+                useNativeControls
+                resizeMode="contain"
+              />
+            ) : (
+              <Image source={require('../assets/record-placeholder.png')} style={styles.modalImage} />
+            )}
+            
+            <TouchableOpacity style={styles.uploadButton} onPress={pickVideo}>
+              <Text style={styles.uploadButtonText}>Select Video</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.proceedButton} onPress={() => setModalVisible(false)}>
               <Text style={styles.proceedButtonText}>Proceed</Text>
             </TouchableOpacity>
           </View>
@@ -182,6 +213,24 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
     marginVertical: 10,
   },
+  videoPreview: {
+    width: 250,
+    height: 150,
+    borderRadius: 10,
+    marginVertical: 10,
+  },
+  uploadButton: {
+    backgroundColor: '#2196F3',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginVertical: 5,
+  },
+  uploadButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
   proceedButton: {
     backgroundColor: 'black',
     paddingVertical: 10,
@@ -195,4 +244,3 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
