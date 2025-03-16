@@ -9,72 +9,107 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, databases, Query } from "../lib/AppwriteService";
+import { account, databases, ID } from "../lib/AppwriteService"; 
 import { useNavigation } from "@react-navigation/native";
-import bcrypt from 'react-native-bcrypt'; // Use react-native-bcrypt
+import bcrypt from 'react-native-bcrypt'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function SignIn({ setIsLoggedIn }) {
+export default function SignUp({ setIsLoggedIn }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigation = useNavigation();
 
-  const handleLogin = async () => {
+  const handleSignUp = async () => {
     try {
-      const response = await databases.listDocuments(
-        '67d0bba1000e9caec4f2', // Database ID
-        '67d0bbf8003206b11780', // Collection ID
-        [Query.equal('email', email)] // Query by email
-      );
-  
-      // Check if a user was found
-      if (response.documents.length === 0) {
-        Alert.alert("Error", "User not found");
+      // Validate input fields
+      if (!name || !email || !password) {
+        Alert.alert("Error", "Please fill in all fields");
         return;
       }
   
-      const user = response.documents[0];
+      // Hash the password
+      const saltRounds = 10; 
+      const hashedPassword = bcrypt.hashSync(password, saltRounds); 
   
-      // Compare the input password with the hashed password
-      const isPasswordValid = bcrypt.compareSync(password, user.password); // Use bcrypt.compareSync
-      if (isPasswordValid) {
-        // Store the user's name in AsyncStorage
-        await AsyncStorage.setItem('profile_name', user.name);
+      const userId = ID.unique();
+      console.log("Creating user account with ID:", userId);
+      const user = await account.create(userId, email, password, name);
+      console.log("User account created:", user);
   
-        setIsLoggedIn(true); // Log the user in
-
-      } else {
-        Alert.alert("Error", "Invalid email or password");
+      const documentId = ID.unique(); 
+      console.log("Creating document with ID:", documentId);
+      await databases.createDocument(
+        '67d0bba1000e9caec4f2', // Database ID
+        '67d0bbf8003206b11780', // Collection ID
+        documentId, 
+        {
+          name: name,
+          email: email,
+          password: hashedPassword, // Store the hashed password
+        }
+      );
+      console.log("Document created successfully");
+  
+      // Store the user name for homepage
+      await AsyncStorage.setItem('profile_name', name);
+  
+      try {
+        await account.deleteSessions(); // Delete all active sessions
+        console.log("Existing sessions deleted");
+      } catch (sessionError) {
+        console.log("No existing sessions to delete:", sessionError.message);
       }
+  
+      //Logging !!
+      await account.createEmailPasswordSession(email, password);
+      console.log("User logged in successfully");
+  
+      setIsLoggedIn(true);
     } catch (error) {
+      console.error("SignUp Error:", error); // Log the full error
       Alert.alert("Error", error.message);
     }
-  };
-
-  const handleNavigateToSignUp = () => {
-    navigation.navigate("SignUp"); 
   };
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={["#01CC97", "#22272B"]} style={styles.topSection}>
-        <Text style={styles.welcomeText}>Welcome Back</Text>
+        <Text style={styles.welcomeText}>Create Account</Text>
       </LinearGradient>
 
       <View style={styles.formContainer}>
-        <Text style={styles.signInText}>Sign In</Text>
+        <Text style={styles.signUpText}>Sign Up</Text>
+
         <View>
-          <Text style={styles.inputText}>Email or Mobile Number</Text>
+          <Text style={styles.inputText}>Name</Text>
           <View style={styles.inputWrapper}>
             <Octicons name="person" size={20} color="#01CC97" />
             <TextInput
               style={styles.input}
-              placeholder="Email or Mobile Number"
+              placeholder="Enter Your Name"
+              placeholderTextColor="#777"
+              cursorColor={"#000"}
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
+        </View>
+
+        <View>
+          <Text style={styles.inputText}>Email</Text>
+          <View style={styles.inputWrapper}>
+            <Octicons name="mail" size={20} color="#01CC97" />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter Your Email"
               placeholderTextColor="#777"
               cursorColor={"#000"}
               value={email}
               onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
           </View>
         </View>
@@ -92,7 +127,10 @@ export default function SignIn({ setIsLoggedIn }) {
               value={password}
               onChangeText={setPassword}
             />
-            <TouchableOpacity style={{ padding: 10 }} onPress={() => setShowPassword(!showPassword)}>
+            <TouchableOpacity
+              style={{ padding: 10 }}
+              onPress={() => setShowPassword(!showPassword)}
+            >
               <Ionicons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
@@ -103,24 +141,21 @@ export default function SignIn({ setIsLoggedIn }) {
         </View>
 
         <View style={styles.buttonWrapper}>
-          <TouchableOpacity>
-            <Text style={styles.forgotPassword}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={handleNavigateToSignUp}>
-            <Text style={[styles.signUpText]}>Sign Up</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
+            <Text style={[styles.signInText]}>Sign In</Text>
           </TouchableOpacity>
         </View>
         <LinearGradient
-          colors={['#01CC97', '#000000']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.2, y: 1 }}
-          style={[styles.loginButton, styles.androidShadow]}
+                  colors={['#01CC97', '#000000']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0.2, y: 1 }}
+                  style={[styles.loginButton, styles.androidShadow]}
         >
-          <TouchableOpacity style={styles.buttonInner} onPress={handleLogin}>
+          <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
             <Ionicons name="arrow-forward" size={28} color="#fff" />
           </TouchableOpacity>
         </LinearGradient>
+
       </View>
     </View>
   );
@@ -145,12 +180,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#1F2229",
     marginTop: -80,
-    alignItems: 'center',
+    alignItems: "center",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 20,
   },
-  signInText: {
+  signUpText: {
     color: "#01CC97",
     fontSize: 24,
     fontWeight: "bold",
@@ -180,13 +215,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 10,
   },
-  forgotPassword: {
-    color: "#fff",
-    alignSelf: "flex-start",
-    marginBottom: 20,
-  },
   loginButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -30,
     right: 40,
     backgroundColor: "#333",
@@ -195,26 +225,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  signUpText: {
+  buttonInner: {
+    width: "100%",
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  androidShadow: {
+    elevation: 10,
+  },
+  signInText: {
     color: "#01CC97",
     fontWeight: 'bold',
   },
-  boxShadow: {
-    shadowColor: '#333333',
-    shadowOffset: {
-      width: 6,
-      height: 6,
-    },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-  },
-  androidShadow: {
-    elevation: 10
-  },
-  buttonWrapper: {
-    marginTop: 15,
-    width: '90%',
-    justifyContent: 'space-between',
-    flexDirection: 'row',
-  }
 });
