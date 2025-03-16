@@ -1,144 +1,146 @@
-import React, { useState,useEffect,useRef } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Button,SafeAreaView } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, Dimensions } from 'react-native';
+import WebView from 'react-native-webview';
+import { Camera, useCameraPermissions } from 'expo-camera';
 
-export default function CameraScreen({ navigation }) {
-  const cameraRef = useRef(null); 
-  const [facing, setFacing] = useState('back'); // Remove TypeScript notation
-  const [flash, setFlash] = useState('off');
-  const [hasGalleryPermission, setHasGalleryPermission] = useState(false);
+const API_KEY = "b747416a-bf1b-4417-af5a-25c2996507af";
+const POSETRACKER_API = "https://app.posetracker.com/pose_tracker/tracking";
+const { width, height } = Dimensions.get('window');
+
+export default function App() {
+  const [poseTrackerInfos, setCurrentPoseTrackerInfos] = useState();
+  const [repsCounter, setRepsCounter] = useState(0);
   const [permission, requestPermission] = useCameraPermissions();
 
   useEffect(() => {
-    (async () => {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      setHasGalleryPermission(status === 'granted');
-    })();
+    if (!permission?.granted) {
+      requestPermission();
+    }
   }, []);
 
-  if (!permission) {
-    // Camera permissions are still loading
-    return <View style={styles.container}>
-      <Text>Loading camera permissions...</Text>
-    </View>;
-  }
+  const exercise = "squat";
+  const difficulty = "easy";
+  const skeleton = true;
 
-  if (!permission.granted) {
-    // Camera permissions are not granted yet
-    return (
-      <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to show the camera</Text>
-        <Button onPress={requestPermission} title="Grant Permission" />
-        <Button title="Go Back" onPress={() => navigation.goBack()} />
-      </View>
-    );
-  }
+  const posetracker_url = `${POSETRACKER_API}?token=${API_KEY}&exercise=${exercise}&difficulty=${difficulty}&width=${width}&height=${height}&skeleton=52acfb60-c4d9-4640-b4b1-6b3efee8d668`;
 
-  function toggleCameraFacing() {
-    setFacing(current => (current === 'back' ? 'front' : 'back'));
-  }
-  const takePicture = async () => {
-    if (camera) {
-      const options = { quality: 1, base64: true };
-      const data = await camera.takePictureAsync(options);
-      if (hasGalleryPermission) {
-        await MediaLibrary.saveToLibraryAsync(data.uri);
-      }
+  // Bridge JavaScript BETWEEN POSETRACKER & YOUR APP
+  const jsBridge = `
+    window.addEventListener('message', function(event) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(event.data));
+    });
+
+    window.webViewCallback = function(data) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(data));
+    };
+
+    const originalPostMessage = window.postMessage;
+    window.postMessage = function(data) {
+      window.ReactNativeWebView.postMessage(typeof data === 'string' ? data : JSON.stringify(data));
+    };
+
+    true; // Important for a correct injection
+  `;
+
+  const handleCounter = (count) => {
+    setRepsCounter(count);
+  };
+
+  const handleInfos = (infos) => {
+    setCurrentPoseTrackerInfos(infos);
+    console.log('Received infos:', infos);
+  };
+
+  const webViewCallback = (info) => {
+    if (info?.type === 'counter') {
+      handleCounter(info.current_count);
+    } else {
+      handleInfos(info);
     }
   };
-  const toggleFlash = () => {
-    setFlash(current => (current === 'off' ? 'on' : 'off'));
+
+  const onMessage = (event) => {
+    try {
+      let parsedData;
+      if (typeof event.nativeEvent.data === 'string') {
+        parsedData = JSON.parse(event.nativeEvent.data);
+      } else {
+        parsedData = event.nativeEvent.data;
+      }
+
+      console.log('Parsed data:', parsedData);
+      webViewCallback(parsedData);
+    } catch (error) {
+      console.error('Error processing message:', error);
+      console.log('Problematic data:', event.nativeEvent.data);
+    }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-    <View style={styles.cameraContainer}>
-      {/* Use CameraView instead of Camera */}
-      <CameraView
-        facing={facing}
-        style={styles.camera}
-        ref={cameraRef} // Assign the ref to the camera
-        type={facing} // Use CameraType values
-        flashMode={flash}
-        ratio="16:9"
-      >
-        <View style={styles.overlay}>
-          <View style={styles.topBar}>
-            <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-              <Ionicons name="camera-reverse" size={24} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={toggleFlash}>
-              <Ionicons name="flash" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.bottomControls}>
-            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-              <View style={styles.captureInner} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </CameraView>
+    <View style={styles.container}>
+      <WebView
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        allowsInlineMediaPlayback={true}
+        mediaPlaybackRequiresUserAction={false}
+        style={styles.webView}
+        source={{ uri: posetracker_url }}
+        originWhitelist={['*']}
+        injectedJavaScript={jsBridge}
+        onMessage={onMessage}
+        // Activer le debug pour voir les logs WebView
+        debuggingEnabled={true}
+        // Permettre les communications mixtes HTTP/HTTPS si nécessaire
+        mixedContentMode="compatibility"
+        // Ajouter un gestionnaire d'erreurs
+        onError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.warn('WebView error:', nativeEvent);
+        }}
+        // Ajouter un gestionnaire pour les erreurs de chargement
+        onLoadingError={(syntheticEvent) => {
+          const { nativeEvent } = syntheticEvent;
+          console.warn('WebView loading error:', nativeEvent);
+        }}
+      />
+      <View style={styles.infoContainer}>
+        <Text>Status : {!poseTrackerInfos ? "loading AI..." : "AI Running"}</Text>
+        <Text>Info type : {!poseTrackerInfos ? "loading AI..." : poseTrackerInfos.type}</Text>
+        <Text>Counter: {repsCounter}</Text>
+        {poseTrackerInfos?.ready === false ? (
+          <>
+            <Text>Placement ready: false</Text>
+            <Text>Placement info: Move {poseTrackerInfos?.postureDirection}</Text>
+          </>
+        ) : (
+          <>
+            <Text>Placement ready: true</Text>
+            <Text>Placement info: You can start doing squats 🏋️</Text>
+          </>
+        )}
+      </View>
     </View>
-  </SafeAreaView>
-    
   );
 }
 
 const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#000',
-    },
-    cameraContainer: {
-      flex: 1,
-    },
-    camera: {
-      flex: 1,
-    },
-    overlay: {
-      flex: 1,
-      justifyContent: 'space-between',
-    },
-    topBar: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingHorizontal: 20,
-      paddingVertical: 10,
-      backgroundColor: 'rgba(0,0,0,0.3)',
-    },
-    button: {
-      padding: 10,
-      borderRadius: 50,
-      backgroundColor: 'rgba(255,255,255,0.3)',
-      elevation: 3,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 2,
-    },
-    bottomControls: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      marginBottom: 30,
-    },
-    captureButton: {
-      width: 70,
-      height: 70,
-      borderRadius: 50,
-      backgroundColor: '#05907A',
-      justifyContent: 'center',
-      alignItems: 'center',
-      elevation: 5,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.2,
-      shadowRadius: 4,
-    },
-    captureInner: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: '#fff',
-    },
-  });
+  container: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  webView: {
+    width: '100%',
+    height: '100%',
+    zIndex: 1,
+  },
+  infoContainer: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    padding: 10,
+  },
+});
