@@ -21,9 +21,10 @@
     "@tensorflow/tfjs": "^4.22.0",
     "@tensorflow/tfjs-backend-webgpu": "^4.22.0",
     "@tensorflow/tfjs-react-native": "^1.0.0",
+    "appwrite": "^17.0.0",
+    "bcryptjs": "^3.0.2",
     "expo": "~52.0.37",
-    "expo-camera": "~16.0.17",
-    "expo-gl": "~15.0.4",
+    "expo-av": "~15.0.2",
     "expo-image-picker": "~16.0.6",
     "expo-linear-gradient": "~14.0.2",
     "expo-media-library": "~17.0.6",
@@ -32,6 +33,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native": "0.76.7",
+    "react-native-bcrypt": "^2.4.0",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "~2.20.2",
     "react-native-image-picker": "^8.2.0",
@@ -43,8 +45,11 @@
     "react-native-svg": "15.8.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "~0.19.13",
-    "expo-av": "~15.0.2",
-    "react-native-webview": "13.12.5"
+    "react-native-webview": "13.12.5",
+    "uuid": "^11.1.0",
+    "expo-camera": "~16.0.18",
+    "expo-gl": "~15.0.4"
+
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
