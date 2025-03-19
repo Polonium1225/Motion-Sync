@@ -11,10 +11,10 @@ export default function PerformanceScreen() {
   const [videoUri, setVideoUri] = useState(null);
 
   const historyData = [
-    { id: '1', image: require('../assets/record-placeholder.png') },
-    { id: '2', image: require('../assets/record-placeholder.png') },
-    { id: '3', image: require('../assets/record-placeholder.png') },
-    { id: '4', image: require('../assets/record-placeholder.png') },
+    { id: '1', image: require('../assets/video.png') },
+    { id: '2', image: require('../assets/video.png') },
+    { id: '3', image: require('../assets/video.png') },
+    { id: '4', image: require('../assets/video.png') },
   ];
 
   const pickVideo = async () => {
@@ -57,7 +57,7 @@ export default function PerformanceScreen() {
       {/* Improvement Section */}
       <Text style={styles.sectionTitle}>Improvement</Text>
       <View style={styles.improvementContainer}>
-        <Image source={require('../assets/record-placeholder.png')} style={styles.graphImage} />
+        <Image source={require('../assets/video.png')} style={styles.graphImage} />
         <Text style={styles.compareText}>Compare Past vs. Present Movements</Text>
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.button}>
@@ -74,7 +74,7 @@ export default function PerformanceScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="black" />
+              <Ionicons name="close" size={24} color="white"/>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Upload video from gallery</Text>
             
@@ -87,7 +87,7 @@ export default function PerformanceScreen() {
                 resizeMode="contain"
               />
             ) : (
-              <Image source={require('../assets/record-placeholder.png')} style={styles.modalImage} />
+              <Image source={require('../assets/video.png')} style={styles.modalImage} />
             )}
             
             <TouchableOpacity style={styles.uploadButton} onPress={pickVideo}>
@@ -107,7 +107,7 @@ export default function PerformanceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#22272B',
   },
   header: {
     flexDirection: 'row',
@@ -115,11 +115,13 @@ const styles = StyleSheet.create({
     paddingTop: 35,
   },
   headerTitle: {
+    color:"#fff",
     fontSize: 18,
     fontWeight: 'bold',
     marginLeft: 10,
   },
   sectionTitle: {
+    color:"#fff",
     fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
@@ -151,7 +153,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   improvementContainer: {
-    backgroundColor: '#D3D3D3',
+    backgroundColor: '#2D343C',
     borderRadius: 10,
     margin: 15,
     padding: 15,
@@ -164,6 +166,7 @@ const styles = StyleSheet.create({
   },
   compareText: {
     fontSize: 16,
+    color:"#fff",
     fontWeight: 'bold',
     textAlign: 'center',
     marginVertical: 10,
@@ -174,11 +177,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   button: {
-    backgroundColor: 'black',
-    paddingVertical: 10,
-    paddingHorizontal: 25,
-    borderRadius: 5,
-    margin: 5,
+    backgroundColor: '#07A07C',
+    paddingVertical: 12,
+    paddingHorizontal: 60,
+    borderRadius: 20,
+    marginTop: 15,
+    alignItems: 'center',
+    alignSelf: 'center',
   },
   buttonText: {
     color: 'white',
@@ -193,7 +198,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#22272B',
     width: 300,
     padding: 20,
     borderRadius: 10,
@@ -203,6 +208,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   modalTitle: {
+    color:"#01CC97",
     fontSize: 18,
     fontWeight: 'bold',
     marginVertical: 10,
@@ -220,11 +226,18 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   uploadButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 5,
-    marginVertical: 5,
+      //backgroundColor: '#22272B',
+      paddingVertical: 7,
+      paddingHorizontal: 25,
+      borderColor: "#01CC97",
+      borderWidth: 2,
+      borderRadius: 30,
+      marginTop: 15,
+      width: '60%',
+      height: 50,
+      justifyContent: 'center',
+      alignItems: 'center',
+      alignSelf: 'center',
   },
   uploadButtonText: {
     color: 'white',
@@ -233,10 +246,15 @@ const styles = StyleSheet.create({
   },
   proceedButton: {
     backgroundColor: 'black',
+    width: '60%',
     paddingVertical: 10,
     paddingHorizontal: 25,
     borderRadius: 5,
     marginTop: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    borderRadius: 30,
   },
   proceedButtonText: {
     color: 'white',

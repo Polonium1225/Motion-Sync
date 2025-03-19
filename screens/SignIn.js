@@ -9,9 +9,8 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, databases, Query } from "../lib/AppwriteService";
+import { account } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
-import bcrypt from 'react-native-bcrypt'; // Use react-native-bcrypt
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignIn({ setIsLoggedIn }) {
@@ -22,33 +21,38 @@ export default function SignIn({ setIsLoggedIn }) {
 
   const handleLogin = async () => {
     try {
-      const response = await databases.listDocuments(
-        '67d0bba1000e9caec4f2', // Database ID
-        '67d0bbf8003206b11780', // Collection ID
-        [Query.equal('email', email)] // Query by email
-      );
-  
-      // Check if a user was found
-      if (response.documents.length === 0) {
-        Alert.alert("Error", "User not found");
+      // Validate input fields
+      if (!email || !password) {
+        Alert.alert("Error", "Please enter both email and password");
         return;
       }
   
-      const user = response.documents[0];
-  
-      // Compare the input password with the hashed password
-      const isPasswordValid = bcrypt.compareSync(password, user.password); // Use bcrypt.compareSync
-      if (isPasswordValid) {
-        // Store the user's name in AsyncStorage
-        await AsyncStorage.setItem('profile_name', user.name);
-  
-        setIsLoggedIn(true); // Log the user in
-
-      } else {
-        Alert.alert("Error", "Invalid email or password");
+      console.log("Attempting to log in with:", email);
+      
+      // Delete any existing sessions first
+      try {
+        await account.deleteSessions();
+        console.log("Deleted existing sessions");
+      } catch (sessionError) {
+        console.log("No existing sessions to delete:", sessionError.message);
       }
+      
+      // Use Appwrite's built-in authentication
+      await account.createEmailPasswordSession(email, password);
+      console.log("Login successful");
+      
+      // Get the user's name
+      const user = await account.get();
+      console.log("User fetched:", user);
+      
+      // Store the user's name in AsyncStorage
+      await AsyncStorage.setItem('profile_name', user.name);
+      
+      // Set the user as logged in
+      setIsLoggedIn(true);
     } catch (error) {
-      Alert.alert("Error", error.message);
+      console.error("Login Error:", error);
+      Alert.alert("Error", "Invalid email or password");
     }
   };
 
@@ -65,16 +69,18 @@ export default function SignIn({ setIsLoggedIn }) {
       <View style={styles.formContainer}>
         <Text style={styles.signInText}>Sign In</Text>
         <View>
-          <Text style={styles.inputText}>Email or Mobile Number</Text>
+          <Text style={styles.inputText}>Email</Text>
           <View style={styles.inputWrapper}>
             <Octicons name="person" size={20} color="#01CC97" />
             <TextInput
               style={styles.input}
-              placeholder="Email or Mobile Number"
+              placeholder="Enter your email"
               placeholderTextColor="#777"
               cursorColor={"#000"}
               value={email}
               onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
           </View>
         </View>
@@ -84,7 +90,7 @@ export default function SignIn({ setIsLoggedIn }) {
           <View style={styles.inputWrapper}>
             <Octicons name="lock" size={20} color="#01CC97" />
             <TextInput
-              style={[styles.input]}
+              style={styles.input}
               placeholder="Enter Your Password"
               placeholderTextColor="#777"
               cursorColor={"#000"}
@@ -216,5 +222,9 @@ const styles = StyleSheet.create({
     width: '90%',
     justifyContent: 'space-between',
     flexDirection: 'row',
-  }
+  },
+  buttonInner: {
+    width: "100%",
+    alignItems: "center",
+  },
 });
