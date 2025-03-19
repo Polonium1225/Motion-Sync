@@ -75,6 +75,7 @@ export default function SignIn({ setIsLoggedIn }) {
               cursorColor={"#000"}
               value={email}
               onChangeText={setEmail}
+              autoCapitalize="none"
             />
           </View>
         </View>
