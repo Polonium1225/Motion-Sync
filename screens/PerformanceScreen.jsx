@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
-import { useCallback } from 'react';
+import { saveHistory, getUserHistory , getUserId } from '../lib/AppwriteService';
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
@@ -12,13 +12,31 @@ export default function PerformanceScreen() {
   const [pastModalVisible, setPastModalVisible] = useState(false);
   const [videoUri, setVideoUri] = useState(null);
   const [pastVideoUri, setPastVideoUri] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [userId, setUserId] = useState(null);
+
+  
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const userId = await getUserId();
+        setUserId(userId);
+        const userHistory = await getUserHistory(userId);  
+        setHistory(userHistory);
+      } catch (error) {
+        console.error('Error fetching history:', error);
+      }
+    };
+    fetchHistory();
+  }, []);
 
   const redirect = useCallback(() => {
     if (pastVideoUri && videoUri) {
+      saveHistory(userId, pastVideoUri, videoUri);
       navigation.navigate('PerformanceComparisonScreen');
     }
   }, [pastVideoUri, videoUri, navigation]);
-  
 
   const pickVideo = async (setVideoFunction) => {  
     let result = await ImagePicker.launchImageLibraryAsync({  
@@ -40,36 +58,31 @@ export default function PerformanceScreen() {
         <Text style={styles.headerTitle}>Performance</Text>
       </TouchableOpacity>
 
-      {/* History Section */}
-      <Text style={styles.sectionTitle}>History</Text>
-      <View style={styles.historyContainer}>
-        <FlatList
-          data={[
-            { id: '1', image: require('../assets/record-placeholder.png') },
-            { id: '2', image: require('../assets/record-placeholder.png') },
-            { id: '3', image: require('../assets/record-placeholder.png') },
-            { id: '4', image: require('../assets/record-placeholder.png') },
-          ]}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          renderItem={({ item }) => (
+      {/* History Section */}  
+      <Text style={styles.sectionTitle}>History</Text>  
+      <View style={styles.historyContainer}>  
+        <FlatList  
+          data={history}  
+          keyExtractor={(item) => item.$id}  
+          numColumns={2}  
+          renderItem={({ item }) => (  
             <TouchableOpacity style={styles.recordItem} onPress={() => navigation.navigate('PerformanceComparisonScreen')}>
-              <Image source={item.image} style={styles.recordImage} />
               <Text style={styles.recordText}>RECORD</Text>
-            </TouchableOpacity>
+              <Text>{item.timestamp}</Text> 
+            </TouchableOpacity>  
           )}
-        />
-      </View>
+        />  
+      </View>  
 
       {/* Improvement Section */}
       <Text style={styles.sectionTitle}>Improvement</Text>
       <View style={styles.improvementContainer}>
-      <TouchableOpacity onPress={redirect}>  
-        <Image  
-          source={require('../assets/record-placeholder.png')} 
-          style={{ width: 100, height: 100}}   
-        />  
-      </TouchableOpacity>  
+        <TouchableOpacity onPress={redirect}>  
+          <Image  
+            source={require('../assets/record-placeholder.png')} 
+            style={{ width: 100, height: 100 }}   
+          />  
+        </TouchableOpacity>  
         <Text style={styles.compareText}>Compare Past vs. Present Movements</Text>
         <View style={styles.buttonRow}>
           <TouchableOpacity style={styles.button} onPress={() => setPastModalVisible(true)}>
