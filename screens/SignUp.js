@@ -19,6 +19,7 @@ import * as WebBrowser from 'expo-web-browser';
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [id , setId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigation = useNavigation();
@@ -81,7 +82,6 @@ export default function SignUp({ setIsLoggedIn }) {
       const hashedPassword = bcrypt.hashSync(password, saltRounds);
 
       const userId = ID.unique();
-      console.log("Creating user account with ID:", userId);
       const user = await account.create(userId, email, password, name);
       console.log("User account created:", user);
 
@@ -92,6 +92,7 @@ export default function SignUp({ setIsLoggedIn }) {
         '67d0bbf8003206b11780', // Collection ID
         documentId,
         {
+          userId: userId,
           name: name,
           email: email,
           password: hashedPassword, // Store the hashed password

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ImageBackground } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
 import { useNavigation } from '@react-navigation/native';
 

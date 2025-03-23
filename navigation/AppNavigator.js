@@ -8,7 +8,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
 import SignUp from '../screens/SignUp';
-import Performance from '../screens/Performance';
+import PerformanceScreen from '../screens/PerformanceScreen';
 import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
 import { Ionicons } from 'react-native-vector-icons';
 
@@ -72,7 +72,7 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           />
           <Stack.Screen
             name="Performance"
-            component={Performance}
+            component={PerformanceScreen}
             options={{ headerShown: false }}
           />
           <Stack.Screen
