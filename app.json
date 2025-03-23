@@ -43,12 +43,20 @@
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera."
         }
-      ]
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.999675398759-fog61cpqtcek5jo9cfcddmqkea6nrp1e"
+        }
+      ],
+      "expo-dev-client"
     ],
     "extra": {
       "eas": {
         "projectId": "23c4ee4d-83c6-4007-a325-bebc217841a2"
       }
-    }
+    },
+    "owner": "joulz"
   }
 }
