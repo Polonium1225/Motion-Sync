@@ -1,84 +1,115 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, Dimensions } from 'react-native';
 import WebView from 'react-native-webview';
-import { Camera, useCameraPermissions } from 'expo-camera';
+import { Camera } from 'expo-camera';
 
-const API_KEY = "b747416a-bf1b-4417-af5a-25c2996507af";
-const POSETRACKER_API = "https://app.posetracker.com/pose_tracker/tracking";
+const POSETRACKER_API = "http://192.168.231.253:8000";  
+const WS_URL = "ws://192.168.231.253:8000/ws";
 const { width, height } = Dimensions.get('window');
 
 export default function App() {
-  const [poseTrackerInfos, setCurrentPoseTrackerInfos] = useState();
-  const [repsCounter, setRepsCounter] = useState(0);
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission] = Camera.useCameraPermissions();
+  const [isConnected, setIsConnected] = useState(false);
+  const [debugText, setDebugText] = useState('Initializing...');
+  const cameraRef = useRef(null);
+  const webViewRef = useRef(null);
 
   useEffect(() => {
-    if (!permission?.granted) {
-      requestPermission();
-    }
+    (async () => {
+      if (!permission?.granted) {
+        await requestPermission();
+      }
+    })();
   }, []);
 
-  const exercise = "squat";
-  const difficulty = "easy";
-  const skeleton = true;
+  const posetracker_url = `${POSETRACKER_API}/`;
 
-  const posetracker_url = `${POSETRACKER_API}?token=${API_KEY}&exercise=${exercise}&difficulty=${difficulty}&width=${width}&height=${height}&skeleton=52acfb60-c4d9-4640-b4b1-6b3efee8d668`;
-
-  // Bridge JavaScript BETWEEN POSETRACKER & YOUR APP
   const jsBridge = `
+    function debugLog(message) {
+      console.log(message);
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'debug', message: message }));
+    }
+
+    function setupWebSocket() {
+      debugLog('Setting up WebSocket to ${WS_URL}');
+      window.ws = new WebSocket('${WS_URL}');
+      
+      window.ws.onopen = function() {
+        debugLog('WebSocket connected');
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'connection', status: 'connected' }));
+      };
+      
+      window.ws.onclose = function(event) {
+        debugLog('WebSocket closed: ' + event.code + ' ' + event.reason);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'connection', status: 'disconnected' }));
+        setTimeout(setupWebSocket, 3000);
+      };
+      
+      window.ws.onerror = function(error) {
+        debugLog('WebSocket error: ' + JSON.stringify(error));
+      };
+      
+      window.ws.onmessage = function(event) {
+        debugLog('Received message: ' + event.data.length + ' characters');
+        window.ReactNativeWebView.postMessage(event.data);
+      };
+    }
+    
+    setupWebSocket();
+
     window.addEventListener('message', function(event) {
-      window.ReactNativeWebView.postMessage(JSON.stringify(event.data));
+      try {
+        let data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data.image) {
+          debugLog('Received image data, length: ' + data.image.length);
+          
+          let fixedBase64 = data.image.replace(/\\s/g, '').replace(/[^A-Za-z0-9+/=]/g, '');
+          
+          if (window.ws && window.ws.readyState === WebSocket.OPEN) {
+            window.ws.send(fixedBase64);
+            debugLog('Sent image to WebSocket');
+          } else {
+            debugLog('WebSocket not ready, cannot send image');
+          }
+        }
+      } catch (error) {
+        debugLog('Error processing message: ' + error.message);
+      }
     });
 
     window.webViewCallback = function(data) {
       window.ReactNativeWebView.postMessage(JSON.stringify(data));
     };
 
-    const originalPostMessage = window.postMessage;
-    window.postMessage = function(data) {
-      window.ReactNativeWebView.postMessage(typeof data === 'string' ? data : JSON.stringify(data));
-    };
+    window.addEventListener('load', function() {
+      debugLog('Page fully loaded');
+    });
 
-    true; // Important for a correct injection
+    debugLog('JS Bridge initialized');
+    true;
   `;
 
-  const handleCounter = (count) => {
-    setRepsCounter(count);
-  };
-
-  const handleInfos = (infos) => {
-    setCurrentPoseTrackerInfos(infos);
-    console.log('Received infos:', infos);
-  };
-
-  const webViewCallback = (info) => {
-    if (info?.type === 'counter') {
-      handleCounter(info.current_count);
-    } else {
-      handleInfos(info);
-    }
-  };
-
-  const onMessage = (event) => {
-    try {
-      let parsedData;
-      if (typeof event.nativeEvent.data === 'string') {
-        parsedData = JSON.parse(event.nativeEvent.data);
-      } else {
-        parsedData = event.nativeEvent.data;
+  const sendFrame = async () => {
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true });
+      if (webViewRef.current) {
+        webViewRef.current.injectJavaScript(`
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'image', image: "${photo.base64}" }));
+        `);
       }
-
-      console.log('Parsed data:', parsedData);
-      webViewCallback(parsedData);
-    } catch (error) {
-      console.error('Error processing message:', error);
-      console.log('Problematic data:', event.nativeEvent.data);
     }
   };
+
+  useEffect(() => {
+    const interval = setInterval(sendFrame, 1000); // Capture every 1 second
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <View style={styles.container}>
+      <Camera ref={cameraRef} style={styles.camera} type={Camera.Constants.Type.front} />
       <WebView
+        ref={webViewRef}
         javaScriptEnabled={true}
         domStorageEnabled={true}
         allowsInlineMediaPlayback={true}
@@ -87,60 +118,19 @@ export default function App() {
         source={{ uri: posetracker_url }}
         originWhitelist={['*']}
         injectedJavaScript={jsBridge}
-        onMessage={onMessage}
-        // Activer le debug pour voir les logs WebView
-        debuggingEnabled={true}
-        // Permettre les communications mixtes HTTP/HTTPS si nécessaire
-        mixedContentMode="compatibility"
-        // Ajouter un gestionnaire d'erreurs
-        onError={(syntheticEvent) => {
-          const { nativeEvent } = syntheticEvent;
-          console.warn('WebView error:', nativeEvent);
-        }}
-        // Ajouter un gestionnaire pour les erreurs de chargement
-        onLoadingError={(syntheticEvent) => {
-          const { nativeEvent } = syntheticEvent;
-          console.warn('WebView loading error:', nativeEvent);
-        }}
+        onMessage={(event) => console.log("Received:", event.nativeEvent.data)}
       />
       <View style={styles.infoContainer}>
-        <Text>Status : {!poseTrackerInfos ? "loading AI..." : "AI Running"}</Text>
-        <Text>Info type : {!poseTrackerInfos ? "loading AI..." : poseTrackerInfos.type}</Text>
-        <Text>Counter: {repsCounter}</Text>
-        {poseTrackerInfos?.ready === false ? (
-          <>
-            <Text>Placement ready: false</Text>
-            <Text>Placement info: Move {poseTrackerInfos?.postureDirection}</Text>
-          </>
-        ) : (
-          <>
-            <Text>Placement ready: true</Text>
-            <Text>Placement info: You can start doing squats 🏋️</Text>
-          </>
-        )}
+        <Text>Debug: {debugText}</Text>
+        <Text>Connection: {isConnected ? "Connected" : "Disconnected"}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    flexDirection: 'column',
-  },
-  webView: {
-    width: '100%',
-    height: '100%',
-    zIndex: 1,
-  },
-  infoContainer: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    padding: 10,
-  },
+  container: { flex: 1 },
+  camera: { width: '100%', height: '50%', position: 'absolute' },
+  webView: { width: '100%', height: '100%' },
+  infoContainer: { position: 'absolute', top: 60, left: 0, right: 0, alignItems: 'center', padding: 10 },
 });
