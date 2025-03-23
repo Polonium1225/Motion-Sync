@@ -12,18 +12,27 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.team.motionsync"
     },
     "android": {
       "android": {
-                    "permissions": ["CAMERA", "WRITE_EXTERNAL_STORAGE", "READ_EXTERNAL_STORAGE"]
-                  },
+        "permissions": [
+          "CAMERA",
+          "WRITE_EXTERNAL_STORAGE",
+          "READ_EXTERNAL_STORAGE"
+        ]
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.team.motionsync",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -35,6 +44,11 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "23c4ee4d-83c6-4007-a325-bebc217841a2"
+      }
+    }
   }
 }
