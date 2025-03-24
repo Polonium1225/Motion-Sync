@@ -13,8 +13,11 @@ import { account, databases, ID } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import bcrypt from 'react-native-bcrypt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { GoogleSignin,
+        isSuccessResponse,
+        isErrorWithCode,
+        statusCodes,
+ } from "@react-native-google-signin/google-signin";
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -23,51 +26,73 @@ export default function SignUp({ setIsLoggedIn }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigation = useNavigation();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Google Sign-In Configuration
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: '432125442153-bjkbegagtko0vadulk1stfo0n6376gsm.apps.googleusercontent.com', // Your Web Client ID
-    iosClientId: 'YOUR_IOS_CLIENT_ID', // Optional: For iOS
-    androidClientId: 'YOUR_ANDROID_CLIENT_ID', // Optional: For Android
-  });
+  // const handleGoogleSignIn = async (authentication) => {
+  //   try {
+  //     // Fetch user info from Google
+  //     const userInfoResponse = await fetch(
+  //       'https://www.googleapis.com/oauth2/v2/userinfo',
+  //       {
+  //         headers: { Authorization: `Bearer ${authentication.accessToken}` },
+  //       }
+  //     );
+  //     const userInfo = await userInfoResponse.json();
+  //     console.log("Google User Info:", userInfo);
 
-  // Handle Google Sign-In Response
-  React.useEffect(() => {
-    if (response?.type === 'success') {
-      const { authentication } = response;
-      // Use the authentication object to sign in the user
-      console.log("Google Sign-In Success:", authentication);
-      handleGoogleSignIn(authentication);
-    }
-  }, [response]);
+  //     // Extract user details
+  //     const { name, email } = userInfo;
 
-  const handleGoogleSignIn = async (authentication) => {
+  //     // Store user details in your database or state
+  //     setName(name);
+  //     setEmail(email);
+
+  //     // Optionally, log the user in automatically
+  //     setIsLoggedIn(true);
+  //     Alert.alert("Success", "Signed in with Google successfully!");
+  //   } catch (error) {
+  //     console.error("Google Sign-In Error:", error);
+  //     Alert.alert("Error", "Failed to sign in with Google.");
+  //   }
+  // };
+  const handleGoogleSignIn = async () => {
     try {
-      // Fetch user info from Google
-      const userInfoResponse = await fetch(
-        'https://www.googleapis.com/oauth2/v2/userinfo',
-        {
-          headers: { Authorization: `Bearer ${authentication.accessToken}` },
-        }
-      );
-      const userInfo = await userInfoResponse.json();
-      console.log("Google User Info:", userInfo);
-
-      // Extract user details
-      const { name, email } = userInfo;
-
-      // Store user details in your database or state
-      setName(name);
-      setEmail(email);
-
-      // Optionally, log the user in automatically
-      setIsLoggedIn(true);
-      Alert.alert("Success", "Signed in with Google successfully!");
+      setIsSubmitting(true);
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      if(isSuccessResponse(response)){
+        const {idToken, user} = response.data;
+        const {name, email, photo } = user;
+        setName(name);
+        setEmail(email);
+        navigation.navigate("HomeScreen.js", {name, email, photo}); 
+      }else{
+        //sign in cancelled by user
+        showMessage("Google sign was cancelled!")
+      }
+      
+      setIsSubmitting(false);
     } catch (error) {
-      console.error("Google Sign-In Error:", error);
-      Alert.alert("Error", "Failed to sign in with Google.");
+      if(isErrorWithCode(error)){
+        switch(error.code){
+          case statusCodes.IN_PROGRESS:
+            showMessage("Google signin is in progress")
+            break;
+          case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
+            showMessage("Play services are not available")
+            break;
+          default:
+            showMessage(error.code);
+        
+        }
+        showMessage("An error occurred!!");
+      }else{
+
+      }
+
+      setIsSubmitting(false);
     }
-  };
+  }
 
   const handleSignUp = async () => {
     try {
@@ -199,7 +224,9 @@ export default function SignUp({ setIsLoggedIn }) {
           end={{ x: 0.2, y: 1 }}
           style={[styles.loginButton, styles.androidShadow]}
         >
-          <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
+          <TouchableOpacity style={styles.buttonInner} 
+                            onPress={handleSignUp} 
+                            disabled={isSubmitting}>
             <Ionicons name="arrow-forward" size={28} color="#fff" />
           </TouchableOpacity>
         </LinearGradient>
