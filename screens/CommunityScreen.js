@@ -1,8 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import PostCard from '../components/PostCard';
+import { useNavigation } from '@react-navigation/native';
 
 export default function CommunityScreen() {
+  const navigation = useNavigation();
+
   return (
     <View style={styles.container}>
       {/* Buttons Row (Centered) */}
@@ -11,9 +14,12 @@ export default function CommunityScreen() {
           <Text style={styles.buttonText}>Post</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Chat</Text>
-        </TouchableOpacity>
+        <TouchableOpacity 
+        style={styles.button}
+        onPress={() => navigation.navigate('Chat')}
+      >
+        <Text style={styles.buttonText}>Chat</Text>
+      </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>

@@ -10,6 +10,7 @@ import SignIn from '../screens/SignIn';
 import SignUp from '../screens/SignUp';
 import PerformanceScreen from '../screens/PerformanceScreen';
 import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
+import ChatScreen from '../screens/ChatScreen';
 import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -78,6 +79,12 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen
             name="PerformanceComparisonScreen"
             component={PerformanceComparisonScreen}
+            options={{ headerShown: false }}
+          />
+          {/* Removed the nested Stack.Navigator and moved these screens to the main stack */}
+          <Stack.Screen 
+            name="Chat" 
+            component={ChatScreen} 
             options={{ headerShown: false }}
           />
         </>
