@@ -10,9 +10,9 @@ const friends = [
   { id: '5', name: 'Mike', message: 'hi', avatar: require('../assets/mike.png'), status: 'online' },
 ];
 
-export default function CommunityScreen() {
+export default function ChatScreen() {
     const navigation = useNavigation();
-  
+    
     return (
       <View style={styles.container}>
         <TextInput style={styles.searchBar} placeholder="Find friends" />
@@ -29,10 +29,16 @@ export default function CommunityScreen() {
             </TouchableOpacity>
           )}
         />
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('NoConversationScreen')}>
+        <TouchableOpacity 
+          style={styles.navButton} 
+          onPress={() => navigation.navigate('NoConversation')}
+        >
           <Text style={styles.navButtonText}>No Conversation</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navButton} onPress={() => navigation.navigate('SearchFriendsScreen')}>
+        <TouchableOpacity 
+          style={styles.navButton} 
+          onPress={() => navigation.navigate('SearchFriends')}
+        >
           <Text style={styles.navButtonText}>Search Friends</Text>
         </TouchableOpacity>
       </View>
