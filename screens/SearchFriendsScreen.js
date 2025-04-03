@@ -44,40 +44,38 @@ export default function SearchFriendsScreen() {
         try {
           const user = await account.get();
           
-          // 1. First create friendship request
+          // 1. Create friendship with proper permission format
           const friendship = await databases.createDocument(
-            '67d0bba1000e9caec4f2', // Your database ID
-            '67edbf2c0002aa7c483e', // friendships collection ID
+            '67d0bba1000e9caec4f2',
+            '67edbf2c0002aa7c483e',
             'unique()',
             {
               requester: user.$id,
               recipient: friendId,
-              status: 'pending'
+              status: 'accepted' // Auto-accept for demo
             },
-            [`user:${user.$id}`, `user:${friendId}`] // Basic permissions
+            [
+              `read("user:${user.$id}")`,
+              `update("user:${user.$id}")`,
+              `read("user:${friendId}")`
+            ]
           );
       
-          // 2. Create conversation only if friendship is accepted
+          // 2. Create conversation
           const conversation = await databases.createDocument(
             '67d0bba1000e9caec4f2',
-            '67edc4ef0032ae87bfe4', // conversations collection ID
+            '67edc4ef0032ae87bfe4',
             'unique()',
             {
               participants: [user.$id, friendId],
               lastMessage: "Conversation started",
               lastMessageAt: new Date().toISOString()
             },
-            [`user:${user.$id}`, `user:${friendId}`]
-          );
-      
-          // 3. Update friendship status to accepted
-          await databases.updateDocument(
-            '67d0bba1000e9caec4f2',
-            '67edbf2c0002aa7c483e',
-            friendship.$id,
-            {
-              status: 'accepted'
-            }
+            [
+              `read("user:${user.$id}")`,
+              `read("user:${friendId}")`,
+              `update("user:${user.$id}")`
+            ]
           );
       
           navigation.navigate('Chat', { 
@@ -87,8 +85,7 @@ export default function SearchFriendsScreen() {
           });
       
         } catch (error) {
-          console.log("Error in conversation flow:", error.message);
-          // Fallback - navigate with temporary data
+          console.log("Error:", error.message);
           navigation.navigate('Chat', {
             conversationId: 'temp_' + Date.now(),
             friendId: friendId,
