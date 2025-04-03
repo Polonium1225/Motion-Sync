@@ -11,26 +11,31 @@ export default function CommunityScreen() {
   const [hasConversations, setHasConversations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const checkConversations = async () => {
-      try {
-        const user = await account.get();
-        const response = await databases.listDocuments(
-          '67d0bba1000e9caec4f2',
-          '67edc4ef0032ae87bfe4',
-          [Query.contains('participants', user.$id)]
-        );
-        setHasConversations(response.total > 0);
-      } catch (error) {
-        console.log("No conversations found"); // Silent fail
-        setHasConversations(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // In CommunityScreen.js
+useEffect(() => {
+  const checkConversations = async () => {
+    const user = await account.get();
+    const conversations = await databases.listDocuments(
+      '67d0bba1000e9caec4f2',
+      '67edc4ef0032ae87bfe4',
+      [
+        Query.or([
+          Query.equal('participant1', user.$id),
+          Query.equal('participant2', user.$id)
+        ]),
+        Query.limit(1) // Just check if any exist
+      ]
+    );
 
-    checkConversations();
-  }, []);
+    if (conversations.documents.length > 0) {
+      navigation.navigate('FindFriend');
+    } else {
+      navigation.navigate('NoConversation');
+    }
+  };
+
+  checkConversations();
+}, []);
 
   const handleChatPress = () => {
     navigation.navigate(hasConversations ? 'Chat' : 'NoConversation');
