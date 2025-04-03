@@ -8,58 +8,32 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
-  const [hasConversations, setHasConversations] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
+  const [hasConversations, setHasConversations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserAndConversations = async () => {
+    const checkConversations = async () => {
       try {
-        // 1. Get current user session
         const user = await account.get();
-        setCurrentUserId(user.$id);
-        
-        // 2. Check for conversations
         const response = await databases.listDocuments(
           '67d0bba1000e9caec4f2',
-          'conversations',
+          '67edc4ef0032ae87bfe4',
           [Query.contains('participants', user.$id)]
         );
-        
         setHasConversations(response.total > 0);
       } catch (error) {
-        console.error('Error:', error);
-        Alert.alert("Error", "Failed to load conversations");
+        console.log("No conversations found"); // Silent fail
         setHasConversations(false);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchUserAndConversations();
-
-    // Cleanup function
-    return () => {
-      // Cancel any ongoing requests if needed
-    };
+    checkConversations();
   }, []);
 
-  const handleChatPress = async () => {
-    if (isLoading) return;
-    
-    try {
-      // Double-check authentication
-      const session = await account.getSession('current');
-      if (!session) {
-        Alert.alert("Session Expired", "Please login again");
-        return;
-      }
-
-      navigation.navigate(hasConversations ? 'Chat' : 'NoConversation');
-    } catch (error) {
-      console.error('Session check failed:', error);
-      Alert.alert("Error", "Please authenticate first");
-    }
+  const handleChatPress = () => {
+    navigation.navigate(hasConversations ? 'Chat' : 'NoConversation');
   };
 
   if (isLoading) {
@@ -72,7 +46,6 @@ export default function CommunityScreen() {
 
   return (
     <View style={styles.container}>
-
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button}>
           <Text style={styles.buttonText}>Post</Text>
@@ -81,17 +54,13 @@ export default function CommunityScreen() {
         <TouchableOpacity 
           style={styles.button}
           onPress={handleChatPress}
-          disabled={isLoading}
         >
-          <Text style={styles.buttonText}>
-            {isLoading ? 'Loading...' : 'Chat'}
-          </Text>
+          <Text style={styles.buttonText}>Chat</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>Community</Text>
-
         <View style={styles.posts}>
           <PostCard />
           <PostCard />

@@ -7,11 +7,11 @@ export default function NoConversationScreen() {
   
   return (
     <View style={styles.centeredContainer}>
-      <Text style={styles.noConversationText}>No Conversation</Text>
-      <Text style={styles.subText}>Add some friends and start chatting with them.</Text>
+      <Text style={styles.noConversationText}>No Conversations Yet</Text>
+      <Text style={styles.subText}>Add friends to start chatting</Text>
       <TouchableOpacity 
         style={styles.navButton} 
-        onPress={() => navigation.navigate('Community')}
+        onPress={() => navigation.navigate('SearchFriends')}
       >
         <Text style={styles.navButtonText}>Add Friends</Text>
       </TouchableOpacity>
@@ -24,25 +24,26 @@ const styles = StyleSheet.create({
     flex: 1, 
     justifyContent: 'center', 
     alignItems: 'center', 
-    padding: 20,
-    backgroundColor: '#fff'
+    backgroundColor: '#1F2229',
+    padding: 20 
   },
   noConversationText: { 
     fontSize: 20, 
     fontWeight: 'bold', 
+    color: 'white',
     marginBottom: 10 
   },
   subText: { 
     fontSize: 16, 
-    color: 'gray', 
+    color: '#888', 
     marginBottom: 20 
   },
   navButton: { 
-    backgroundColor: '#007BFF', 
-    padding: 10, 
-    borderRadius: 5, 
-    alignItems: 'center', 
-    marginTop: 10 
+    backgroundColor: '#01CC97', 
+    padding: 15,
+    borderRadius: 30,
+    width: 200,
+    alignItems: 'center'
   },
   navButtonText: { 
     color: 'white', 
