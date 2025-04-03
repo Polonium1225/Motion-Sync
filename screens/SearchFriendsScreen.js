@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { databases, account } from "../lib/AppwriteService";
-import { Query, Permission, Role } from 'appwrite';
+import { databases, account, ID, Permission, Role } from "../lib/AppwriteService";
+import { Query } from 'appwrite';
 
 export default function SearchFriendsScreen() {
     const navigation = useNavigation();
@@ -16,7 +16,7 @@ export default function SearchFriendsScreen() {
         
         const queries = [Query.notEqual('$id', user.$id)];
         if (query) {
-          queries.push(Query.search('name', query)); // Requires fulltext index
+          queries.push(Query.search('name', query));
         } else {
           queries.push(Query.limit(25));
         }
@@ -44,57 +44,58 @@ export default function SearchFriendsScreen() {
       try {
         const user = await account.get();
         
-        // Correct permission format for Appwrite 1.6.2
-        const permissions = [
-          `read("user:${user.$id}")`,
-          `update("user:${user.$id}")`,
-          `read("user:${friendId}")`
-        ];
-    
-        // 1. Create friendship
-        await databases.createDocument(
+        // First check if conversation already exists
+        const existingConvos = await databases.listDocuments(
           '67d0bba1000e9caec4f2',
-          '67edbf2c0002aa7c483e', // friendships collection
-          'unique()',
-          {
-            requester: user.$id,
-            recipient: friendId,
-            status: 'accepted'
-          },
-          permissions
+          '67edc4ef0032ae87bfe4',
+          [
+            Query.or([
+              Query.and([
+                Query.equal('participant1', user.$id),
+                Query.equal('participant2', friendId)
+              ]),
+              Query.and([
+                Query.equal('participant1', friendId),
+                Query.equal('participant2', user.$id)
+              ])
+            ])
+          ]
         );
     
-        // 2. Create conversation
+        // If exists, use that conversation
+        if (existingConvos.documents.length > 0) {
+          const existingConvo = existingConvos.documents[0];
+          navigation.navigate('Chat', {
+            conversationId: existingConvo.$id,
+            friendId,
+            friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
+          });
+          return;
+        }
+    
+        // Otherwise create new conversation
+        const conversationId = ID.unique();
         const conversation = await databases.createDocument(
           '67d0bba1000e9caec4f2',
-          '67edc4ef0032ae87bfe4', // conversations collection
-          'unique()',
+          '67edc4ef0032ae87bfe4',
+          ID.unique(),
           {
-            participants: [user.$id, friendId],
+            conversationId: conversationId,
+            participant1: user.$id,
+            participant2: friendId,
             lastMessage: "Conversation started",
             lastMessageAt: new Date().toISOString()
-          },
-          permissions
+          }
         );
     
         navigation.navigate('Chat', {
           conversationId: conversation.$id,
-          friendId: friendId,
+          friendId,
           friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
         });
     
       } catch (error) {
-        console.log("Error creating conversation:", {
-          message: error.message,
-          solution: "Using exact permission format for Appwrite 1.6.2"
-        });
-        
-        // Fallback navigation
-        navigation.navigate('Chat', {
-          conversationId: 'temp_' + Date.now(),
-          friendId: friendId,
-          friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
-        });
+        console.log("Error:", error);
       }
     };
   
@@ -123,35 +124,35 @@ export default function SearchFriendsScreen() {
         />
       </View>
     );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#1F2229',
+    padding: 20
+  },
+  searchBar: {
+    backgroundColor: '#22272B',
+    color: 'white',
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 20
+  },
+  userItem: {
+    backgroundColor: '#22272B',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  userName: {
+    color: 'white',
+    fontSize: 16
+  },
+  userStatus: {
+    color: '#01CC97',
+    fontSize: 14
   }
-  
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#1F2229',
-      padding: 20
-    },
-    searchBar: {
-      backgroundColor: '#22272B',
-      color: 'white',
-      borderRadius: 20,
-      padding: 15,
-      marginBottom: 20
-    },
-    userItem: {
-      backgroundColor: '#22272B',
-      padding: 15,
-      borderRadius: 10,
-      marginBottom: 10,
-      flexDirection: 'row',
-      justifyContent: 'space-between'
-    },
-    userName: {
-      color: 'white',
-      fontSize: 16
-    },
-    userStatus: {
-      color: '#01CC97',
-      fontSize: 14
-    }
-  });
+});
