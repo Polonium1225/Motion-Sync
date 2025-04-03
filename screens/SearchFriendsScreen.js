@@ -41,58 +41,62 @@ export default function SearchFriendsScreen() {
     }, [searchQuery]);
   
     const startConversation = async (friendId) => {
-        try {
-          const user = await account.get();
-          
-          // 1. Create friendship with proper permission format
-          const friendship = await databases.createDocument(
-            '67d0bba1000e9caec4f2',
-            '67edbf2c0002aa7c483e',
-            'unique()',
-            {
-              requester: user.$id,
-              recipient: friendId,
-              status: 'accepted' // Auto-accept for demo
-            },
-            [
-              `read("user:${user.$id}")`,
-              `update("user:${user.$id}")`,
-              `read("user:${friendId}")`
-            ]
-          );
-      
-          // 2. Create conversation
-          const conversation = await databases.createDocument(
-            '67d0bba1000e9caec4f2',
-            '67edc4ef0032ae87bfe4',
-            'unique()',
-            {
-              participants: [user.$id, friendId],
-              lastMessage: "Conversation started",
-              lastMessageAt: new Date().toISOString()
-            },
-            [
-              `read("user:${user.$id}")`,
-              `read("user:${friendId}")`,
-              `update("user:${user.$id}")`
-            ]
-          );
-      
-          navigation.navigate('Chat', { 
-            conversationId: conversation.$id,
-            friendId: friendId,
-            friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
-          });
-      
-        } catch (error) {
-          console.log("Error:", error.message);
-          navigation.navigate('Chat', {
-            conversationId: 'temp_' + Date.now(),
-            friendId: friendId,
-            friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
-          });
-        }
-      };
+      try {
+        const user = await account.get();
+        
+        // Correct permission format for Appwrite 1.6.2
+        const permissions = [
+          `read("user:${user.$id}")`,
+          `update("user:${user.$id}")`,
+          `read("user:${friendId}")`
+        ];
+    
+        // 1. Create friendship
+        await databases.createDocument(
+          '67d0bba1000e9caec4f2',
+          '67edbf2c0002aa7c483e', // friendships collection
+          'unique()',
+          {
+            requester: user.$id,
+            recipient: friendId,
+            status: 'accepted'
+          },
+          permissions
+        );
+    
+        // 2. Create conversation
+        const conversation = await databases.createDocument(
+          '67d0bba1000e9caec4f2',
+          '67edc4ef0032ae87bfe4', // conversations collection
+          'unique()',
+          {
+            participants: [user.$id, friendId],
+            lastMessage: "Conversation started",
+            lastMessageAt: new Date().toISOString()
+          },
+          permissions
+        );
+    
+        navigation.navigate('Chat', {
+          conversationId: conversation.$id,
+          friendId: friendId,
+          friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
+        });
+    
+      } catch (error) {
+        console.log("Error creating conversation:", {
+          message: error.message,
+          solution: "Using exact permission format for Appwrite 1.6.2"
+        });
+        
+        // Fallback navigation
+        navigation.navigate('Chat', {
+          conversationId: 'temp_' + Date.now(),
+          friendId: friendId,
+          friendName: users.find(u => u.$id === friendId)?.name || 'Friend'
+        });
+      }
+    };
   
     return (
       <View style={styles.container}>

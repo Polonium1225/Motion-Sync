@@ -36,24 +36,27 @@ export default function ChatScreen({ route }) {
 
   const sendMessage = async () => {
     if (!messageText.trim()) return;
-
+  
     try {
-      // Create message document
+      // Correct permission format for Appwrite 1.6.2
+      const permissions = [
+        `read("user:${currentUser.$id}")`,
+        `update("user:${currentUser.$id}")`,
+        `read("user:${friendId}")`
+      ];
+  
       const message = await databases.createDocument(
         '67d0bba1000e9caec4f2',
-        '67edc5c00017db23e0fa',
+        '67edc5c00017db23e0fa', // messages collection
         'unique()',
         {
           conversation: conversationId,
           sender: currentUser.$id,
           content: messageText
         },
-        [
-          `read("user:${currentUser.$id}")`,
-          `read("user:${friendId}")`
-        ]
+        permissions
       );
-
+  
       // Update conversation last message
       await databases.updateDocument(
         '67d0bba1000e9caec4f2',
@@ -64,12 +67,16 @@ export default function ChatScreen({ route }) {
           lastMessageAt: new Date().toISOString()
         }
       );
-
+  
       // Update UI
       setMessages([...messages, message]);
       setMessageText('');
+  
     } catch (error) {
-      console.log("Error sending message:", error.message);
+      console.log("Error sending message:", {
+        message: error.message,
+        solution: "Check permission format and collection settings"
+      });
     }
   };
 
