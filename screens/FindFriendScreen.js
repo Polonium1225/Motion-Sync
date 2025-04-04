@@ -1,143 +1,165 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Image } from 'react-native';
-import { databases, account } from "../lib/AppwriteService";
-import { Query } from 'appwrite';
-import defaultAvatar from '../assets/avatar.png';
+import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { account, getUserConversations, databases, DATABASE_ID } from "../lib/AppwriteService";
 
-export default function FindFriend({ navigation }) {
-  const [friends, setFriends] = useState([]);
+export default function FindFriendScreen({ navigation }) {
+  const [conversations, setConversations] = useState([]);
+  const [users, setUsers] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentUser, setCurrentUser] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-
-  console.log("[DEBUG] FindFriend rendering, friends count:", friends.length);
+  const [error, setError] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState('');
 
   useEffect(() => {
-    console.log("[DEBUG] useEffect triggered in FindFriend");
-    
-    const fetchFriends = async () => {
-      console.log("[DEBUG] fetchFriends called");
+    const loadConversationsAndUsers = async () => {
       try {
         setIsLoading(true);
-        console.log("[DEBUG] Getting current user");
+        
+        // Get current user
         const user = await account.get();
-        console.log("[DEBUG] Current user ID:", user.$id);
-        setCurrentUser(user.$id);
-
-        console.log("[DEBUG] Querying conversations for user");
-        const conversations = await databases.listDocuments(
-          '67d0bba1000e9caec4f2',
-          '67edc4ef0032ae87bfe4',
-          [
-            Query.or([
-              Query.equal('participant1', user.$id),
-              Query.equal('participant2', user.$id)
-            ])
-          ]
-        );
-        console.log("[DEBUG] Found conversations:", conversations.documents.length);
-
-        const friendIds = conversations.documents.map(conv => {
-          const friendId = conv.participant1 === user.$id ? conv.participant2 : conv.participant1;
-          console.log("[DEBUG] Found friend ID:", friendId);
-          return friendId;
+        setCurrentUserId(user.$id);
+        
+        // Get user conversations
+        const userConversations = await getUserConversations(user.$id);
+        
+        // Create a set of all user IDs we need to fetch
+        const userIdsToFetch = new Set();
+        userConversations.forEach(conv => {
+          if (conv.participant1 !== user.$id) userIdsToFetch.add(conv.participant1);
+          if (conv.participant2 !== user.$id) userIdsToFetch.add(conv.participant2);
         });
-
-        console.log("[DEBUG] Fetching friend details for IDs:", friendIds);
-        if (friendIds.length > 0) {
-          const friendsData = await databases.listDocuments(
-            '67d0bba1000e9caec4f2',
-            '67d0bbf8003206b11780',
-            [Query.equal('$id', friendIds)]
-          );
-          console.log("[DEBUG] Friends data received:", friendsData.documents.length);
-          setFriends(friendsData.documents);
-        } else {
-          console.log("[DEBUG] No friends found");
-          setFriends([]);
+        
+        // Get user info for each participant
+        const userMap = {};
+        // Using traditional for loop to avoid race conditions with async/await
+        for (const userId of userIdsToFetch) {
+          try {
+            // Fetch each user's details from the users collection
+            const userDocs = await databases.listDocuments(
+              DATABASE_ID,
+              '67d0bbf8003206b11780',
+              []
+            );
+            
+            // Find the user in the returned documents
+            const userData = userDocs.documents.find(doc => doc.$id === userId);
+            if (userData) {
+              userMap[userId] = userData;
+            }
+          } catch (err) {
+            console.error(`Error fetching user ${userId}:`, err);
+          }
         }
-      } catch (error) {
-        console.error("[DEBUG] Failed to load friends:", {
-          error: error.message,
-          code: error.code,
-          type: error.name,
-          stack: error.stack
-        });
+        
+        setUsers(userMap);
+        setConversations(userConversations);
+      } catch (err) {
+        console.error("[DEBUG] Error loading conversations:", err);
+        setError("Failed to load conversations. Please try again.");
       } finally {
-        console.log("[DEBUG] Loading complete");
         setIsLoading(false);
       }
     };
-
-    fetchFriends();
-
-    return () => {
-      console.log("[DEBUG] Cleanup effect in FindFriend");
-    };
+    
+    loadConversationsAndUsers();
   }, []);
 
-  const filteredFriends = friends.filter(friend =>
-    friend.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const getFilteredConversations = () => {
+    if (!searchQuery) return conversations;
+    
+    return conversations.filter(conv => {
+      const otherUserId = conv.participant1 === currentUserId ? conv.participant2 : conv.participant1;
+      const user = users[otherUserId];
+      if (!user) return false;
+      
+      return user.name.toLowerCase().includes(searchQuery.toLowerCase());
+    });
+  };
 
-  console.log("[DEBUG] Filtered friends count:", filteredFriends.length);
+  const navigateToChat = (conversation) => {
+    const friendId = conversation.participant1 === currentUserId 
+      ? conversation.participant2 
+      : conversation.participant1;
+      
+    const friend = users[friendId] || { name: "Unknown User" };
+    
+    navigation.navigate('Chat', {
+      friendId: friendId,
+      friendName: friend.name,
+      conversationId: conversation.$id
+    });
+  };
 
   if (isLoading) {
-    console.log("[DEBUG] Rendering loading state");
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#01CC97" />
-        <Text>Loading conversations...</Text>
+        <Text style={styles.loadingText}>Loading your conversations...</Text>
       </View>
     );
   }
 
-  console.log("[DEBUG] Rendering main view");
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity 
+          style={styles.retryButton}
+          onPress={() => navigation.replace('FindFriend')}
+        >
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const filteredConversations = getFilteredConversations();
+
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Your Conversations</Text>
+        <TouchableOpacity 
+          style={styles.newChatButton}
+          onPress={() => navigation.navigate('SearchFriends')}
+        >
+          <Text style={styles.newChatButtonText}>New Chat</Text>
+        </TouchableOpacity>
+      </View>
+      
       <TextInput
         style={styles.searchBar}
-        placeholder="Search friends..."
+        placeholder="Search conversations..."
         value={searchQuery}
         onChangeText={setSearchQuery}
       />
       
-      {filteredFriends.length === 0 ? (
+      {filteredConversations.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            {friends.length === 0 
-              ? "You don't have any conversations yet" 
-              : "No matching friends found"}
+            {searchQuery ? "No conversations match your search" : "No conversations found"}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={filteredFriends}
-          keyExtractor={item => item.$id}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.friendItem}
-              onPress={() => {
-                console.log("[DEBUG] Friend pressed:", item.$id);
-                navigation.navigate('Chat', {
-                  friendId: item.$id,
-                  friendName: item.name,
-                  conversationId: `conv_${currentUser}_${item.$id}`
-                });
-              }}
-            >
-              <Image 
-                source={item.avatar ? { uri: item.avatar } : defaultAvatar}
-                style={styles.avatar}
-              />
-              <View style={styles.friendInfo}>
-                <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.status}>
-                  {item.status || 'offline'}
+          data={filteredConversations}
+          keyExtractor={(item) => item.$id}
+          renderItem={({ item }) => {
+            const friendId = item.participant1 === currentUserId ? item.participant2 : item.participant1;
+            const friend = users[friendId] || { name: "Unknown User" };
+            
+            return (
+              <TouchableOpacity 
+                style={styles.conversationItem}
+                onPress={() => navigateToChat(item)}
+              >
+                <Text style={styles.friendName}>{friend.name}</Text>
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.lastMessage || "Start a conversation"}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>
@@ -149,36 +171,82 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  newChatButton: {
+    backgroundColor: '#01CC97',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  newChatButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
   searchBar: {
-    height: 40,
+    height: 50,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    marginBottom: 10
-  },
-  friendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee'
-  },
-  avatar: {
-    width: 50,
-    height: 50,
     borderRadius: 25,
-    marginRight: 15
-  },
-  friendInfo: {
-    flex: 1
-  },
-  name: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
     fontSize: 16,
-    fontWeight: 'bold'
   },
-  status: {
+  conversationItem: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  friendName: {
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  lastMessage: {
     fontSize: 14,
-    color: '#666'
+    color: '#666',
+    marginTop: 4,
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#01CC97',
+    padding: 10,
+    borderRadius: 8,
+    paddingHorizontal: 20,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 16,
   }
 });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { databases, account } from "../lib/AppwriteService";
+import { account, getUserConversations } from "../lib/AppwriteService";
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
@@ -17,35 +17,20 @@ export default function CommunityScreen() {
       const user = await account.get();
       console.log("[DEBUG] User retrieved:", user.$id);
       
-      // Use the list method without the Query object at all
-      const response = await databases.listDocuments(
-        '67d0bba1000e9caec4f2',
-        '67edc4ef0032ae87bfe4'
-      );
-      
-      console.log("[DEBUG] All conversations retrieved:", response.documents.length);
-      
-      // Filter manually in JavaScript
-      const userConversations = response.documents.filter(doc => 
-        doc.participant1 === user.$id || doc.participant2 === user.$id
-      );
-      
-      console.log("[DEBUG] User conversations:", userConversations.length);
+      // Get user conversations using our helper function
+      const conversations = await getUserConversations(user.$id);
+      console.log("[DEBUG] User conversations:", conversations.length);
       
       // Navigate based on results
-      navigation.navigate(userConversations.length > 0 ? 'FindFriend' : 'NoConversation');
+      if (conversations.length > 0) {
+        navigation.navigate('FindFriend');
+      } else {
+        navigation.navigate('NoConversation');
+      }
     } catch (error) {
       console.error("[DEBUG] Error checking conversations:", error);
-      
       // If there's any error, just navigate to NoConversation as a fallback
-      // since the user likely has no conversations yet
       navigation.navigate('NoConversation');
-      
-      Alert.alert(
-        "Connection Note",
-        "There was an issue checking your conversations. We'll assume you don't have any yet.",
-        [{ text: "OK" }]
-      );
     } finally {
       setIsLoading(false);
     }
@@ -53,6 +38,8 @@ export default function CommunityScreen() {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>Community</Text>
+      
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#01CC97" />
@@ -76,6 +63,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 40,
+    color: '#333'
   },
   button: {
     backgroundColor: '#01CC97',
