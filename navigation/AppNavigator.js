@@ -1,3 +1,4 @@
+//AppNavigator.js 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -12,7 +13,8 @@ import PerformanceScreen from '../screens/PerformanceScreen';
 import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
 import ChatScreen from '../screens/ChatScreen';
 import SearchFriendsScreen from '../screens/SearchFriendsScreen';
-import NoConversationScreen from '../screens/NoConversationScreen'
+import NoConversationScreen from '../screens/NoConversationScreen';
+import FindFriendScreen from '../screens/FindFriendScreen';
 import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
@@ -97,6 +99,11 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen 
             name="SearchFriends" 
             component={SearchFriendsScreen} 
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="FindFriend" 
+            component={FindFriendScreen} 
             options={{ headerShown: false }}
           />
         </>

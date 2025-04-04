@@ -1,265 +1,427 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
-import { databases, account, ID, realtime } from '../lib/AppwriteService';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  StatusBar,
+  SafeAreaView
+} from 'react-native';
+import { databases, account, DATABASE_ID, ID } from "../lib/AppwriteService";
 import { Query } from 'appwrite';
+import { Ionicons } from 'react-native-vector-icons';
 
-// Constants matching your exact collection IDs
-const DATABASE_ID = '67d0bba1000e9caec4f2';
-const CONVERSATIONS_COLLECTION_ID = '67edc4ef0032ae87bfe4';
-const MESSAGES_COLLECTION_ID = '67edc5c00017db23e0fa';
-
-export default function ChatScreen({ route }) {
-  const { conversationId, friendId, friendName } = route.params;
+export default function ChatScreen({ route, navigation }) {
+  const { friendId, friendName, conversationId } = route.params;
   const [messages, setMessages] = useState([]);
-  const [messageText, setMessageText] = useState('');
-  const [currentUser, setCurrentUser] = useState(null);
-  const [isSending, setIsSending] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [currentUserName, setCurrentUserName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const unsubscribeRef = useRef(null);
+  const [dbConversationId, setDbConversationId] = useState(null);
+  const flatListRef = useRef(null);
 
-  // Load initial data and setup realtime
+  // Initialize chat and get or create conversation
   useEffect(() => {
-    const loadData = async () => {
+    const initializeChat = async () => {
       try {
+        setIsLoading(true);
+        
+        // Get current user info
         const user = await account.get();
-        setCurrentUser(user);
-
-        // Get existing messages
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          MESSAGES_COLLECTION_ID,
-          [
-            Query.equal('conversationId', conversationId),
-            Query.orderAsc('$createdAt')
-          ]
-        );
-        setMessages(response.documents);
+        setCurrentUserId(user.$id);
+        setCurrentUserName(user.name);
+        
+        // Check if this is a new conversation or existing one
+        if (conversationId.startsWith('new_')) {
+          // Check if a conversation between these users already exists
+          const existingConversation = await findExistingConversation(user.$id, friendId);
+          
+          if (existingConversation) {
+            // Use existing conversation
+            setDbConversationId(existingConversation.$id);
+            await loadMessages(existingConversation.$id);
+          } else {
+            // Create new conversation
+            const newConvId = await createConversation(user.$id, friendId);
+            setDbConversationId(newConvId);
+          }
+        } else {
+          // Use provided conversation ID
+          setDbConversationId(conversationId);
+          await loadMessages(conversationId);
+        }
       } catch (error) {
-        console.error("Failed to load chat:", error);
+        console.error("[DEBUG] Error initializing chat:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadData();
-
-    // Realtime subscription for new messages
-    unsubscribeRef.current = realtime.subscribe(
-      `databases.${DATABASE_ID}.collections.${MESSAGES_COLLECTION_ID}.documents`,
-      response => {
-        if (response.events.includes(`databases.*.collections.*.documents.*.create`)) {
-          const newMessage = response.payload;
-          if (newMessage.conversationId === conversationId) {
-            setMessages(prev => [...prev, newMessage]);
-            
-            // Auto-scroll would go here if using FlatList ref
-          }
-        }
-      }
-    );
-
-    return () => {
-      if (unsubscribeRef.current) unsubscribeRef.current();
-    };
-  }, [conversationId]);
-
-  const sendMessage = async () => {
-    if (!messageText.trim() || !currentUser || isSending) return;
+    initializeChat();
     
-    setIsSending(true);
-    const tempId = ID.unique(); // For optimistic UI
+    // Set up real-time message subscription
+    const unsubscribe = subscribeToMessages();
+    
+    // Clean up subscription when unmounting
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [conversationId, friendId]);
+
+  // Find if a conversation already exists between the two users
+  const findExistingConversation = async (userId, friendId) => {
+    try {
+      // First query for participant1=userId and participant2=friendId
+      const response1 = await databases.listDocuments(
+        DATABASE_ID,
+        '67edc4ef0032ae87bfe4', // conversations collection
+        [
+          Query.equal('participant1', userId),
+          Query.equal('participant2', friendId)
+        ]
+      );
+      
+      if (response1.documents.length > 0) {
+        console.log("[DEBUG] Found existing conversation (1):", response1.documents[0].$id);
+        return response1.documents[0];
+      }
+      
+      // If not found, try the opposite: participant1=friendId and participant2=userId
+      const response2 = await databases.listDocuments(
+        DATABASE_ID,
+        '67edc4ef0032ae87bfe4', // conversations collection
+        [
+          Query.equal('participant1', friendId),
+          Query.equal('participant2', userId)
+        ]
+      );
+      
+      if (response2.documents.length > 0) {
+        console.log("[DEBUG] Found existing conversation (2):", response2.documents[0].$id);
+        return response2.documents[0];
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("[DEBUG] Error finding existing conversation:", error);
+      return null;
+    }
+  };
+
+  // Create a new conversation
+  const createConversation = async (userId, friendId) => {
+    try {
+      const uniqueConversationId = `conv_${userId}_${friendId}_${new Date().getTime()}`;
+      
+      // Create conversation document
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        '67edc4ef0032ae87bfe4', // conversations collection
+        ID.unique(),
+        {
+          conversationId: uniqueConversationId,
+          lastMessage: "",
+          lastMessageAt: new Date(),
+          participant1: userId,
+          participant2: friendId
+        }
+      );
+      
+      console.log("[DEBUG] Created new conversation:", response.$id);
+      return response.$id;
+    } catch (error) {
+      console.error("[DEBUG] Error creating conversation:", error);
+      throw error;
+    }
+  };
+
+  // Load existing messages for a conversation
+  const loadMessages = async (convId) => {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        'messages', // messages collection
+        [
+          Query.equal('conversationId', convId),
+          Query.orderDesc('$createdAt')
+        ]
+      );
+      
+      setMessages(response.documents);
+      console.log("[DEBUG] Loaded messages:", response.documents.length);
+    } catch (error) {
+      console.error("[DEBUG] Error loading messages:", error);
+    }
+  };
+
+  // Set up real-time message subscription
+  const subscribeToMessages = () => {
+    // This is a polling mechanism for now
+    // For production, implement Appwrite's realtime API
+    const interval = setInterval(async () => {
+      if (dbConversationId) {
+        await loadMessages(dbConversationId);
+      }
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  };
+
+  // Send a new message
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !dbConversationId) return;
     
     try {
-      // Optimistic update
-      setMessages(prev => [...prev, {
-        $id: tempId,
-        conversationId,
-        senderId: currentUser.$id,
-        content: messageText,
-        $createdAt: new Date().toISOString()
-      }]);
-
-      // Actual API call
+      // Create message document
+      const messageData = {
+        messageId: `msg_${new Date().getTime()}`,
+        content: newMessage.trim(),
+        conversationId: dbConversationId,
+        senderId: currentUserId
+      };
+      
       await databases.createDocument(
         DATABASE_ID,
-        MESSAGES_COLLECTION_ID,
-        ID.unique(), // Real ID will come through realtime
-        {
-          conversationId,
-          senderId: currentUser.$id,
-          content: messageText
-        }
+        '67edc5c00017db23e0fa', // messages collection
+        ID.unique(),
+        messageData
       );
-
-      // Update conversation last message
+      
+      // Update conversation with last message
       await databases.updateDocument(
         DATABASE_ID,
-        CONVERSATIONS_COLLECTION_ID,
-        conversationId,
+        '67edc4ef0032ae87bfe4', // conversations collection
+        dbConversationId,
         {
-          lastMessage: messageText,
-          lastMessageAt: new Date().toISOString()
+          lastMessage: newMessage.trim(),
+          lastMessageAt: new Date()
         }
       );
-
-      setMessageText('');
+      
+      // Optimistically update UI
+      setMessages(prevMessages => [
+        {
+          ...messageData,
+          $id: `temp_${Date.now()}`,
+          $createdAt: new Date().toISOString()
+        },
+        ...prevMessages
+      ]);
+      
+      // Clear input
+      setNewMessage('');
     } catch (error) {
-      console.error("Failed to send message:", error);
-      // Remove optimistic update if failed
-      setMessages(prev => prev.filter(msg => msg.$id !== tempId));
-    } finally {
-      setIsSending(false);
+      console.error("[DEBUG] Error sending message:", error);
     }
+  };
+
+  // Render message item
+  const renderMessageItem = ({ item }) => {
+    const isCurrentUser = item.senderId === currentUserId;
+    
+    return (
+      <View style={[
+        styles.messageBubble,
+        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage
+      ]}>
+        <Text style={[
+          styles.messageText,
+          isCurrentUser ? styles.currentUserMessageText : styles.otherUserMessageText
+        ]}>
+          {item.content}
+        </Text>
+        <Text style={[
+          styles.messageTime,
+          isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
+        ]}>
+          {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+    );
   };
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6200ee" />
-      </View>
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#1A1F23" />
+        <ActivityIndicator size="large" color="#05907A" />
+        <Text style={styles.loadingText}>Loading conversation...</Text>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1A1F23" />
+      
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.friendName}>{friendName}</Text>
-        <Text style={styles.status}>Online</Text>
-      </View>
-
-      {/* Messages List */}
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item.$id}
-        contentContainerStyle={styles.messagesContainer}
-        renderItem={({ item }) => (
-          <View style={[
-            styles.messageBubble,
-            item.senderId === currentUser?.$id ? styles.myMessage : styles.theirMessage
-          ]}>
-            <Text style={styles.messageText}>{item.content}</Text>
-            <Text style={styles.messageTime}>
-              {new Date(item.$createdAt).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </Text>
-          </View>
-        )}
-      />
-
-      {/* Message Input */}
-      <KeyboardAvoidingView 
-        behavior="padding" 
-        style={styles.inputContainer}
-        keyboardVerticalOffset={80}
-      >
-        <TextInput
-          style={styles.input}
-          value={messageText}
-          onChangeText={setMessageText}
-          placeholder="Type a message..."
-          placeholderTextColor="#888"
-          onSubmitEditing={sendMessage}
-          editable={!isSending}
-        />
-        <TouchableOpacity
-          style={[styles.sendButton, isSending && styles.disabledButton]}
-          onPress={sendMessage}
-          disabled={isSending}
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
         >
-          {isSending ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.sendText}>Send</Text>
-          )}
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
+        <Text style={styles.headerTitle}>{friendName}</Text>
+        <View style={styles.headerRight} />
+      </View>
+      
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : null}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessageItem}
+          keyExtractor={item => item.$id}
+          contentContainerStyle={styles.messagesList}
+          inverted
+        />
+        
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type a message..."
+            placeholderTextColor="#666"
+            multiline
+          />
+          <TouchableOpacity 
+            style={[
+              styles.sendButton,
+              !newMessage.trim() && styles.sendButtonDisabled
+            ]}
+            onPress={sendMessage}
+            disabled={!newMessage.trim()}
+          >
+            <Ionicons 
+              name="send" 
+              size={20} 
+              color={newMessage.trim() ? "#fff" : "#888"} 
+            />
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5'
+    backgroundColor: '#1A1F23',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A1F23',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#fff',
   },
   header: {
-    padding: 15,
-    backgroundColor: '#6200ee',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#1A1F23',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
   },
-  friendName: {
-    color: 'white',
+  backButton: {
+    width: 40,
+  },
+  headerTitle: {
+    color: '#fff',
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
-  status: {
-    color: 'lightgray',
-    fontSize: 14
+  headerRight: {
+    width: 40,
   },
-  messagesContainer: {
-    padding: 10
+  messagesList: {
+    padding: 16,
+    paddingBottom: 16,
   },
   messageBubble: {
+    padding: 12,
+    borderRadius: 20,
+    marginBottom: 8,
     maxWidth: '80%',
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 10
   },
-  myMessage: {
+  currentUserMessage: {
+    backgroundColor: '#05907A',
     alignSelf: 'flex-end',
-    backgroundColor: '#dcf8c6'
+    borderBottomRightRadius: 4,
   },
-  theirMessage: {
+  otherUserMessage: {
+    backgroundColor: '#2A3035',
     alignSelf: 'flex-start',
-    backgroundColor: 'white'
+    borderBottomLeftRadius: 4,
   },
   messageText: {
-    fontSize: 16
+    fontSize: 16,
+  },
+  currentUserMessageText: {
+    color: '#fff',
+  },
+  otherUserMessageText: {
+    color: '#fff',
   },
   messageTime: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 10,
     alignSelf: 'flex-end',
-    marginTop: 5
+    marginTop: 4,
+  },
+  currentUserMessageTime: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  otherUserMessageTime: {
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   inputContainer: {
     flexDirection: 'row',
     padding: 10,
     borderTopWidth: 1,
-    borderTopColor: '#ddd',
-    backgroundColor: 'white'
+    borderTopColor: '#333',
+    backgroundColor: '#1A1F23',
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    backgroundColor: '#2A3035',
     borderRadius: 20,
     paddingHorizontal: 15,
     paddingVertical: 10,
-    marginRight: 10
+    maxHeight: 100,
+    color: '#fff',
   },
   sendButton: {
-    backgroundColor: '#6200ee',
+    marginLeft: 10,
+    backgroundColor: '#05907A',
     borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    justifyContent: 'center'
-  },
-  disabledButton: {
-    backgroundColor: '#a881f0'
-  },
-  sendText: {
-    color: 'white',
-    fontWeight: 'bold'
-  },
-  loadingContainer: {
-    flex: 1,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
-    alignItems: 'center'
-  }
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#2A3035',
+  },
 });
