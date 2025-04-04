@@ -1,77 +1,71 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
-import PostCard from '../components/PostCard';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { databases, account } from "../lib/AppwriteService";
-import { Query } from 'appwrite';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
-  const [hasConversations, setHasConversations] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // In CommunityScreen.js
-useEffect(() => {
-  const checkConversations = async () => {
-    const user = await account.get();
-    const conversations = await databases.listDocuments(
-      '67d0bba1000e9caec4f2',
-      '67edc4ef0032ae87bfe4',
-      [
-        Query.or([
-          Query.equal('participant1', user.$id),
-          Query.equal('participant2', user.$id)
-        ]),
-        Query.limit(1) // Just check if any exist
-      ]
-    );
-
-    if (conversations.documents.length > 0) {
-      navigation.navigate('FindFriend');
-    } else {
+  const handleChatPress = async () => {
+    setIsLoading(true);
+    
+    try {
+      console.log("[DEBUG] Checking conversations on button press");
+      
+      // Get current user
+      const user = await account.get();
+      console.log("[DEBUG] User retrieved:", user.$id);
+      
+      // Use the list method without the Query object at all
+      const response = await databases.listDocuments(
+        '67d0bba1000e9caec4f2',
+        '67edc4ef0032ae87bfe4'
+      );
+      
+      console.log("[DEBUG] All conversations retrieved:", response.documents.length);
+      
+      // Filter manually in JavaScript
+      const userConversations = response.documents.filter(doc => 
+        doc.participant1 === user.$id || doc.participant2 === user.$id
+      );
+      
+      console.log("[DEBUG] User conversations:", userConversations.length);
+      
+      // Navigate based on results
+      navigation.navigate(userConversations.length > 0 ? 'FindFriend' : 'NoConversation');
+    } catch (error) {
+      console.error("[DEBUG] Error checking conversations:", error);
+      
+      // If there's any error, just navigate to NoConversation as a fallback
+      // since the user likely has no conversations yet
       navigation.navigate('NoConversation');
+      
+      Alert.alert(
+        "Connection Note",
+        "There was an issue checking your conversations. We'll assume you don't have any yet.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  checkConversations();
-}, []);
-
-  const handleChatPress = () => {
-    navigation.navigate(hasConversations ? 'Chat' : 'NoConversation');
-  };
-
-  if (isLoading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color="#01CC97" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Post</Text>
-        </TouchableOpacity>
-
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#01CC97" />
+          <Text style={styles.loadingText}>Checking your conversations...</Text>
+        </View>
+      ) : (
         <TouchableOpacity 
           style={styles.button}
           onPress={handleChatPress}
         >
           <Text style={styles.buttonText}>Chat</Text>
         </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Community</Text>
-        <View style={styles.posts}>
-          <PostCard />
-          <PostCard />
-          <PostCard />
-        </View>
-      </ScrollView>
+      )}
     </View>
   );
 }
@@ -79,46 +73,27 @@ useEffect(() => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1F2229',
-    paddingHorizontal: 20,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center', // Centers buttons horizontally
-    alignItems: 'center', // Centers buttons vertically
-    marginVertical: 15,
-    height: 100,
-    gap: 20, // Space between buttons
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
   button: {
-    backgroundColor: '#22272B',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderColor: "#01CC97",
-    borderWidth: 2,
-    borderRadius: 30,
-    width: 120,
-    justifyContent: 'center',
+    backgroundColor: '#01CC97',
+    padding: 15,
+    borderRadius: 10,
+    width: '80%',
     alignItems: 'center',
   },
   buttonText: {
-    color: '#01CC97',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
     color: 'white',
-    marginBottom: 10,
-    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: 18,
   },
-  posts: {
-    marginTop: 10,
+  loadingContainer: {
+    alignItems: 'center',
   },
+  loadingText: {
+    marginTop: 20,
+    color: '#666',
+  }
 });
-

@@ -1,53 +1,38 @@
+//NoConversationScreen.js
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-export default function NoConversationScreen() {
-  const navigation = useNavigation();
-  
+export default function NoConversationScreen({ navigation }) {
   return (
-    <View style={styles.centeredContainer}>
-      <Text style={styles.noConversationText}>No Conversations Yet</Text>
-      <Text style={styles.subText}>Add friends to start chatting</Text>
+    <View style={styles.container}>
+      <Text style={styles.text}>No conversations yet</Text>
       <TouchableOpacity 
-        style={styles.navButton} 
+        style={styles.button}
         onPress={() => navigation.navigate('SearchFriends')}
       >
-        <Text style={styles.navButtonText}>Add Friends</Text>
+        <Text style={styles.buttonText}>Add Friends</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  centeredContainer: { 
-    flex: 1, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    backgroundColor: '#1F2229',
-    padding: 20 
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  noConversationText: { 
-    fontSize: 20, 
-    fontWeight: 'bold', 
-    color: 'white',
-    marginBottom: 10 
+  text: {
+    fontSize: 18,
+    marginBottom: 20,
   },
-  subText: { 
-    fontSize: 16, 
-    color: '#888', 
-    marginBottom: 20 
-  },
-  navButton: { 
-    backgroundColor: '#01CC97', 
+  button: {
+    backgroundColor: '#01CC97',
     padding: 15,
-    borderRadius: 30,
-    width: 200,
-    alignItems: 'center'
+    borderRadius: 10,
   },
-  navButtonText: { 
-    color: 'white', 
-    fontSize: 16, 
-    fontWeight: 'bold' 
+  buttonText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
