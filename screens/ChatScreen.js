@@ -11,11 +11,14 @@ import {
   ActivityIndicator,
   StatusBar,
   SafeAreaView,
-  BackHandler
+  BackHandler,
+  Image
 } from 'react-native';
 import { databases, account, DATABASE_ID, ID } from "../lib/AppwriteService";
 import { Query } from 'appwrite';
-import { Ionicons } from 'react-native-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+
+const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
 
 export default function ChatScreen({ route, navigation }) {
   const { friendId, friendName, conversationId } = route.params;
@@ -25,12 +28,54 @@ export default function ChatScreen({ route, navigation }) {
   const [currentUserName, setCurrentUserName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [dbConversationId, setDbConversationId] = useState(null);
+  const [friendData, setFriendData] = useState({ 
+    avatar: 'avatar.png', 
+    status: 'offline' 
+  });
   const flatListRef = useRef(null);
+
+  // Set user as online when entering chat
+  useEffect(() => {
+    const setOnlineStatus = async () => {
+      try {
+        const user = await account.get();
+        await databases.updateDocument(
+          DATABASE_ID,
+          '67d0bbf8003206b11780', // users collection
+          user.$id,
+          { status: 'online' }
+        );
+      } catch (error) {
+        console.error("Error setting online status:", error);
+      }
+    };
+
+    setOnlineStatus();
+
+    // Set up status cleanup when leaving
+    return () => {
+      const setOfflineStatus = async () => {
+        try {
+          const user = await account.get();
+          await databases.updateDocument(
+            DATABASE_ID,
+            '67d0bbf8003206b11780',
+            user.$id,
+            { status: 'offline' }
+          );
+        } catch (error) {
+          console.error("Error setting offline status:", error);
+        }
+      };
+      
+      setOfflineStatus();
+    };
+  }, []);
 
   // Handle back button
   useEffect(() => {
     const backAction = () => {
-      navigation.navigate('MainTabs', { screen: 'Community' });
+      navigation.navigate('FindFriend');
       return true;
     };
 
@@ -42,7 +87,7 @@ export default function ChatScreen({ route, navigation }) {
     return () => backHandler.remove();
   }, [navigation]);
 
-  // Initialize chat and get or create conversation
+  // Initialize chat and get friend data
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -53,27 +98,35 @@ export default function ChatScreen({ route, navigation }) {
         setCurrentUserId(user.$id);
         setCurrentUserName(user.name);
         
+        // Get friend data (avatar and status)
+        const friendResponse = await databases.getDocument(
+          DATABASE_ID,
+          '67d0bbf8003206b11780', // users collection
+          friendId
+        );
+        
+        setFriendData({
+          avatar: friendResponse.avatar || 'avatar.png',
+          status: friendResponse.status || 'offline'
+        });
+
         // Check if this is a new conversation or existing one
         if (conversationId.startsWith('new_')) {
-          // Check if a conversation between these users already exists
           const existingConversation = await findExistingConversation(user.$id, friendId);
           
           if (existingConversation) {
-            // Use existing conversation
             setDbConversationId(existingConversation.$id);
             await loadMessages(existingConversation.$id);
           } else {
-            // Create new conversation
             const newConvId = await createConversation(user.$id, friendId);
             setDbConversationId(newConvId);
           }
         } else {
-          // Use provided conversation ID
           setDbConversationId(conversationId);
           await loadMessages(conversationId);
         }
       } catch (error) {
-        console.error("[DEBUG] Error initializing chat:", error);
+        console.error("Error initializing chat:", error);
       } finally {
         setIsLoading(false);
       }
@@ -81,16 +134,38 @@ export default function ChatScreen({ route, navigation }) {
 
     initializeChat();
     
-    // Set up real-time message subscription
-    const unsubscribe = subscribeToMessages();
+    // Set up real-time subscriptions
+    const unsubscribeMessages = subscribeToMessages();
+    const unsubscribeStatus = subscribeToFriendStatus();
     
-    // Clean up subscription when unmounting
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      unsubscribeMessages();
+      unsubscribeStatus();
     };
   }, [conversationId, friendId]);
+
+  // Subscribe to friend's status changes
+  const subscribeToFriendStatus = () => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await databases.getDocument(
+          DATABASE_ID,
+          '67d0bbf8003206b11780',
+          friendId,
+          [Query.select(['status'])]
+        );
+        
+        setFriendData(prev => ({
+          ...prev,
+          status: response.status
+        }));
+      } catch (error) {
+        console.error("Error updating friend status:", error);
+      }
+    }, 5000); // Check every 10 seconds
+    
+    return () => clearInterval(interval);
+  };
 
   // Find if a conversation already exists between the two users
   const findExistingConversation = async (userId, friendId) => {
@@ -239,6 +314,51 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
+  // Enhanced header component
+  const renderHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity 
+        style={styles.backButton}
+        onPress={() => navigation.navigate('FindFriend')}
+      >
+        <Ionicons name="arrow-back" size={24} color="#fff" />
+      </TouchableOpacity>
+      
+      <View style={styles.headerUserInfo}>
+        <View style={styles.avatarContainer}>
+          {friendData.avatar && friendData.avatar !== 'avatar.png' ? (
+            <Image 
+              source={{ uri: friendData.avatar }} 
+              style={styles.avatarImage}
+              defaultSource={DEFAULT_AVATAR}
+            />
+          ) : (
+            <Image 
+              source={DEFAULT_AVATAR}
+              style={styles.avatarImage}
+            />
+          )}
+          <View style={[
+            styles.statusIndicator,
+            { backgroundColor: friendData.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+          ]} />
+        </View>
+        
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.headerTitle}>{friendName}</Text>
+          <Text style={[
+            styles.headerStatus,
+            { color: friendData.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+          ]}>
+            {friendData.status === 'online' ? 'Online' : 'Offline'}
+          </Text>
+        </View>
+      </View>
+      
+      <View style={styles.headerRight} />
+    </View>
+  );
+
   // Render message item
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = item.senderId === currentUserId;
@@ -278,19 +398,7 @@ export default function ChatScreen({ route, navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1A1F23" />
       
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => {
-            navigation.navigate('FindFriend');
-          }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{friendName}</Text>
-        <View style={styles.headerRight} />
-      </View>
+      {renderHeader()}
       
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingView}
@@ -338,10 +446,123 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
     backgroundColor: '#1A1F23',
+  },
+  backButton: {
+    marginRight: 15,
+  },
+  headerUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 10,
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  statusIndicator: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: '#1A1F23',
+    bottom: 0,
+    right: 0,
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  headerStatus: {
+    fontSize: 12,
+  },
+  headerRight: {
+    width: 24, // Same as back button for balance
   },
   keyboardAvoidingView: {
     flex: 1,
+  },
+  messagesList: {
+    padding: 15,
+  },
+  messageBubble: {
+    maxWidth: '80%',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  currentUserMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#01CC97',
+  },
+  otherUserMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f0f0f0',
+  },
+  messageText: {
+    fontSize: 16,
+  },
+  currentUserMessageText: {
+    color: '#fff',
+  },
+  otherUserMessageText: {
+    color: '#333',
+  },
+  messageTime: {
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: 'right',
+  },
+  currentUserMessageTime: {
+    color: '#e0e0e0',
+  },
+  otherUserMessageTime: {
+    color: '#777',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    backgroundColor: '#fff',
+  },
+  input: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    paddingHorizontal: 15,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    fontSize: 16,
+  },
+  sendButton: {
+    marginLeft: 10,
+    backgroundColor: '#01CC97',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#e0e0e0',
   },
   loadingContainer: {
     flex: 1,
@@ -352,94 +573,5 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     color: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#1A1F23',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  backButton: {
-    width: 40,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  headerRight: {
-    width: 40,
-  },
-  messagesList: {
-    padding: 16,
-    paddingBottom: 16,
-  },
-  messageBubble: {
-    padding: 12,
-    borderRadius: 20,
-    marginBottom: 8,
-    maxWidth: '80%',
-  },
-  currentUserMessage: {
-    backgroundColor: '#05907A',
-    alignSelf: 'flex-end',
-    borderBottomRightRadius: 4,
-  },
-  otherUserMessage: {
-    backgroundColor: '#2A3035',
-    alignSelf: 'flex-start',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-  },
-  currentUserMessageText: {
-    color: '#fff',
-  },
-  otherUserMessageText: {
-    color: '#fff',
-  },
-  messageTime: {
-    fontSize: 10,
-    alignSelf: 'flex-end',
-    marginTop: 4,
-  },
-  currentUserMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  otherUserMessageTime: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-    backgroundColor: '#1A1F23',
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#2A3035',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    maxHeight: 100,
-    color: '#fff',
-  },
-  sendButton: {
-    marginLeft: 10,
-    backgroundColor: '#05907A',
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#2A3035',
   },
 });

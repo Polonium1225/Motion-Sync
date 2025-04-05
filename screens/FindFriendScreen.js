@@ -152,7 +152,8 @@ export default function FindFriendScreen({ navigation }) {
     navigation.navigate('Chat', {
       friendId: friendId,
       friendName: friend.name,
-      conversationId: conversation.$id
+      conversationId: conversation.$id,
+      
     });
   };
 
