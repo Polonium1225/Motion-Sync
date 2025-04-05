@@ -148,7 +148,7 @@ export default function ChatScreen({ route, navigation }) {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
-        'messages', // messages collection
+        '67edc5c00017db23e0fa', // messages collection
         [
           Query.equal('conversationId', convId),
           Query.orderDesc('$createdAt')
