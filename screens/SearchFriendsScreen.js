@@ -47,28 +47,23 @@ export default function SearchFriendsScreen({ navigation }) {
 
   const startConversation = async (friendId, friendName) => {
     try {
-      console.log(`[DEBUG] Starting conversation with: ${friendId}`);
-      
-      // Check if conversation already exists
       const existingConversation = await findExistingConversation(currentUserId, friendId);
       
       if (existingConversation) {
-        // Navigate to existing conversation
         navigation.navigate('Chat', {
-          friendId: friendId,
-          friendName: friendName,
+          friendId,
+          friendName,
           conversationId: existingConversation.$id
         });
       } else {
-        // Navigate to start a new conversation
         navigation.navigate('Chat', {
-          friendId: friendId,
-          friendName: friendName,
+          friendId,
+          friendName,
           conversationId: `new_${currentUserId}_${friendId}`
         });
       }
     } catch (error) {
-      console.error("[DEBUG] Error starting conversation:", error);
+      console.error("Error starting conversation:", error);
     }
   };
 

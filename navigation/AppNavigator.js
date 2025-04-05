@@ -71,6 +71,11 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             {(props) => <TabNavigator {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
           <Stack.Screen
+            name="Community"
+            component={CommunityScreen}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen
             name="CameraScreen"
             component={CameraScreen}
             options={{ headerShown: false }}

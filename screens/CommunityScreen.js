@@ -2,35 +2,27 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { account, getUserConversations } from "../lib/AppwriteService";
+import { useIsFocused } from '@react-navigation/native';
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(false);
+  const isFocused = useIsFocused();
 
   const handleChatPress = async () => {
     setIsLoading(true);
-    
     try {
-      console.log("[DEBUG] Checking conversations on button press");
-      
-      // Get current user
       const user = await account.get();
-      console.log("[DEBUG] User retrieved:", user.$id);
-      
-      // Get user conversations using our helper function
       const conversations = await getUserConversations(user.$id);
-      console.log("[DEBUG] User conversations:", conversations.length);
       
-      // Navigate based on results
       if (conversations.length > 0) {
         navigation.navigate('FindFriend');
       } else {
-        navigation.navigate('NoConversation');
+        navigation.navigate('SearchFriends'); // Go directly to SearchFriends instead of NoConversation
       }
     } catch (error) {
-      console.error("[DEBUG] Error checking conversations:", error);
-      // If there's any error, just navigate to NoConversation as a fallback
-      navigation.navigate('NoConversation');
+      console.error("Error checking conversations:", error);
+      navigation.navigate('SearchFriends');
     } finally {
       setIsLoading(false);
     }

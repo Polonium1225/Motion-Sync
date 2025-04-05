@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, BackHandler } from 'react-native';
 import { account, getUserConversations, databases, DATABASE_ID } from "../lib/AppwriteService";
+import { useIsFocused } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function FindFriendScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -9,6 +11,26 @@ export default function FindFriendScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState('');
+  const isFocused = useIsFocused();
+
+  // Replace the current backAction with this:
+useEffect(() => {
+  const backAction = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('Community'); // Fallback if no back stack
+    }
+    return true;
+  };
+
+  const backHandler = BackHandler.addEventListener(
+    'hardwareBackPress',
+    backAction
+  );
+
+  return () => backHandler.remove();
+}, [navigation]);
 
   useEffect(() => {
     const loadConversationsAndUsers = async () => {
@@ -61,8 +83,10 @@ export default function FindFriendScreen({ navigation }) {
       }
     };
     
-    loadConversationsAndUsers();
-  }, []);
+    if (isFocused) { 
+      loadConversationsAndUsers();
+    }
+  }, [isFocused]);
 
   const getFilteredConversations = () => {
     if (!searchQuery) return conversations;
@@ -118,6 +142,15 @@ export default function FindFriendScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
+      <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => {
+            navigation.navigate('Community');
+            
+          }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
         <Text style={styles.title}>Your Conversations</Text>
         <TouchableOpacity 
           style={styles.newChatButton}
