@@ -14,6 +14,8 @@ import {
 import { databases, account, DATABASE_ID, Query } from "../lib/AppwriteService";
 import { Ionicons } from '@expo/vector-icons';
 
+const DEFAULT_AVATAR = require('../assets/avatar.png'); // Local default avatar
+
 export default function SearchFriendsScreen({ navigation }) {
   const [users, setUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,7 +23,7 @@ export default function SearchFriendsScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Real-time status updates
+  // Load users initially
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -35,14 +37,7 @@ export default function SearchFriendsScreen({ navigation }) {
           [Query.select(['$id', 'name', 'avatar', 'status'])]
         );
         
-        const otherUsers = response.documents
-          .filter(u => u.$id !== user.$id)
-          .map(user => ({
-            ...user,
-            avatar: user.avatar || 'default' // Use 'default' as fallback
-          }));
-        
-        setUsers(otherUsers);
+        setUsers(response.documents.filter(u => u.$id !== user.$id));
       } catch (error) {
         console.error("Error fetching users:", error);
         setError("Couldn't load users. Please try again later.");
@@ -52,16 +47,32 @@ export default function SearchFriendsScreen({ navigation }) {
     };
 
     fetchUsers();
-
-    // Set up real-time updates for status
-    const interval = setInterval(fetchUsers, 10000); // Update every 10 seconds
-
-    return () => clearInterval(interval);
   }, []);
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Real-time status updates only
+  useEffect(() => {
+    const updateStatuses = async () => {
+      try {
+        const response = await databases.listDocuments(
+          DATABASE_ID,
+          '67d0bbf8003206b11780',
+          [Query.select(['$id', 'status'])]
+        );
+        
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            const updatedUser = response.documents.find(u => u.$id === user.$id);
+            return updatedUser ? {...user, status: updatedUser.status} : user;
+          })
+        );
+      } catch (error) {
+        console.error("Error updating statuses:", error);
+      }
+    };
+
+    const interval = setInterval(updateStatuses, 10000); // Update every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const renderUserItem = ({ item }) => (
     <TouchableOpacity 
@@ -70,17 +81,17 @@ export default function SearchFriendsScreen({ navigation }) {
     >
       <View style={styles.avatarContainer}>
         {item.avatar && item.avatar !== 'avatar.png' ? (
-
-        <Image 
-        source={item.avatar === 'avatar.png' ? require('../assets/icon.png') : { uri: item.avatar }}
-        style={styles.avatarImage}
-        />
+          <Image 
+            source={{ uri: item.avatar }} 
+            style={styles.avatarImage}
+            defaultSource={DEFAULT_AVATAR}
+            onError={() => console.log("Failed to load avatar")}
+          />
         ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>
-              {item.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <Image 
+            source={DEFAULT_AVATAR}
+            style={styles.avatarImage}
+          />
         )}
         <View style={[
           styles.statusIndicator,
@@ -90,7 +101,10 @@ export default function SearchFriendsScreen({ navigation }) {
       
       <View style={styles.userInfo}>
         <Text style={styles.userName}>{item.name}</Text>
-        <Text style={styles.userStatus}>
+        <Text style={[
+          styles.userStatus,
+          { color: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+        ]}>
           {item.status === 'online' ? 'Online' : 'Offline'}
         </Text>
       </View>
@@ -186,6 +200,10 @@ export default function SearchFriendsScreen({ navigation }) {
       </SafeAreaView>
     );
   }
+
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -312,5 +330,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#888',
+  },
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    resizeMode: 'cover',
   },
 });
