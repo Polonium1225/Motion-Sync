@@ -1,7 +1,9 @@
-//AppNavigator.js 
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
+
+// Import all your screens
 import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import CommunityScreen from '../screens/CommunityScreen';
@@ -15,12 +17,11 @@ import ChatScreen from '../screens/ChatScreen';
 import SearchFriendsScreen from '../screens/SearchFriendsScreen';
 import NoConversationScreen from '../screens/NoConversationScreen';
 import FindFriendScreen from '../screens/FindFriendScreen';
-import { Ionicons } from 'react-native-vector-icons';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
-function TabNavigator({ setIsLoggedIn }) {
+function MainTabs({ setIsLoggedIn }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -58,21 +59,34 @@ function TabNavigator({ setIsLoggedIn }) {
   );
 }
 
-// Main App Navigator
 export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
   return (
     <Stack.Navigator>
       {isLoggedIn ? (
         <>
-          <Stack.Screen
-            name="TabNavigator"
-            options={{ headerShown: false }}
-          >
-            {(props) => <TabNavigator {...props} setIsLoggedIn={setIsLoggedIn} />}
+          <Stack.Screen name="MainTabs" options={{ headerShown: false }}>
+            {(props) => <MainTabs {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
-          <Stack.Screen
-            name="Community"
-            component={CommunityScreen}
+          
+          {/* Screens where you DON'T want tabs */}
+          <Stack.Screen 
+            name="FindFriend" 
+            component={FindFriendScreen} 
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="Chat" 
+            component={ChatScreen} 
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="SearchFriends" 
+            component={SearchFriendsScreen} 
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="NoConversation" 
+            component={NoConversationScreen} 
             options={{ headerShown: false }}
           />
           <Stack.Screen
@@ -90,40 +104,13 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             component={PerformanceComparisonScreen}
             options={{ headerShown: false }}
           />
-          
-          <Stack.Screen 
-            name="Chat" 
-            component={ChatScreen} 
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen 
-            name="NoConversation" 
-            component={NoConversationScreen} 
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen 
-            name="SearchFriends" 
-            component={SearchFriendsScreen} 
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen 
-            name="FindFriend" 
-            component={FindFriendScreen} 
-            options={{ headerShown: false }}
-          />
         </>
       ) : (
         <>
-          <Stack.Screen
-            name="SignIn"
-            options={{ headerShown: false }}
-          >
+          <Stack.Screen name="SignIn" options={{ headerShown: false }}>
             {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
-          <Stack.Screen
-            name="SignUp"
-            options={{ headerShown: false }}
-          >
+          <Stack.Screen name="SignUp" options={{ headerShown: false }}>
             {(props) => <SignUp {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
         </>

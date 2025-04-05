@@ -10,7 +10,8 @@ import {
   Platform,
   ActivityIndicator,
   StatusBar,
-  SafeAreaView
+  SafeAreaView,
+  BackHandler
 } from 'react-native';
 import { databases, account, DATABASE_ID, ID } from "../lib/AppwriteService";
 import { Query } from 'appwrite';
@@ -25,6 +26,21 @@ export default function ChatScreen({ route, navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [dbConversationId, setDbConversationId] = useState(null);
   const flatListRef = useRef(null);
+
+  // Handle back button
+  useEffect(() => {
+    const backAction = () => {
+      navigation.navigate('MainTabs', { screen: 'Community' });
+      return true;
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
+
+    return () => backHandler.remove();
+  }, [navigation]);
 
   // Initialize chat and get or create conversation
   useEffect(() => {

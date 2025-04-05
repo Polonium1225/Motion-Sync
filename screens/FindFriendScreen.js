@@ -13,24 +13,20 @@ export default function FindFriendScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState('');
   const isFocused = useIsFocused();
 
-  // Replace the current backAction with this:
-useEffect(() => {
-  const backAction = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate('Community'); // Fallback if no back stack
-    }
-    return true;
-  };
+  // Handle back button
+  useEffect(() => {
+    const backAction = () => {
+      navigation.navigate('FindFriend');
+      return true;
+    };
 
-  const backHandler = BackHandler.addEventListener(
-    'hardwareBackPress',
-    backAction
-  );
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction
+    );
 
-  return () => backHandler.remove();
-}, [navigation]);
+    return () => backHandler.remove();
+  }, [navigation]);
 
   useEffect(() => {
     const loadConversationsAndUsers = async () => {
@@ -144,10 +140,7 @@ useEffect(() => {
       <View style={styles.header}>
       <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => {
-            navigation.navigate('Community');
-            
-          }}
+          onPress={() => navigation.navigate('MainTabs', { screen: 'Community' })}
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
