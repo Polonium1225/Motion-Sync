@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator, SafeAreaView, StatusBar } from 'react-native';
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  TouchableOpacity, 
+  StyleSheet, 
+  TextInput, 
+  ActivityIndicator, 
+  SafeAreaView, 
+  StatusBar,
+  Image 
+} from 'react-native';
 import { databases, account, DATABASE_ID, Query } from "../lib/AppwriteService";
-import { Ionicons } from 'react-native-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SearchFriendsScreen({ navigation }) {
   const [users, setUsers] = useState([]);
@@ -18,20 +29,27 @@ export default function SearchFriendsScreen({ navigation }) {
         // Get current user
         const user = await account.get();
         setCurrentUserId(user.$id);
-        console.log("[DEBUG] Current user ID:", user.$id);
         
-        // Get all users (without using Query object)
+        // Get all users with avatar and status
         const response = await databases.listDocuments(
           DATABASE_ID,
-          '67d0bbf8003206b11780'
+          '67d0bbf8003206b11780', // Your accounts collection
+          [
+            Query.select(['$id', 'name', 'email', 'avatar', 'status']) // Only get needed fields
+          ]
         );
-        console.log("[DEBUG] Total users found:", response.documents.length);
         
         // Filter out current user
-        const otherUsers = response.documents.filter(u => u.$id !== user.$id);
+        const otherUsers = response.documents
+          .filter(u => u.$id !== user.$id)
+          .map(user => ({
+            ...user,
+            avatar: user.avatar || 'avatar.png' // Default avatar if null
+          }));
+        
         setUsers(otherUsers);
       } catch (error) {
-        console.error("[DEBUG] Error fetching users:", error);
+        console.error("Error fetching users:", error);
         setError("Couldn't load users. Please try again later.");
       } finally {
         setIsLoading(false);
@@ -107,6 +125,44 @@ export default function SearchFriendsScreen({ navigation }) {
     }
   };
 
+  const renderUserItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.userItem}
+      onPress={() => startConversation(item.$id, item.name)}
+    >
+      <View style={styles.avatarContainer}>
+        {item.avatar && item.avatar !== 'avatar.png' ? (
+          <Image 
+          source={item.avatar === 'enha' ? require('../assets/avatar.png') : { uri: item.avatar }}
+          style={styles.avatarImage}
+        />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>
+              {item.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={[
+          styles.statusIndicator,
+          { backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+        ]} />
+      </View>
+      
+      <View style={styles.userInfo}>
+        <View style={styles.nameContainer}>
+          <Text style={styles.userName}>{item.name}</Text>
+          {item.status === 'online' && (
+            <Text style={styles.onlineText}>Online</Text>
+          )}
+        </View>
+        <Text style={styles.userEmail}>{item.email}</Text>
+      </View>
+      
+      <Ionicons name="chevron-forward" size={20} color="#666" />
+    </TouchableOpacity>
+  );
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.centeredContainer}>
@@ -163,23 +219,7 @@ export default function SearchFriendsScreen({ navigation }) {
       ) : (
         <FlatList
           data={filteredUsers}
-          renderItem={({ item }) => (
-            <TouchableOpacity 
-              style={styles.userItem}
-              onPress={() => startConversation(item.$id, item.name)}
-            >
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {item.name.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.name}</Text>
-                <Text style={styles.userEmail}>{item.email}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            </TouchableOpacity>
-          )}
+          renderItem={renderUserItem}
           keyExtractor={item => item.$id}
         />
       )}
@@ -190,100 +230,89 @@ export default function SearchFriendsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1A1F23',
-  },
-  centeredContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#1A1F23',
+    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
+    padding: 15,
+    backgroundColor: '#1A1F23',
   },
   backButton: {
-    width: 40,
+    marginRight: 15,
   },
   headerTitle: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  headerRight: {
-    width: 40,
+    flex: 1,
   },
   searchBar: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    marginHorizontal: 16,
-    marginVertical: 16,
+    backgroundColor: '#f5f5f5',
+    padding: 15,
+    margin: 15,
+    borderRadius: 10,
     fontSize: 16,
-    backgroundColor: '#2A3035',
-    color: '#fff',
   },
   userItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#333',
-    marginHorizontal: 16,
+    borderBottomColor: '#f0f0f0',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 15,
+  },
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   avatarPlaceholder: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#05907A',
+    backgroundColor: '#e0e0e0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
   },
   avatarText: {
-    color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
+    color: '#555',
+  },
+  statusIndicator: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
+    bottom: 0,
+    right: 10,
   },
   userInfo: {
     flex: 1,
   },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   userName: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  onlineText: {
+    fontSize: 12,
+    color: '#4CAF50',
   },
   userEmail: {
     fontSize: 14,
-    color: '#888',
-    marginTop: 4,
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#fff',
-  },
-  errorText: {
-    color: '#ff6b6b',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#05907A',
-    padding: 10,
-    borderRadius: 8,
-    paddingHorizontal: 20,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#777',
+    marginTop: 2,
   },
   emptyContainer: {
     flex: 1,
@@ -291,7 +320,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#888',
     fontSize: 16,
-  }
+    color: '#888',
+  },
 });
