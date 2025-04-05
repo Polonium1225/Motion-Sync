@@ -21,30 +21,25 @@ export default function SearchFriendsScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Real-time status updates
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        
-        // Get current user
         const user = await account.get();
         setCurrentUserId(user.$id);
         
-        // Get all users with avatar and status
         const response = await databases.listDocuments(
           DATABASE_ID,
-          '67d0bbf8003206b11780', // Your accounts collection
-          [
-            Query.select(['$id', 'name', 'email', 'avatar', 'status']) // Only get needed fields
-          ]
+          '67d0bbf8003206b11780',
+          [Query.select(['$id', 'name', 'avatar', 'status'])]
         );
         
-        // Filter out current user
         const otherUsers = response.documents
           .filter(u => u.$id !== user.$id)
           .map(user => ({
             ...user,
-            avatar: user.avatar || 'avatar.png' // Default avatar if null
+            avatar: user.avatar || 'default' // Use 'default' as fallback
           }));
         
         setUsers(otherUsers);
@@ -57,10 +52,51 @@ export default function SearchFriendsScreen({ navigation }) {
     };
 
     fetchUsers();
+
+    // Set up real-time updates for status
+    const interval = setInterval(fetchUsers, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const renderUserItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.userItem}
+      onPress={() => startConversation(item.$id, item.name)}
+    >
+      <View style={styles.avatarContainer}>
+        {item.avatar && item.avatar !== 'avatar.png' ? (
+
+        <Image 
+        source={item.avatar === 'avatar.png' ? require('../assets/icon.png') : { uri: item.avatar }}
+        style={styles.avatarImage}
+        />
+        ) : (
+          <View style={styles.avatarPlaceholder}>
+            <Text style={styles.avatarText}>
+              {item.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={[
+          styles.statusIndicator,
+          { backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+        ]} />
+      </View>
+      
+      <View style={styles.userInfo}>
+        <Text style={styles.userName}>{item.name}</Text>
+        <Text style={styles.userStatus}>
+          {item.status === 'online' ? 'Online' : 'Offline'}
+        </Text>
+      </View>
+      
+      <Ionicons name="chevron-forward" size={20} color="#666" />
+    </TouchableOpacity>
   );
 
   const startConversation = async (friendId, friendName) => {
@@ -125,43 +161,6 @@ export default function SearchFriendsScreen({ navigation }) {
     }
   };
 
-  const renderUserItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.userItem}
-      onPress={() => startConversation(item.$id, item.name)}
-    >
-      <View style={styles.avatarContainer}>
-        {item.avatar && item.avatar !== 'avatar.png' ? (
-          <Image 
-          source={item.avatar === 'enha' ? require('../assets/avatar.png') : { uri: item.avatar }}
-          style={styles.avatarImage}
-        />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>
-              {item.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <View style={[
-          styles.statusIndicator,
-          { backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
-        ]} />
-      </View>
-      
-      <View style={styles.userInfo}>
-        <View style={styles.nameContainer}>
-          <Text style={styles.userName}>{item.name}</Text>
-          {item.status === 'online' && (
-            <Text style={styles.onlineText}>Online</Text>
-          )}
-        </View>
-        <Text style={styles.userEmail}>{item.email}</Text>
-      </View>
-      
-      <Ionicons name="chevron-forward" size={20} color="#666" />
-    </TouchableOpacity>
-  );
 
   if (isLoading) {
     return (
@@ -192,7 +191,6 @@ export default function SearchFriendsScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1A1F23" />
       
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -201,7 +199,6 @@ export default function SearchFriendsScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Find Friends</Text>
-        <View style={styles.headerRight} />
       </View>
       
       <TextInput
@@ -226,6 +223,7 @@ export default function SearchFriendsScreen({ navigation }) {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -269,6 +267,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
+    backgroundColor: '#f0f0f0', // Background for loading state
   },
   avatarPlaceholder: {
     width: 50,
@@ -291,28 +290,19 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
     bottom: 0,
-    right: 10,
+    right: 0,
   },
   userInfo: {
     flex: 1,
   },
-  nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   userName: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginRight: 8,
+    marginBottom: 4,
   },
-  onlineText: {
-    fontSize: 12,
-    color: '#4CAF50',
-  },
-  userEmail: {
+  userStatus: {
     fontSize: 14,
     color: '#777',
-    marginTop: 2,
   },
   emptyContainer: {
     flex: 1,
