@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, BackHandler } from 'react-native';
-import { account, getUserConversations, databases, DATABASE_ID } from "../lib/AppwriteService";
+import { 
+  View, 
+  Text, 
+  FlatList, 
+  StyleSheet, 
+  TextInput, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  BackHandler,
+  Image
+} from 'react-native';
+import { account, getUserConversations, databases, DATABASE_ID, Query } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+
+const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
 
 export default function FindFriendScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -16,7 +28,7 @@ export default function FindFriendScreen({ navigation }) {
   // Handle back button
   useEffect(() => {
     const backAction = () => {
-      navigation.navigate('FindFriend');
+      navigation.navigate('MainTabs', { screen: 'Community' });
       return true;
     };
 
@@ -28,51 +40,45 @@ export default function FindFriendScreen({ navigation }) {
     return () => backHandler.remove();
   }, [navigation]);
 
+  // Load conversations and users
   useEffect(() => {
     const loadConversationsAndUsers = async () => {
       try {
         setIsLoading(true);
-        
-        // Get current user
         const user = await account.get();
         setCurrentUserId(user.$id);
         
-        // Get user conversations
         const userConversations = await getUserConversations(user.$id);
         
-        // Create a set of all user IDs we need to fetch
+        // Get all participant IDs
         const userIdsToFetch = new Set();
         userConversations.forEach(conv => {
           if (conv.participant1 !== user.$id) userIdsToFetch.add(conv.participant1);
           if (conv.participant2 !== user.$id) userIdsToFetch.add(conv.participant2);
         });
         
-        // Get user info for each participant
+        // Fetch user details with avatar and status
         const userMap = {};
-        // Using traditional for loop to avoid race conditions with async/await
-        for (const userId of userIdsToFetch) {
-          try {
-            // Fetch each user's details from the users collection
-            const userDocs = await databases.listDocuments(
-              DATABASE_ID,
-              '67d0bbf8003206b11780',
-              []
-            );
-            
-            // Find the user in the returned documents
-            const userData = userDocs.documents.find(doc => doc.$id === userId);
-            if (userData) {
-              userMap[userId] = userData;
-            }
-          } catch (err) {
-            console.error(`Error fetching user ${userId}:`, err);
-          }
-        }
+        const usersResponse = await databases.listDocuments(
+          DATABASE_ID,
+          '67d0bbf8003206b11780',
+          [
+            Query.select(['$id', 'name', 'avatar', 'status']),
+            Query.equal('$id', Array.from(userIdsToFetch))
+          ]
+        );
+        
+        usersResponse.documents.forEach(user => {
+          userMap[user.$id] = {
+            ...user,
+            avatar: user.avatar || 'avatar.png' // Default avatar
+          };
+        });
         
         setUsers(userMap);
         setConversations(userConversations);
       } catch (err) {
-        console.error("[DEBUG] Error loading conversations:", err);
+        console.error("Error loading conversations:", err);
         setError("Failed to load conversations. Please try again.");
       } finally {
         setIsLoading(false);
@@ -83,6 +89,46 @@ export default function FindFriendScreen({ navigation }) {
       loadConversationsAndUsers();
     }
   }, [isFocused]);
+
+  // Real-time status updates
+  useEffect(() => {
+    const updateStatuses = async () => {
+      try {
+        // Get all unique user IDs from conversations
+        const userIds = [];
+        conversations.forEach(conv => {
+          if (conv.participant1 !== currentUserId) userIds.push(conv.participant1);
+          if (conv.participant2 !== currentUserId) userIds.push(conv.participant2);
+        });
+        
+        if (userIds.length === 0) return;
+        
+        const response = await databases.listDocuments(
+          DATABASE_ID,
+          '67d0bbf8003206b11780',
+          [
+            Query.select(['$id', 'status']),
+            Query.equal('$id', userIds)
+          ]
+        );
+        
+        setUsers(prevUsers => {
+          const updatedUsers = {...prevUsers};
+          response.documents.forEach(user => {
+            if (updatedUsers[user.$id]) {
+              updatedUsers[user.$id].status = user.status;
+            }
+          });
+          return updatedUsers;
+        });
+      } catch (error) {
+        console.error("Error updating statuses:", error);
+      }
+    };
+
+    const interval = setInterval(updateStatuses, 10000); // Update every 10 seconds
+    return () => clearInterval(interval);
+  }, [conversations, currentUserId]);
 
   const getFilteredConversations = () => {
     if (!searchQuery) return conversations;
@@ -110,35 +156,59 @@ export default function FindFriendScreen({ navigation }) {
     });
   };
 
-  if (isLoading) {
+  const renderConversationItem = ({ item }) => {
+    const friendId = item.participant1 === currentUserId ? item.participant2 : item.participant1;
+    const friend = users[friendId] || { name: "Unknown User", status: "offline", avatar: "avatar.png" };
+    
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#01CC97" />
-        <Text style={styles.loadingText}>Loading your conversations...</Text>
-      </View>
+      <TouchableOpacity 
+        style={styles.conversationItem}
+        onPress={() => navigateToChat(item)}
+      >
+        <View style={styles.avatarContainer}>
+          {friend.avatar && friend.avatar !== 'avatar.png' ? (
+            <Image 
+              source={{ uri: friend.avatar }} 
+              style={styles.avatarImage}
+              defaultSource={DEFAULT_AVATAR}
+            />
+          ) : (
+            <Image 
+              source={DEFAULT_AVATAR}
+              style={styles.avatarImage}
+            />
+          )}
+          <View style={[
+            styles.statusIndicator,
+            { backgroundColor: friend.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+          ]} />
+        </View>
+        
+        <View style={styles.conversationInfo}>
+          <Text style={styles.friendName}>{friend.name}</Text>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {item.lastMessage || "Start a conversation"}
+          </Text>
+        </View>
+        
+        <View style={styles.statusTextContainer}>
+          <Text style={[
+            styles.statusText,
+            { color: friend.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+          ]}>
+            {friend.status === 'online' ? 'Online' : 'Offline'}
+          </Text>
+        </View>
+      </TouchableOpacity>
     );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={() => navigation.replace('FindFriend')}
-        >
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  };
 
   const filteredConversations = getFilteredConversations();
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-      <TouchableOpacity 
+        <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.navigate('MainTabs', { screen: 'Community' })}
         >
@@ -170,22 +240,7 @@ export default function FindFriendScreen({ navigation }) {
         <FlatList
           data={filteredConversations}
           keyExtractor={(item) => item.$id}
-          renderItem={({ item }) => {
-            const friendId = item.participant1 === currentUserId ? item.participant2 : item.participant1;
-            const friend = users[friendId] || { name: "Unknown User" };
-            
-            return (
-              <TouchableOpacity 
-                style={styles.conversationItem}
-                onPress={() => navigateToChat(item)}
-              >
-                <Text style={styles.friendName}>{friend.name}</Text>
-                <Text style={styles.lastMessage} numberOfLines={1}>
-                  {item.lastMessage || "Start a conversation"}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
+          renderItem={renderConversationItem}
         />
       )}
     </View>
@@ -195,76 +250,81 @@ export default function FindFriendScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#fff',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  newChatButton: {
-    backgroundColor: '#01CC97',
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  newChatButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  searchBar: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    fontSize: 16,
-  },
-  conversationItem: {
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
+  backButton: {
+    marginRight: 10,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    flex: 1,
+  },
+  newChatButton: {
+    padding: 8,
+  },
+  newChatButtonText: {
+    color: '#01CC97',
+    fontWeight: 'bold',
+  },
+  searchBar: {
+    backgroundColor: '#f5f5f5',
+    padding: 15,
+    margin: 15,
+    borderRadius: 10,
+    fontSize: 16,
+  },
+  conversationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 15,
+  },
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    resizeMode: 'cover',
+  },
+  statusIndicator: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#fff',
+    bottom: 0,
+    right: 0,
+  },
+  conversationInfo: {
+    flex: 1,
+  },
   friendName: {
-    fontSize: 18,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
   },
   lastMessage: {
     fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+    color: '#777',
   },
-  loadingText: {
-    marginTop: 10,
-    color: '#666',
+  statusTextContainer: {
+    marginLeft: 10,
   },
-  errorText: {
-    color: 'red',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    backgroundColor: '#01CC97',
-    padding: 10,
-    borderRadius: 8,
-    paddingHorizontal: 20,
-  },
-  retryButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
+  statusText: {
+    fontSize: 12,
   },
   emptyContainer: {
     flex: 1,
@@ -272,7 +332,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    color: '#666',
     fontSize: 16,
-  }
+    color: '#888',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#01CC97',
+  },
+  errorText: {
+    color: '#ff0000',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#01CC97',
+    padding: 10,
+    borderRadius: 5,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
 });
