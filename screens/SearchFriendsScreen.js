@@ -1,20 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, 
-  Text, 
-  FlatList, 
-  TouchableOpacity, 
-  StyleSheet, 
-  TextInput, 
-  ActivityIndicator, 
-  SafeAreaView, 
-  StatusBar,
-  Image 
+  View, Text, FlatList, TouchableOpacity, StyleSheet, 
+  TextInput, ActivityIndicator, SafeAreaView, StatusBar, Image 
 } from 'react-native';
-import { databases, account, DATABASE_ID, Query } from "../lib/AppwriteService";
+import { account, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
 import { Ionicons } from '@expo/vector-icons';
 
-const DEFAULT_AVATAR = require('../assets/avatar.png'); // Local default avatar
+const DEFAULT_AVATAR = require('../assets/avatar.png');
 
 export default function SearchFriendsScreen({ navigation }) {
   const [users, setUsers] = useState([]);
@@ -23,7 +15,7 @@ export default function SearchFriendsScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load users initially
+  // Load all user profiles
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -31,13 +23,22 @@ export default function SearchFriendsScreen({ navigation }) {
         const user = await account.get();
         setCurrentUserId(user.$id);
         
+        // Fetch all user profiles except current user
         const response = await databases.listDocuments(
           DATABASE_ID,
-          '67d0bbf8003206b11780',
-          [Query.select(['$id', 'name', 'avatar', 'status'])]
+          COLLECTIONS.USER_PROFILES,
+          [
+            Query.notEqual('userId', user.$id),
+            Query.select(['userId', 'name', 'avatar', 'status'])
+          ]
         );
         
-        setUsers(response.documents.filter(u => u.$id !== user.$id));
+        setUsers(response.documents.map(doc => ({
+          $id: doc.userId, // Use userId as identifier
+          name: doc.name,
+          avatar: doc.avatar || 'avatar.png',
+          status: doc.status || 'offline'
+        })));
       } catch (error) {
         console.error("Error fetching users:", error);
         setError("Couldn't load users. Please try again later.");
@@ -49,19 +50,22 @@ export default function SearchFriendsScreen({ navigation }) {
     fetchUsers();
   }, []);
 
-  // Real-time status updates only
+  // Real-time status updates
   useEffect(() => {
     const updateStatuses = async () => {
       try {
         const response = await databases.listDocuments(
           DATABASE_ID,
-          '67d0bbf8003206b11780',
-          [Query.select(['$id', 'status'])]
+          COLLECTIONS.USER_PROFILES,
+          [
+            Query.notEqual('userId', currentUserId),
+            Query.select(['userId', 'status'])
+          ]
         );
         
         setUsers(prevUsers => 
           prevUsers.map(user => {
-            const updatedUser = response.documents.find(u => u.$id === user.$id);
+            const updatedUser = response.documents.find(doc => doc.userId === user.$id);
             return updatedUser ? {...user, status: updatedUser.status} : user;
           })
         );
@@ -70,9 +74,9 @@ export default function SearchFriendsScreen({ navigation }) {
       }
     };
 
-    const interval = setInterval(updateStatuses, 10000); // Update every 10 seconds
+    const interval = setInterval(updateStatuses, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [currentUserId]);
 
   const renderUserItem = ({ item }) => (
     <TouchableOpacity 

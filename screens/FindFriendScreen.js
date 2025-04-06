@@ -42,7 +42,7 @@ export default function FindFriendScreen({ navigation }) {
 
   // Load conversations and users
   useEffect(() => {
-    const loadConversationsAndUsers = async () => {
+    const loadData = async () => {
       try {
         setIsLoading(true);
         const user = await account.get();
@@ -50,83 +50,77 @@ export default function FindFriendScreen({ navigation }) {
         
         const userConversations = await getUserConversations(user.$id);
         
-        // Get all participant IDs
-        const userIdsToFetch = new Set();
+        // Get participant IDs and fetch their profiles
+        const userIds = new Set();
         userConversations.forEach(conv => {
-          if (conv.participant1 !== user.$id) userIdsToFetch.add(conv.participant1);
-          if (conv.participant2 !== user.$id) userIdsToFetch.add(conv.participant2);
+          if (conv.participant1 !== user.$id) userIds.add(conv.participant1);
+          if (conv.participant2 !== user.$id) userIds.add(conv.participant2);
         });
-        
-        // Fetch user profiles using the helper function
+
         const userMap = {};
-        const fetchPromises = Array.from(userIdsToFetch).map(async (userId) => {
+        await Promise.all(Array.from(userIds).map(async userId => {
           try {
             const profile = await userProfiles.getProfileByUserId(userId);
             userMap[userId] = {
-              ...profile,
-              $id: userId, // Ensure we have the user ID
-              avatar: profile.avatar || 'avatar.png'
+              $id: userId,
+              name: profile.name,
+              avatar: profile.avatar || 'avatar.png',
+              status: profile.status || 'offline'
             };
           } catch (err) {
-            console.error(`Error fetching profile for user ${userId}:`, err);
+            console.error(`Error loading profile for ${userId}:`, err);
             userMap[userId] = {
               $id: userId,
               name: 'Unknown User',
-              status: 'offline',
-              avatar: 'avatar.png'
+              avatar: 'avatar.png',
+              status: 'offline'
             };
           }
-        });
+        }));
 
-        await Promise.all(fetchPromises);
-        
         setUsers(userMap);
         setConversations(userConversations);
       } catch (err) {
-        console.error("Error loading conversations:", err);
+        console.error("Error loading data:", err);
         setError("Failed to load conversations. Please try again.");
       } finally {
         setIsLoading(false);
       }
     };
-    
-    if (isFocused) { 
-      loadConversationsAndUsers();
-    }
+
+    if (isFocused) loadData();
   }, [isFocused]);
 
-  // Real-time status updates
+  // Optimized status updates
   useEffect(() => {
+    if (!currentUserId) return;
+
     const updateStatuses = async () => {
       try {
-        // Get all unique user IDs from conversations
-        const userIds = [];
-        conversations.forEach(conv => {
-          if (conv.participant1 !== currentUserId) userIds.push(conv.participant1);
-          if (conv.participant2 !== currentUserId) userIds.push(conv.participant2);
-        });
-        
+        const userIds = conversations.flatMap(conv => [
+          conv.participant1,
+          conv.participant2
+        ].filter(id => id !== currentUserId));
+
         if (userIds.length === 0) return;
-        
-        // Update statuses using the userProfiles helper
-        const updatePromises = userIds.map(async (userId) => {
+
+        const uniqueIds = [...new Set(userIds)];
+        await Promise.all(uniqueIds.map(async userId => {
           try {
             const profile = await userProfiles.getProfileByUserId(userId);
-            setUsers(prevUsers => ({
-              ...prevUsers,
+            setUsers(prev => ({
+              ...prev,
               [userId]: {
-                ...(prevUsers[userId] || {}),
-                status: profile.status
+                ...(prev[userId] || {}),
+                status: profile.status || 'offline'
               }
             }));
-          } catch (error) {
-            console.error(`Error updating status for user ${userId}:`, error);
+          } catch (err) {
+            console.error(`Status update failed for ${userId}:`, err);
           }
-        });
-
-        await Promise.all(updatePromises);
+        }));
       } catch (error) {
-        console.error("Error updating statuses:", error);
+        console.error("Status update error:", error);
       }
     };
 
