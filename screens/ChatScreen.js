@@ -21,7 +21,23 @@ import { Ionicons } from '@expo/vector-icons';
 const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
 
 export default function ChatScreen({ route, navigation }) {
-  const { friendId, friendName, conversationId } = route.params;
+  console.log("[DEBUG] ChatScreen received route.params:", route.params);
+  
+  const { 
+    friendId = '', 
+    friendName = 'Unknown', 
+    conversationId = '' 
+  } = route.params || {};
+  
+  console.log("[DEBUG] Destructured params:", {
+    friendId,
+    friendName,
+    conversationId
+  });
+
+  console.log("[DEBUG] Params received:", { friendId, friendName, conversationId });
+
+  
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState('');
@@ -39,17 +55,38 @@ export default function ChatScreen({ route, navigation }) {
     const setOnlineStatus = async () => {
       try {
         const user = await account.get();
-        await databases.updateDocument(
-          DATABASE_ID,
-          '67d0bbf8003206b11780', // users collection
-          user.$id,
-          { status: 'online' }
-        );
+        try {
+          // Try to update status
+          await databases.updateDocument(
+            DATABASE_ID,
+            '67d0bbf8003206b11780', // Users collection
+            user.$id,
+            { status: 'online' }
+          );
+        } catch (error) {
+          // If document doesn't exist, create it
+          if (error.code === 404) {
+            await databases.createDocument(
+              DATABASE_ID,
+              '67d0bbf8003206b11780',
+              user.$id,
+              { 
+                status: 'online',
+                name: user.name || 'User',
+                avatar: 'avatar.png',
+                email: user.email || `${user.$id}@example.com`, // Try to get email from user account or use placeholder
+                password: 'placeholder-password',
+              }
+            );
+          } else {
+            console.error("Update status error:", error);
+          }
+        }
       } catch (error) {
-        console.error("Error setting online status:", error);
+        console.error("Online status error:", error);
       }
     };
-
+  
     setOnlineStatus();
 
     // Set up status cleanup when leaving
@@ -57,14 +94,34 @@ export default function ChatScreen({ route, navigation }) {
       const setOfflineStatus = async () => {
         try {
           const user = await account.get();
-          await databases.updateDocument(
-            DATABASE_ID,
-            '67d0bbf8003206b11780',
-            user.$id,
-            { status: 'offline' }
-          );
+          try {
+            await databases.updateDocument(
+              DATABASE_ID,
+              '67d0bbf8003206b11780',
+              user.$id,
+              { status: 'offline' }
+            );
+          } catch (error) {
+            // If updating fails and document doesn't exist, create it
+            if (error.code === 404) {
+              await databases.createDocument(
+                DATABASE_ID,
+                '67d0bbf8003206b11780',
+                user.$id,
+                { 
+                  status: 'offline',
+                  name: user.name || 'User',
+                  avatar: 'avatar.png',
+                  email: user.email || `${user.$id}@example.com`, // Add email
+                  password: 'placeholder-password'
+                }
+              );
+            } else {
+              console.error("Offline status error:", error);
+            }
+          }
         } catch (error) {
-          console.error("Error setting offline status:", error);
+          console.error("Offline status error:", error);
         }
       };
       
@@ -91,48 +148,87 @@ export default function ChatScreen({ route, navigation }) {
   useEffect(() => {
     const initializeChat = async () => {
       try {
+        console.log("[DEBUG] Starting initialization...");
         setIsLoading(true);
         
-        // Get current user info
+        // Get current user info FIRST
         const user = await account.get();
+        console.log("[DEBUG] Current user:", user);
         setCurrentUserId(user.$id);
         setCurrentUserName(user.name);
+  
+        console.log("[DEBUG] Checking conversation type...");
         
         // Get friend data (avatar and status)
-        const friendResponse = await databases.getDocument(
-          DATABASE_ID,
-          '67d0bbf8003206b11780', // users collection
-          friendId
-        );
-        
-        setFriendData({
-          avatar: friendResponse.avatar || 'avatar.png',
-          status: friendResponse.status || 'offline'
-        });
-
-        // Check if this is a new conversation or existing one
-        if (conversationId.startsWith('new_')) {
-          const existingConversation = await findExistingConversation(user.$id, friendId);
+        // In the try/catch block where you handle friend data
+        try {
+          const friendResponse = await databases.getDocument(
+            DATABASE_ID,
+            '67d0bbf8003206b11780', // users collection
+            friendId
+          );
           
-          if (existingConversation) {
-            setDbConversationId(existingConversation.$id);
-            await loadMessages(existingConversation.$id);
+          setFriendData({
+            avatar: friendResponse.avatar || 'avatar.png',
+            status: friendResponse.status || 'offline'
+          });
+        } catch (error) {
+          console.log("[DEBUG] Friend data not found, using defaults:", error);
+          // If the user doesn't exist yet, create them with default values
+          if (error.code === 404) {
+            try {
+              await databases.createDocument(
+                DATABASE_ID,
+                '67d0bbf8003206b11780',
+                friendId,
+                { 
+                  name: friendName,
+                  status: 'offline',
+                  avatar: 'avatar.png',
+                  email: `${friendId}@example.com`, // Add a placeholder email
+                  password: 'placeholder-password',
+                }
+              );
+              
+              setFriendData({
+                avatar: 'avatar.png',
+                status: 'offline'
+              });
+            } catch (createError) {
+              console.error("Error creating friend document:", createError);
+            }
           } else {
-            const newConvId = await createConversation(user.$id, friendId);
-            setDbConversationId(newConvId);
+            setFriendData({
+              avatar: 'avatar.png',
+              status: 'offline'
+            });
           }
-        } else {
-          setDbConversationId(conversationId);
-          await loadMessages(conversationId);
         }
-      } catch (error) {
-        console.error("Error initializing chat:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
-    initializeChat();
+      // Check if this is a new conversation or existing one
+      if (conversationId.startsWith('new_')) {
+        const existingConversation = await findExistingConversation(user.$id, friendId);
+        
+        if (existingConversation) {
+          setDbConversationId(existingConversation.$id);
+          await loadMessages(existingConversation.$id);
+        } else {
+          const newConvId = await createConversation(user.$id, friendId);
+          setDbConversationId(newConvId);
+        }
+      } else {
+        setDbConversationId(conversationId);
+        await loadMessages(conversationId);
+      }
+    } catch (error) {
+      console.error("[DEBUG] Initialization error:", error);
+    } finally {
+      console.log("[DEBUG] Initialization complete");
+      setIsLoading(false);
+    }
+  };
+
+  initializeChat();
     
     // Set up real-time subscriptions
     const unsubscribeMessages = subscribeToMessages();
@@ -148,22 +244,26 @@ export default function ChatScreen({ route, navigation }) {
   const subscribeToFriendStatus = () => {
     const interval = setInterval(async () => {
       try {
-        const response = await databases.getDocument(
+        const response = await databases.listDocuments(
           DATABASE_ID,
-          '67d0bbf8003206b11780',
-          friendId,
-          [Query.select(['status'])]
+          '67d0bbf8003206b11780', // Your users collection ID
+          [
+            Query.equal('$id', friendId),
+            Query.select(['status'])
+          ]
         );
-        
-        setFriendData(prev => ({
-          ...prev,
-          status: response.status
-        }));
+  
+        if (response.documents.length > 0) {
+          setFriendData(prev => ({
+            ...prev,
+            status: response.documents[0].status || 'offline'
+          }));
+        }
       } catch (error) {
-        console.error("Error updating friend status:", error);
+        console.error("Status update error:", error);
       }
-    }, 5000); // Check every 10 seconds
-    
+    }, 10000); // Every 10 seconds
+  
     return () => clearInterval(interval);
   };
 
@@ -439,6 +539,14 @@ export default function ChatScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      {/* Temporary debug view - remove after debugging 
+      <View style={styles.debugContainer}>
+        <Text style={styles.debugText}>Debug Info:</Text>
+        <Text style={styles.debugText}>Friend ID: {friendId}</Text>
+        <Text style={styles.debugText}>Friend Name: {friendName}</Text>
+        <Text style={styles.debugText}>Conversation ID: {conversationId}</Text>
+        <Text style={styles.debugText}>Current User ID: {currentUserId}</Text>
+      </View>*/}
     </SafeAreaView>
   );
 }
@@ -573,5 +681,17 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     color: '#fff',
+  },
+  debugContainer: {
+    position: 'absolute',
+    bottom: 80,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 10,
+    borderRadius: 5,
+  },
+  debugText: {
+    color: 'white',
+    fontSize: 12,
   },
 });

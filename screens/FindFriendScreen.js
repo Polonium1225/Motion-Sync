@@ -149,13 +149,19 @@ export default function FindFriendScreen({ navigation }) {
       
     const friend = users[friendId] || { name: "Unknown User" };
     
+    console.log("[DEBUG] Navigating to Chat with params:", {
+      friendId,
+      friendName: friend.name,
+      conversationId: conversation.$id,
+      actualFriendObject: friend // Show full friend object
+    });
+    
     navigation.navigate('Chat', {
       friendId: friendId,
       friendName: friend.name,
-      conversationId: conversation.$id,
-      
+      conversationId: conversation.$id
     });
-  };
+};
 
   const renderConversationItem = ({ item }) => {
     const friendId = item.participant1 === currentUserId ? item.participant2 : item.participant1;
