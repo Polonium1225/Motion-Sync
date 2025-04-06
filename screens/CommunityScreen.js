@@ -1,31 +1,50 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import PostCard from '../components/PostCard';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { account, getUserConversations } from "../lib/AppwriteService";
+import { useIsFocused } from '@react-navigation/native';
 
 export default function CommunityScreen() {
+  const navigation = useNavigation();
+  const [isLoading, setIsLoading] = useState(false);
+  const isFocused = useIsFocused();
+
+  const handleChatPress = async () => {
+    setIsLoading(true);
+    try {
+      const user = await account.get();
+      const conversations = await getUserConversations(user.$id);
+      
+      if (conversations.length > 0) {
+        navigation.navigate('FindFriend');
+      } else {
+        navigation.navigate('SearchFriends'); // Go directly to SearchFriends instead of NoConversation
+      }
+    } catch (error) {
+      console.error("Error checking conversations:", error);
+      navigation.navigate('SearchFriends');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* Buttons Row (Centered) */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Post</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.button}>
+      <Text style={styles.title}>Community</Text>
+      
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#01CC97" />
+          <Text style={styles.loadingText}>Checking your conversations...</Text>
+        </View>
+      ) : (
+        <TouchableOpacity 
+          style={styles.button}
+          onPress={handleChatPress}
+        >
           <Text style={styles.buttonText}>Chat</Text>
         </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Community</Text>
-
-        {/* Community Posts */}
-        <View style={styles.posts}>
-          <PostCard />
-          <PostCard />
-          <PostCard />
-        </View>
-      </ScrollView>
+      )}
     </View>
   );
 }
@@ -33,46 +52,33 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1F2229',
-    paddingHorizontal: 20,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center', // Centers buttons horizontally
-    alignItems: 'center', // Centers buttons vertically
-    marginVertical: 15,
-    height: 100,
-    gap: 20, // Space between buttons
-  },
-  button: {
-    backgroundColor: '#22272B',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderColor: "#01CC97",
-    borderWidth: 2,
-    borderRadius: 30,
-    width: 120,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  buttonText: {
-    color: '#01CC97',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
+    padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 40,
+    color: '#333'
+  },
+  button: {
+    backgroundColor: '#01CC97',
+    padding: 15,
+    borderRadius: 10,
+    width: '80%',
+    alignItems: 'center',
+  },
+  buttonText: {
     color: 'white',
-    marginBottom: 10,
-    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: 18,
   },
-  posts: {
-    marginTop: 10,
+  loadingContainer: {
+    alignItems: 'center',
   },
+  loadingText: {
+    marginTop: 20,
+    color: '#666',
+  }
 });
-
