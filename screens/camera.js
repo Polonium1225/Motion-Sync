@@ -131,19 +131,19 @@ export default function App() {
 
   // Process raw messages from WebView
   const onMessage = (event) => {
-    try {
-      let parsedData;
-      if (typeof event.nativeEvent.data === 'string') {
-        parsedData = JSON.parse(event.nativeEvent.data);
-      } else {
-        parsedData = event.nativeEvent.data;
-      }
+    // try {
+    //   let parsedData;
+    //   if (typeof event.nativeEvent.data === 'string') {
+    //     parsedData = JSON.parse(event.nativeEvent.data);
+    //   } else {
+    //     parsedData = event.nativeEvent.data;
+    //   }
 
-      webViewCallback(parsedData);
-    } catch (error) {
-      console.error('Error processing message:', error);
-      console.log('Problematic data:', event.nativeEvent.data);
-    }
+    //   webViewCallback(parsedData);
+    // } catch (error) {
+    //   console.error('Error processing message:', error);
+    //   console.log('Problematic data:', event.nativeEvent.data);
+    // }
   };
 
   // Reload WebView function
