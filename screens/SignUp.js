@@ -88,23 +88,18 @@ export default function SignUp({ setIsLoggedIn }) {
       const userId = ID.unique();
       console.log("Creating account with ID:", userId);
       
+      // Create the auth account (this goes to Appwrite's auth system)
       const user = await account.create(userId, email, password, name);
       console.log("Account created:", user.$id);
   
-      // 3. Create profile document (skip accounts collection if causing issues)
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.USER_PROFILES,
-        ID.unique(),
-        {
-          userId: userId,
-          name: name,
-          email: email, // Store email in profile if needed
-          status: 'online',
-          avatar: 'avatar.png',
-          lastSeen: new Date()
-        }
-      ).catch(e => console.log("Profile creation warning:", e.message));
+      // 3. Create profile document in user_profiles collection
+      try {
+        await userProfiles.ensureProfile(userId);
+        console.log("User profile created/verified");
+      } catch (profileError) {
+        console.error("Profile creation error:", profileError);
+        // Continue even if profile creation fails - it will be created on first login
+      }
   
       // 4. Create session after cleanup
       await account.createEmailPasswordSession(email, password);

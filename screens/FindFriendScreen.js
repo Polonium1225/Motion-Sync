@@ -10,11 +10,11 @@ import {
   BackHandler,
   Image
 } from 'react-native';
-import { account, getUserConversations, databases, DATABASE_ID, Query } from "../lib/AppwriteService";
+import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
-const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
+const DEFAULT_AVATAR = require('../assets/avatar.png');
 
 export default function FindFriendScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -57,23 +57,28 @@ export default function FindFriendScreen({ navigation }) {
           if (conv.participant2 !== user.$id) userIdsToFetch.add(conv.participant2);
         });
         
-        // Fetch user details with avatar and status
+        // Fetch user profiles using the helper function
         const userMap = {};
-        const usersResponse = await databases.listDocuments(
-          DATABASE_ID,
-          '67d0bbf8003206b11780',
-          [
-            Query.select(['$id', 'name', 'avatar', 'status']),
-            Query.equal('$id', Array.from(userIdsToFetch))
-          ]
-        );
-        
-        usersResponse.documents.forEach(user => {
-          userMap[user.$id] = {
-            ...user,
-            avatar: user.avatar || 'avatar.png' // Default avatar
-          };
+        const fetchPromises = Array.from(userIdsToFetch).map(async (userId) => {
+          try {
+            const profile = await userProfiles.getProfileByUserId(userId);
+            userMap[userId] = {
+              ...profile,
+              $id: userId, // Ensure we have the user ID
+              avatar: profile.avatar || 'avatar.png'
+            };
+          } catch (err) {
+            console.error(`Error fetching profile for user ${userId}:`, err);
+            userMap[userId] = {
+              $id: userId,
+              name: 'Unknown User',
+              status: 'offline',
+              avatar: 'avatar.png'
+            };
+          }
         });
+
+        await Promise.all(fetchPromises);
         
         setUsers(userMap);
         setConversations(userConversations);
@@ -103,30 +108,29 @@ export default function FindFriendScreen({ navigation }) {
         
         if (userIds.length === 0) return;
         
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          '67d0bbf8003206b11780',
-          [
-            Query.select(['$id', 'status']),
-            Query.equal('$id', userIds)
-          ]
-        );
-        
-        setUsers(prevUsers => {
-          const updatedUsers = {...prevUsers};
-          response.documents.forEach(user => {
-            if (updatedUsers[user.$id]) {
-              updatedUsers[user.$id].status = user.status;
-            }
-          });
-          return updatedUsers;
+        // Update statuses using the userProfiles helper
+        const updatePromises = userIds.map(async (userId) => {
+          try {
+            const profile = await userProfiles.getProfileByUserId(userId);
+            setUsers(prevUsers => ({
+              ...prevUsers,
+              [userId]: {
+                ...(prevUsers[userId] || {}),
+                status: profile.status
+              }
+            }));
+          } catch (error) {
+            console.error(`Error updating status for user ${userId}:`, error);
+          }
         });
+
+        await Promise.all(updatePromises);
       } catch (error) {
         console.error("Error updating statuses:", error);
       }
     };
 
-    const interval = setInterval(updateStatuses, 10000); // Update every 10 seconds
+    const interval = setInterval(updateStatuses, 10000);
     return () => clearInterval(interval);
   }, [conversations, currentUserId]);
 

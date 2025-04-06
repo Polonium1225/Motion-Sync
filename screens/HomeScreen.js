@@ -47,24 +47,27 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   }, [navigation]);
 
   // Handle Logout
-  const handleLogout = async () => {
-    try {
-      console.log("[LOGOUT] Setting offline for user:", user.$id);
-      // Set status to offline before logging out
-      const user = await account.get();
-      await userProfiles.updateStatus(user.$id, 'offline').catch(e => console.log("Status update failed:", e));
-      
-      // Clear local data
-      await AsyncStorage.clear();
-      await account.deleteSessions();
-      
-      // Update state
-      setIsLoggedIn(false);
-    } catch (error) {
-      console.error('Failed to logout:', error);
-      Alert.alert('Error', 'Failed to logout. Please try again.');
-    }
-  };
+const handleLogout = async () => {
+  try {
+    // Get user first
+    const user = await account.get();
+    console.log("[LOGOUT] Setting offline for user:", user.$id);
+    
+    // Set status to offline before logging out
+    await userProfiles.updateStatus(user.$id, 'offline')
+      .catch(e => console.log("Status update failed:", e));
+    
+    // Clear local data
+    await AsyncStorage.clear();
+    await account.deleteSessions();
+    
+    // Update state
+    setIsLoggedIn(false);
+  } catch (error) {
+    console.error('Failed to logout:', error);
+    Alert.alert('Error', 'Failed to logout. Please try again.');
+  }
+};
 
   return (
     <View style={styles.container}>
