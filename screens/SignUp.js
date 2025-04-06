@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, databases, ID } from "../lib/AppwriteService";
+import { account, databases, ID, userProfiles, DATABASE_ID, COLLECTIONS } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import bcrypt from 'react-native-bcrypt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -71,53 +71,62 @@ export default function SignUp({ setIsLoggedIn }) {
 
   const handleSignUp = async () => {
     try {
-      // Validate input fields
       if (!name || !email || !password) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
-
-      // Hash the password
-      const saltRounds = 10;
-      const hashedPassword = bcrypt.hashSync(password, saltRounds);
-
+  
+      // 1. Clear any existing sessions first
+      try {
+        await account.deleteSessions();
+        console.log("Cleared existing sessions");
+      } catch (sessionError) {
+        console.log("No sessions to clear:", sessionError.message);
+      }
+  
+      // 2. Create account with unique ID
       const userId = ID.unique();
+      console.log("Creating account with ID:", userId);
+      
       const user = await account.create(userId, email, password, name);
-      console.log("User account created:", user);
-
-      const documentId = ID.unique();
-      console.log("Creating document with ID:", documentId);
+      console.log("Account created:", user.$id);
+  
+      // 3. Create profile document (skip accounts collection if causing issues)
       await databases.createDocument(
-        '67d0bba1000e9caec4f2', // Database ID
-        '67d0bbf8003206b11780', // Collection ID
-        documentId,
+        DATABASE_ID,
+        COLLECTIONS.USER_PROFILES,
+        ID.unique(),
         {
           userId: userId,
           name: name,
-          email: email,
-          password: hashedPassword, // Store the hashed password
+          email: email, // Store email in profile if needed
+          status: 'online',
+          avatar: 'avatar.png',
+          lastSeen: new Date()
         }
-      );
-      console.log("Document created successfully");
-
-      // Store the user name for homepage
-      await AsyncStorage.setItem('profile_name', name);
-
-      try {
-        await account.deleteSessions(); // Delete all active sessions
-        console.log("Existing sessions deleted");
-      } catch (sessionError) {
-        console.log("No existing sessions to delete:", sessionError.message);
-      }
-
-      // Logging !!
+      ).catch(e => console.log("Profile creation warning:", e.message));
+  
+      // 4. Create session after cleanup
       await account.createEmailPasswordSession(email, password);
-      console.log("User logged in successfully");
-
+      console.log("Session created successfully");
+  
+      // 5. Store user data
+      await AsyncStorage.setItem('profile_name', name);
       setIsLoggedIn(true);
+  
     } catch (error) {
-      console.error("SignUp Error:", error); // Log the full error
-      Alert.alert("Error", error.message);
+      console.error("SignUp Error Details:", {
+        message: error.message,
+        code: error.code,
+        type: error.type
+      });
+      
+      let errorMessage = error.message;
+      if (error.code === 409) { // User already exists
+        errorMessage = "This email is already registered";
+      }
+      
+      Alert.alert("Sign Up Error", errorMessage);
     }
   };
 

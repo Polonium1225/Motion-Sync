@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { account, userProfiles } from "../lib/AppwriteService";
+
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const [profileData, setProfileData] = React.useState({
@@ -47,11 +49,17 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   // Handle Logout
   const handleLogout = async () => {
     try {
-      // Clear AsyncStorage (or any other session data)
+      console.log("[LOGOUT] Setting offline for user:", user.$id);
+      // Set status to offline before logging out
+      const user = await account.get();
+      await userProfiles.updateStatus(user.$id, 'offline').catch(e => console.log("Status update failed:", e));
+      
+      // Clear local data
       await AsyncStorage.clear();
-  
-      // Update isLoggedIn state to false
-      setIsLoggedIn(false); // This will trigger the AppNavigator to show the SignIn screen
+      await account.deleteSessions();
+      
+      // Update state
+      setIsLoggedIn(false);
     } catch (error) {
       console.error('Failed to logout:', error);
       Alert.alert('Error', 'Failed to logout. Please try again.');

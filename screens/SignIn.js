@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account } from "../lib/AppwriteService";
+import { account, userProfiles } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -21,38 +21,80 @@ export default function SignIn({ setIsLoggedIn }) {
 
   const handleLogin = async () => {
     try {
-      // Validate input fields
       if (!email || !password) {
         Alert.alert("Error", "Please enter both email and password");
         return;
       }
   
-      console.log("Attempting to log in with:", email);
-      
-      // Delete any existing sessions first
+      // 1. Clear existing sessions
       try {
         await account.deleteSessions();
-        console.log("Deleted existing sessions");
+        console.log("Cleared existing sessions");
       } catch (sessionError) {
-        console.log("No existing sessions to delete:", sessionError.message);
+        console.log("No sessions to clear:", sessionError.message);
       }
-      
-      // Use Appwrite's built-in authentication
+  
+      // 2. Create new session
       await account.createEmailPasswordSession(email, password);
-      console.log("Login successful");
-      
-      // Get the user's name
       const user = await account.get();
-      console.log("User fetched:", user);
-      
-      // Store the user's name in AsyncStorage
+      console.log("User logged in:", user.$id);
+  
+      // 3. Update profile status
+      try {
+        await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.USER_PROFILES,
+          [Query.equal('userId', user.$id)]
+        ).then(async (response) => {
+          if (response.documents.length === 0) {
+            await databases.createDocument(
+              DATABASE_ID,
+              COLLECTIONS.USER_PROFILES,
+              ID.unique(),
+              {
+                userId: user.$id,
+                name: user.name,
+                email: user.email,
+                status: 'online',
+                avatar: 'avatar.png',
+                lastSeen: new Date()
+              }
+            );
+          } else {
+            await databases.updateDocument(
+              DATABASE_ID,
+              COLLECTIONS.USER_PROFILES,
+              response.documents[0].$id,
+              {
+                status: 'online',
+                lastSeen: new Date()
+              }
+            );
+          }
+        });
+      } catch (profileError) {
+        console.log("Profile update warning:", profileError.message);
+      }
+  
+      // 4. Complete login
       await AsyncStorage.setItem('profile_name', user.name);
-      
-      // Set the user as logged in
       setIsLoggedIn(true);
+  
     } catch (error) {
-      console.error("Login Error:", error);
-      Alert.alert("Error", "Invalid email or password");
+      console.error("Login Error Details:", {
+        message: error.message,
+        code: error.code,
+        type: error.type
+      });
+  
+      let errorMessage = "Invalid email or password";
+      if (error.code === 401) {
+        errorMessage = "Invalid credentials";
+      } else if (error.code === 404) {
+        errorMessage = "Account not found";
+      }
+  
+      Alert.alert("Login Error", errorMessage);
     }
   };
 
