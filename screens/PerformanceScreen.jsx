@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import { saveHistory, getUserHistory , getUserId } from '../lib/AppwriteService';
-import { rand, round } from '@tensorflow/tfjs';
+
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
@@ -35,6 +35,7 @@ export default function PerformanceScreen() {
   const redirect = useCallback(() => {
     if (pastVideoUri && videoUri) {
       saveHistory(userId, pastVideoUri, videoUri);
+      console.log('History saved:', { userId, pastVideoUri, videoUri });
       navigation.navigate('PerformanceComparisonScreen');
     }
   }, [pastVideoUri, videoUri, navigation]);
