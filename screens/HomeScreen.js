@@ -47,27 +47,42 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   }, [navigation]);
 
   // Handle Logout
-const handleLogout = async () => {
-  try {
-    // Get user first
-    const user = await account.get();
-    console.log("[LOGOUT] Setting offline for user:", user.$id);
-    
-    // Set status to offline before logging out
-    await userProfiles.updateStatus(user.$id, 'offline')
-      .catch(e => console.log("Status update failed:", e));
-    
-    // Clear local data
-    await AsyncStorage.clear();
-    await account.deleteSessions();
-    
-    // Update state
-    setIsLoggedIn(false);
-  } catch (error) {
-    console.error('Failed to logout:', error);
-    Alert.alert('Error', 'Failed to logout. Please try again.');
-  }
-};
+  const handleLogout = async () => {
+    try {
+      // Get user first (while session is active)
+      const user = await account.get().catch(() => null);
+      
+      // Clear local data immediately
+      await AsyncStorage.clear();
+      
+      // Try to set offline status (but ignore any errors)
+      if (user?.$id) {
+        try {
+          await userProfiles.updateStatus(user.$id, 'offline')
+            .catch(e => {
+              // Specifically ignore the "missing scope" error
+              if (!e.message.includes('missing scope (account)')) {
+                console.log("Non-critical status update error:", e.message);
+              }
+            });
+        } catch (e) {
+          // Ignore all errors silently
+        }
+      }
+      
+      // Delete sessions
+      await account.deleteSessions();
+      
+      // Update state
+      setIsLoggedIn(false);
+    } catch (error) {
+      // Only show errors that aren't about account scope
+      if (!error.message?.includes('missing scope (account)')) {
+        console.error('Logout error:', error);
+        Alert.alert('Error', 'Failed to logout. Please try again.');
+      }
+    }
+  };
 
   return (
     <View style={styles.container}>
