@@ -37,16 +37,17 @@ export default function PerformanceComparisonScreen({ route }) {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={['rgba(31,34,41,0.9)', 'rgba(31,34,41,0.6)']}
-        style={styles.header}
-      >
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Performance Analysis</Text>
-        <View style={{ width: 24 }} />
-      </LinearGradient>
+ 
+    <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7}>  
+      <LinearGradient  
+        colors={['rgba(31,34,41,0.9)', 'rgba(31,34,41,0.6)']}  
+        style={styles.header}  
+      >  
+        <Ionicons name="arrow-back" size={24} color="#fff" />  
+        <Text style={styles.title}>Performance Analysis</Text>  
+        <View style={{ width: 24 }} />  
+      </LinearGradient>  
+    </TouchableOpacity>  
 
       {/* Scrollable Content */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -146,7 +147,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingTop: height * 0.06,
-    zIndex: 2
+    zIndex: 2,
+    alignSelf: 'flex-start'
   },
   videoContainer: {
     height: height * 0.55,
@@ -188,7 +190,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   controlsContainer: {
-    height: height * 0.12,
+    height: height * 0.14,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -264,4 +266,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: '500',
   },
+  title: {
+    fontSize: 20, 
+    fontWeight: '800', 
+    marginLeft: 15, 
+    color: 'white',
+    letterSpacing: 0.5
+  },
+
 });
