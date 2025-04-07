@@ -36,7 +36,7 @@ export default function PerformanceScreen() {
     if (pastVideoUri && videoUri) {
       saveHistory(userId, pastVideoUri, videoUri);
       console.log('History saved:', { userId, pastVideoUri, videoUri });
-      navigation.navigate('PerformanceComparisonScreen');
+      navigation.navigate('PerformanceComparisonScreen' , { videoUri, pastVideoUri });
     }
   }, [pastVideoUri, videoUri, navigation]);
 

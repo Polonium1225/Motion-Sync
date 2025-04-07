@@ -6,7 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 // Import all your screens
 import HomeScreen from '../screens/HomeScreen';
 import ProgressScreen from '../screens/ProgressScreen';
-import CommunityScreen from '../screens/CommunityScreen';
+import PostsScreen from '../screens/PostsScreen'; 
+import PostDetailScreen from '../screens/PostDetailScreen'; 
+import CreatePostScreen from '../screens/CreatePostScreen'; 
 import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
@@ -41,6 +43,8 @@ function MainTabs({ setIsLoggedIn }) {
             iconName = focused ? 'bar-chart' : 'bar-chart-outline';
           } else if (route.name === 'Community') {
             iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'Feed') {
+            iconName = focused ? 'newspaper' : 'newspaper-outline';
           } else if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -53,7 +57,8 @@ function MainTabs({ setIsLoggedIn }) {
         {(props) => <HomeScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
       </Tab.Screen>
       <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="Community" component={CommunityScreen} />
+      <Tab.Screen name="Community" component={PostsScreen} />
+      <Tab.Screen name="Feed" component={PostsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
@@ -68,7 +73,19 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             {(props) => <MainTabs {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
           
-          {/* Screens where you DON'T want tabs */}
+          {/* Add new post-related screens */}
+          <Stack.Screen 
+            name="PostDetail" 
+            component={PostDetailScreen} 
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="CreatePost" 
+            component={CreatePostScreen} 
+            options={{ headerShown: false }}
+          />
+
+          {/* Existing screens */}
           <Stack.Screen 
             name="FindFriend" 
             component={FindFriendScreen} 
