@@ -76,36 +76,29 @@ export default function SignUp({ setIsLoggedIn }) {
         return;
       }
   
-      // 1. Clear any existing sessions first
-      try {
-        await account.deleteSessions();
-        console.log("Cleared existing sessions");
-      } catch (sessionError) {
-        console.log("No sessions to clear:", sessionError.message);
-      }
+      // Clear sessions
+      await account.deleteSessions().catch(() => {});
   
-      // 2. Create account with unique ID
+      // Create account
       const userId = ID.unique();
-      console.log("Creating account with ID:", userId);
-      
-      // Create the auth account (this goes to Appwrite's auth system)
       const user = await account.create(userId, email, password, name);
-      console.log("Account created:", user.$id);
   
-      // 3. Create profile document in user_profiles collection
-      try {
-        await userProfiles.ensureProfile(userId);
-        console.log("User profile created/verified");
-      } catch (profileError) {
-        console.error("Profile creation error:", profileError);
-        // Continue even if profile creation fails - it will be created on first login
-      }
+      // Create profile with online status
+      await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.USER_PROFILES,
+        ID.unique(),
+        {
+          userId: userId,
+          name: name,
+          status: 'online',
+          avatar: 'avatar.png',
+          lastSeen: new Date()
+        }
+      ).catch(() => {}); // Silently ignore if fails
   
-      // 4. Create session after cleanup
+      // Create session
       await account.createEmailPasswordSession(email, password);
-      console.log("Session created successfully");
-  
-      // 5. Store user data
       await AsyncStorage.setItem('profile_name', name);
       setIsLoggedIn(true);
   

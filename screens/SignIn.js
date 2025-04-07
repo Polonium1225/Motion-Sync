@@ -26,57 +26,17 @@ export default function SignIn({ setIsLoggedIn }) {
         return;
       }
   
-      // 1. Clear existing sessions
-      try {
-        await account.deleteSessions();
-        console.log("Cleared existing sessions");
-      } catch (sessionError) {
-        console.log("No sessions to clear:", sessionError.message);
-      }
+      // Clear existing sessions
+      await account.deleteSessions().catch(() => {});
   
-      // 2. Create new session
+      // Create new session
       await account.createEmailPasswordSession(email, password);
       const user = await account.get();
-      console.log("User logged in:", user.$id);
   
-      // 3. Update profile status
-      try {
-        await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          [Query.equal('userId', user.$id)]
-        ).then(async (response) => {
-          if (response.documents.length === 0) {
-            await databases.createDocument(
-              DATABASE_ID,
-              COLLECTIONS.USER_PROFILES,
-              ID.unique(),
-              {
-                userId: user.$id,
-                name: user.name,
-                email: user.email,
-                status: 'online',
-                avatar: 'avatar.png',
-                lastSeen: new Date()
-              }
-            );
-          } else {
-            await databases.updateDocument(
-              DATABASE_ID,
-              COLLECTIONS.USER_PROFILES,
-              response.documents[0].$id,
-              {
-                status: 'online',
-                lastSeen: new Date()
-              }
-            );
-          }
-        });
-      } catch (profileError) {
-        console.log("Profile update warning:", profileError.message);
-      }
+      // Update status to online (silently fail if it doesn't work)
+      await userProfiles.safeUpdateStatus(user.$id, 'online');
   
-      // 4. Complete login
+      // Complete login
       await AsyncStorage.setItem('profile_name', user.name);
       setIsLoggedIn(true);
   

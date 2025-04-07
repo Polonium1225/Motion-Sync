@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import {
   DATABASE_ID, 
   ID, 
   userProfiles, 
-  COLLECTIONS 
+  COLLECTIONS,
+  realtime
 } from "../lib/AppwriteService";
 import { Query } from 'appwrite';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,7 +37,10 @@ export default function ChatScreen({ route, navigation }) {
 
   console.log("[CHAT] Initial params:", { friendId, friendName, conversationId });
 
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState({
+    confirmed: [], 
+    pending: {}    
+  });
   const [newMessage, setNewMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
@@ -47,31 +51,32 @@ export default function ChatScreen({ route, navigation }) {
     status: 'offline' 
   });
   const flatListRef = useRef(null);
+  const [isSending, setIsSending] = useState(false);
+  const [pendingMessages, setPendingMessages] = useState({});
 
   // Set user as online when entering chat
   useEffect(() => {
+    let mounted = true;
+  
     const setOnlineStatus = async () => {
       try {
         const user = await account.get();
-        await userProfiles.updateStatus(user.$id, 'online');
-      } catch (error) {
-        console.error("Online status error:", error);
-      }
-    };    
-
+        if (mounted) {
+          await userProfiles.safeUpdateStatus(user.$id, 'online');
+        }
+      } catch {} // Ignore errors
+    };
+  
     setOnlineStatus();
-
-    // Set up status cleanup when leaving
+  
     return () => {
+      mounted = false;
       const setOfflineStatus = async () => {
         try {
           const user = await account.get();
-          await userProfiles.updateStatus(user.$id, 'offline');
-        } catch (error) {
-          console.error("Offline status error:", error);
-        }
+          await userProfiles.safeUpdateStatus(user.$id, 'offline');
+        } catch {} // Ignore errors
       };
-      
       setOfflineStatus();
     };
   }, []);
@@ -101,14 +106,14 @@ export default function ChatScreen({ route, navigation }) {
         const user = await account.get();
         setCurrentUserId(user.$id);
         setCurrentUserName(user.name);
-
+  
         // Get friend profile data
         const friendProfile = await userProfiles.getProfileByUserId(friendId);
         setFriendData({
           avatar: friendProfile.avatar || 'avatar.png',
           status: friendProfile.status || 'offline'
         });
-
+  
         // Check if this is a new conversation or existing one
         if (conversationId.startsWith('new_')) {
           const existingConversation = await findExistingConversation(user.$id, friendId);
@@ -125,12 +130,12 @@ export default function ChatScreen({ route, navigation }) {
           await loadMessages(conversationId);
         }
       } catch (error) {
-        console.error("[DEBUG] Initialization error:", error);
+        console.error("Initialization error:", error);
       } finally {
         setIsLoading(false);
       }
     };
-
+  
     initializeChat();
     
     // Set up real-time subscriptions
@@ -142,6 +147,13 @@ export default function ChatScreen({ route, navigation }) {
       unsubscribeStatus();
     };
   }, [conversationId, friendId]);
+
+  // auto-scroll when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      flatListRef.current.scrollToIndex({ index: 0, animated: true });
+    }
+  }, [messages]);
 
   // Subscribe to friend's status changes
   const subscribeToFriendStatus = () => {
@@ -235,51 +247,94 @@ export default function ChatScreen({ route, navigation }) {
         COLLECTIONS.MESSAGES,
         [
           Query.equal('conversationId', convId),
-          Query.orderDesc('$createdAt')
+          Query.orderDesc('$createdAt'),
+          Query.limit(50) // Adjust limit as needed
         ]
       );
       
-      setMessages(response.documents);
-      console.log("[DEBUG] Loaded messages:", response.documents.length);
+      setMessages(prev => ({
+        ...prev,
+        confirmed: response.documents
+      }));
     } catch (error) {
-      console.error("[DEBUG] Error loading messages:", error);
+      console.error("Error loading messages:", error);
     }
   };
 
   // Set up real-time message subscription
   const subscribeToMessages = () => {
-    // This is a polling mechanism for now
-    // For production, implement Appwrite's realtime API
-    const interval = setInterval(async () => {
-      if (dbConversationId) {
-        await loadMessages(dbConversationId);
+    if (!dbConversationId) return () => {};
+  
+    return realtime.subscribe(
+      [`databases.${DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`],
+      (response) => {
+        if (response.events.includes('databases.*.collections.*.documents.*.create') &&
+            response.payload.conversationId === dbConversationId) {
+          
+          setMessages(prev => {
+            // Check if we already have this message
+            const exists = prev.confirmed.some(msg => msg.$id === response.payload.$id) ||
+                           (response.payload.messageId && 
+                            prev.confirmed.some(msg => msg.messageId === response.payload.messageId));
+  
+            if (!exists) {
+              return {
+                confirmed: [response.payload, ...prev.confirmed],
+                pending: prev.pending
+              };
+            }
+            return prev;
+          });
+        }
       }
-    }, 3000);
-    
-    return () => clearInterval(interval);
+    );
   };
 
+  const allMessages = useMemo(() => {
+    const pending = Object.values(messages.pending);
+    return [...pending, ...messages.confirmed].sort((a, b) => 
+      new Date(b.$createdAt) - new Date(a.$createdAt)
+    );
+  }, [messages]);
+
   // Send a new message
+  // Corrected sendMessage function
   const sendMessage = async () => {
-    if (!newMessage.trim() || !dbConversationId) return;
-    
+    if (!newMessage.trim() || !dbConversationId || isSending) return;
+  
+    setIsSending(true);
+    const tempId = `temp_${Date.now()}`;
+    const messageData = {
+      messageId: `msg_${new Date().getTime()}`,
+      content: newMessage.trim(),
+      conversationId: dbConversationId,
+      senderId: currentUserId,
+      $id: tempId,
+      $createdAt: new Date().toISOString(),
+      status: 'sending'
+    };
+  
+    // Add to pending messages
+    setMessages(prev => ({
+      ...prev,
+      pending: {
+        ...prev.pending,
+        [tempId]: messageData
+      }
+    }));
+  
     try {
-      // Create message document
-      const messageData = {
-        messageId: `msg_${new Date().getTime()}`,
-        content: newMessage.trim(),
-        conversationId: dbConversationId,
-        senderId: currentUserId
-      };
-      
-      await databases.createDocument(
+      const response = await databases.createDocument(
         DATABASE_ID,
         COLLECTIONS.MESSAGES,
         ID.unique(),
-        messageData
+        {
+          ...messageData,
+          $id: undefined // Let server generate ID
+        }
       );
-      
-      // Update conversation with last message
+  
+      // Update conversation last message
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.CONVERSATIONS,
@@ -289,21 +344,31 @@ export default function ChatScreen({ route, navigation }) {
           lastMessageAt: new Date()
         }
       );
-      
-      // Optimistically update UI
-      setMessages(prevMessages => [
-        {
-          ...messageData,
-          $id: `temp_${Date.now()}`,
-          $createdAt: new Date().toISOString()
-        },
-        ...prevMessages
-      ]);
-      
-      // Clear input
-      setNewMessage('');
+  
+      // Move from pending to confirmed
+      setMessages(prev => ({
+        confirmed: [response, ...prev.confirmed],
+        pending: Object.fromEntries(
+          Object.entries(prev.pending).filter(([id]) => id !== tempId)
+        )
+      }));
+  
     } catch (error) {
-      console.error("[DEBUG] Error sending message:", error);
+      console.error("Error sending message:", error);
+      // Mark as failed
+      setMessages(prev => ({
+        ...prev,
+        pending: {
+          ...prev.pending,
+          [tempId]: {
+            ...prev.pending[tempId],
+            status: 'failed'
+          }
+        }
+      }));
+    } finally {
+      setIsSending(false);
+      setNewMessage('');
     }
   };
 
@@ -355,11 +420,15 @@ export default function ChatScreen({ route, navigation }) {
   // Render message item
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = item.senderId === currentUserId;
-    
+    const isPending = item.$id.startsWith('temp_');
+    const isFailed = item.status === 'failed';
+  
     return (
       <View style={[
         styles.messageBubble,
-        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage
+        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
+        isPending && styles.pendingMessage,
+        isFailed && styles.failedMessage
       ]}>
         <Text style={[
           styles.messageText,
@@ -367,12 +436,20 @@ export default function ChatScreen({ route, navigation }) {
         ]}>
           {item.content}
         </Text>
-        <Text style={[
-          styles.messageTime,
-          isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
-        ]}>
-          {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </Text>
+        <View style={styles.messageFooter}>
+          <Text style={[
+            styles.messageTime,
+            isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
+          ]}>
+            {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+          {isPending && (
+            <ActivityIndicator size="small" color="#999" style={styles.statusIndicator} />
+          )}
+          {isFailed && (
+            <Ionicons name="warning" size={16} color="#ff4444" style={styles.statusIndicator} />
+          )}
+        </View>
       </View>
     );
   };
@@ -400,7 +477,7 @@ export default function ChatScreen({ route, navigation }) {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={allMessages}
           renderItem={renderMessageItem}
           keyExtractor={item => item.$id}
           contentContainerStyle={styles.messagesList}
@@ -419,15 +496,15 @@ export default function ChatScreen({ route, navigation }) {
           <TouchableOpacity 
             style={[
               styles.sendButton,
-              !newMessage.trim() && styles.sendButtonDisabled
+              (!newMessage.trim() || isSending) && styles.sendButtonDisabled
             ]}
             onPress={sendMessage}
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || isSending}
           >
             <Ionicons 
               name="send" 
               size={20} 
-              color={newMessage.trim() ? "#fff" : "#888"} 
+              color={newMessage.trim() && !isSending ? "#fff" : "#888"} 
             />
           </TouchableOpacity>
         </View>
@@ -579,4 +656,19 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
   },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4
+  },
+  statusIndicator: {
+    marginLeft: 8
+  },
+  pendingMessage: {
+    opacity: 0.7
+  },
+  failedMessage: {
+    borderColor: '#ff4444',
+    borderWidth: 1
+  }
 });

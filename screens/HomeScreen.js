@@ -49,38 +49,21 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   // Handle Logout
   const handleLogout = async () => {
     try {
-      // Get user first (while session is active)
-      const user = await account.get().catch(() => null);
-      
-      // Clear local data immediately
+      // Try to set offline status FIRST while session is active
+      try {
+        const user = await account.get();
+        await userProfiles.safeUpdateStatus(user.$id, 'offline');
+      } catch {} // Ignore all errors
+  
+      // Clear local data
       await AsyncStorage.clear();
-      
-      // Try to set offline status (but ignore any errors)
-      if (user?.$id) {
-        try {
-          await userProfiles.updateStatus(user.$id, 'offline')
-            .catch(e => {
-              // Specifically ignore the "missing scope" error
-              if (!e.message.includes('missing scope (account)')) {
-                console.log("Non-critical status update error:", e.message);
-              }
-            });
-        } catch (e) {
-          // Ignore all errors silently
-        }
-      }
-      
-      // Delete sessions
       await account.deleteSessions();
       
-      // Update state
+      // Update UI
       setIsLoggedIn(false);
     } catch (error) {
-      // Only show errors that aren't about account scope
-      if (!error.message?.includes('missing scope (account)')) {
-        console.error('Logout error:', error);
-        Alert.alert('Error', 'Failed to logout. Please try again.');
-      }
+      // Ensure logout completes even if everything fails
+      setIsLoggedIn(false);
     }
   };
 
