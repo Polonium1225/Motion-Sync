@@ -1,85 +1,156 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image } from 'react-native';
-import { getPostById, addComment, likePost } from '../lib/AppwriteService';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { getPostById, addComment , getUserId ,toggleLike} from '../lib/AppwriteService';
 import { Ionicons } from '@expo/vector-icons';
 
-const PostDetailScreen = ({ route }) => {
+const PostDetailScreen = ({ route, navigation }) => {
   const { postId } = route.params;
   const [post, setPost] = useState(null);
   const [commentText, setCommentText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [hasLiked, setHasLiked] = useState(false);
 
   useEffect(() => {
     const loadPost = async () => {
-      const postData = await getPostById(postId);
-      setPost(postData);
+      try {
+        const postData = await getPostById(postId);
+        setPost(postData);
+        const userId = await getUserId();
+        const userLike = postData.likes?.documents?.find(
+          (like) => like.userId === userId
+        );
+        setHasLiked(!!userLike);
+      } catch (error) {
+        console.error('Error loading post:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     loadPost();
   }, [postId]);
 
   const handleAddComment = async () => {
     if (commentText.trim()) {
-      const newComment = await addComment(postId, 'currentUserId', commentText);
-      if (newComment) {
+      try {
+        const userId = await getUserId();
+        const newComment = await addComment(postId, userId, commentText);
         setPost(prev => ({
           ...prev,
           comments: [...prev.comments, newComment]
         }));
         setCommentText('');
+      } catch (error) {
+        console.error('Error adding comment:', error);
       }
     }
   };
 
   const handleLike = async () => {
-    const updatedPost = await likePost(postId);
-    if (updatedPost) {
-      setPost(prev => ({ ...prev, likes: updatedPost.likes }));
+    try {
+      setHasLiked(!hasLiked);
+      const userId = await getUserId();
+      await toggleLike(postId, userId); 
+      const updatedPost = await getPostById(postId);
+      setPost(updatedPost);
+    } catch (error) {
+      console.error('Error toggling like:', error);
     }
   };
 
   const renderComment = ({ item }) => (
     <View style={styles.commentCard}>
-      <Image source={{ uri: item.user?.avatar }} style={styles.commentAvatar} />
+      <Image 
+        source={{ uri: item.user?.avatar || 'https://via.placeholder.com/150' }} 
+        style={styles.commentAvatar} 
+      />
       <View style={styles.commentContent}>
-        <Text style={styles.commentAuthor}>{item.user?.name}</Text>
+        <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
         <Text style={styles.commentText}>{item.content}</Text>
       </View>
     </View>
   );
 
-  if (!post) return null;
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#05907A" />
+      </View>
+    );
+  }
+
+  if (!post) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Post not found</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <View style={styles.postContainer}>
-        <View style={styles.postHeader}>
-          <Image source={{ uri: post.user?.avatar }} style={styles.avatar} />
-          <Text style={styles.username}>{post.user?.name}</Text>
-        </View>
-        <Text style={styles.postContent}>{post.content}</Text>
-        <View style={styles.postFooter}>
-          <TouchableOpacity style={styles.interactionButton} onPress={handleLike}>
-            <Ionicons name={post.likes ? "heart" : "heart-outline"} size={24} color="#e74c3c" />
-            <Text style={styles.likeCount}>{post.likes}</Text>
-          </TouchableOpacity>
-        </View>
+      {/* Header with Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color="#333" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Post Details</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <FlatList
-        data={post.comments}
-        renderItem={renderComment}
-        keyExtractor={(item) => item.$id}
-        contentContainerStyle={styles.commentsList}
-      />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Post Content */}
+        <View style={styles.postContainer}>
+          <View style={styles.postHeader}>
+            <Image 
+              source={{ uri: post.user?.avatar || 'https://via.placeholder.com/150' }} 
+              style={styles.avatar} 
+            />
+            <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
+          </View>
 
+          <Text style={styles.postContent}>{post.content}</Text>
+
+          {post.imageUrl && (
+            <Image
+              source={{ uri: post.imageUrl }}
+              style={styles.postImage}
+              resizeMode="cover"
+            />
+          )}
+
+          <View style={styles.postFooter}>
+          <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
+            <Ionicons 
+              name={hasLiked ? "heart" : "heart-outline"} 
+              size={24} 
+              color={hasLiked ? "#e74c3c" : "#666"} 
+            />
+            <Text style={styles.likeCount}>{post.likeCount}</Text>
+          </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Comments List */}
+        <Text style={styles.commentsTitle}>Comments ({post.comments?.length || 0})</Text>
+        <FlatList
+          data={post.comments}
+          renderItem={renderComment}
+          keyExtractor={(item) => item.$id}
+          scrollEnabled={false}
+        />
+      </ScrollView>
+
+      {/* Comment Input */}
       <View style={styles.commentInputContainer}>
         <TextInput
           style={styles.commentInput}
           placeholder="Add a comment..."
           value={commentText}
           onChangeText={setCommentText}
+          multiline
         />
         <TouchableOpacity style={styles.commentButton} onPress={handleAddComment}>
-          <Ionicons name="send" size={24} color="#3498db" />
+          <Ionicons name="send" size={24} color="#05907A" />
         </TouchableOpacity>
       </View>
     </View>
@@ -90,6 +161,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  scrollContent: {
     padding: 16,
   },
   postContainer: {
@@ -97,6 +189,54 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
+  },
+  postHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  username: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  postContent: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#333',
+    marginBottom: 16,
+  },
+  postImage: {
+    width: '100%',
+    height: 300,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  postFooter: {
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+    paddingTop: 12,
+  },
+  likeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  likeCount: {
+    color: '#333',
+    fontWeight: '500',
+  },
+  commentsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
   },
   commentCard: {
     flexDirection: 'row',
@@ -117,6 +257,7 @@ const styles = StyleSheet.create({
   commentAuthor: {
     fontWeight: '600',
     marginBottom: 4,
+    color: '#333',
   },
   commentText: {
     color: '#666',
@@ -125,20 +266,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    marginTop: 8,
+    padding: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
   },
   commentInput: {
     flex: 1,
-    height: 48,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 20,
+    paddingHorizontal: 16,
     paddingVertical: 12,
+    marginRight: 8,
   },
   commentButton: {
-    marginLeft: 8,
     padding: 8,
   },
-  // Add other styles from FeedScreen as needed
+  errorText: {
+    textAlign: 'center',
+    color: '#666',
+    marginTop: 20,
+    fontSize: 16,
+  },
 });
 
 export default PostDetailScreen;

@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Import all your screens
 import HomeScreen from '../screens/HomeScreen';
+import CommunityScreen from '../screens/CommunityScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import PostsScreen from '../screens/PostsScreen'; 
 import PostDetailScreen from '../screens/PostDetailScreen'; 
@@ -57,7 +58,7 @@ function MainTabs({ setIsLoggedIn }) {
         {(props) => <HomeScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
       </Tab.Screen>
       <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="Community" component={PostsScreen} />
+      <Tab.Screen name="Community" component={CommunityScreen} />
       <Tab.Screen name="Feed" component={PostsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
