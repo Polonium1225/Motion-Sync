@@ -53,6 +53,20 @@ export default function ChatScreen({ route, navigation }) {
   const [isSending, setIsSending] = useState(false);
   const flatListRef = useRef(null);
   const pollingIntervalRef = useRef(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+
+  // Add a ref for unique temporary IDs
+  const tempIdCounter = useRef(0);
+
+  const keyExtractor = (item) => {
+    // For pending messages, use combination of timestamp and counter
+    if (item.$id.startsWith('temp_')) {
+      return item.uniqueTempId;
+    }
+    // For confirmed messages, use server ID
+    return item.$id;
+  };
 
   // ==================== UTILITY FUNCTIONS ====================
 
@@ -217,21 +231,25 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, [conversationId, friendId]);
 
-  // Smart polling mechanism
+  // Smart polling mechanism (updated)
   useEffect(() => {
+    const loadMessagesWithRetry = async () => {
+      try {
+        await loadMessages(dbConversationId);
+      } catch (error) {
+        console.error("Polling error:", error);
+      }
+    };
+  
     const startPolling = () => {
       if (!dbConversationId) return;
       
-      // Clear existing interval
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       
-      // Set new interval based on chat activity
       const interval = isChatActive ? 1000 : 5000;
-      pollingIntervalRef.current = setInterval(() => {
-        loadMessages(dbConversationId);
-      }, interval);
+      pollingIntervalRef.current = setInterval(loadMessagesWithRetry, interval);
     };
-
+  
     startPolling();
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
@@ -240,7 +258,7 @@ export default function ChatScreen({ route, navigation }) {
 
   // ==================== CHAT FUNCTIONS ====================
 
-  const loadMessages = async (convId) => {
+  const loadMessages = async (convId, retryCount = 0) => {
     try {
       const response = await databases.listDocuments(
         DATABASE_ID,
@@ -251,13 +269,13 @@ export default function ChatScreen({ route, navigation }) {
           Query.limit(100)
         ]
       );
-
+  
       setMessages(prev => {
         const currentIds = new Set(prev.confirmed.map(msg => msg.$id));
         const newMessages = response.documents.filter(
           msg => !currentIds.has(msg.$id)
         );
-
+  
         if (newMessages.length > 0) {
           return {
             confirmed: [...newMessages, ...prev.confirmed],
@@ -267,7 +285,16 @@ export default function ChatScreen({ route, navigation }) {
         return prev;
       });
     } catch (error) {
-      console.error("Error loading messages:", error);
+      console.log("Error loading messages:", error);
+      setErrorMessage('Connection issues - messages might not load properly');
+      setTimeout(() => setErrorMessage(''), 5000);
+      
+      // Retry up to 3 times with exponential backoff
+      if (retryCount < 3) {
+        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return loadMessages(convId, retryCount + 1);
+      }
     }
   };
 
@@ -303,13 +330,18 @@ export default function ChatScreen({ route, navigation }) {
     if (!newMessage.trim() || !dbConversationId || isSending) return;
 
     setIsSending(true);
-    const tempId = `temp_${Date.now()}`;
+    
+    // Generate unique temp ID with counter
+    tempIdCounter.current += 1;
+    const tempId = `temp_${Date.now()}_${tempIdCounter.current}`;
+    
     const messageData = {
-      messageId: `msg_${Date.now()}`,
+      messageId: `msg_${Date.now()}_${tempIdCounter.current}`,
       content: newMessage.trim(),
       conversationId: dbConversationId,
       senderId: currentUserId,
       $id: tempId,
+      uniqueTempId: tempId, // Add unique identifier for pending messages
       $createdAt: new Date().toISOString(),
       status: 'sending'
     };
@@ -324,7 +356,11 @@ export default function ChatScreen({ route, navigation }) {
         DATABASE_ID,
         COLLECTIONS.MESSAGES,
         ID.unique(),
-        { ...messageData, $id: undefined }
+        {
+          ...messageData,
+          $id: undefined,
+          uniqueTempId: undefined
+        }
       );
 
       await databases.updateDocument(
@@ -344,6 +380,7 @@ export default function ChatScreen({ route, navigation }) {
         )
       }));
     } catch (error) {
+      console.error("Error sending message:", error);
       setMessages(prev => ({
         ...prev,
         pending: {
@@ -358,6 +395,12 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   // ==================== UI COMPONENTS ====================
+
+  {errorMessage ? (
+    <View style={styles.errorBanner}>
+      <Text style={styles.errorText}>{errorMessage}</Text>
+    </View>
+  ) : null}
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -461,14 +504,14 @@ export default function ChatScreen({ route, navigation }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList
-          ref={flatListRef}
-          data={[...Object.values(messages.pending), ...messages.confirmed].sort((a, b) => 
-            new Date(b.$createdAt) - new Date(a.$createdAt)
-          )}
-          renderItem={renderMessageItem}
-          keyExtractor={item => item.$id}
-          contentContainerStyle={styles.messagesList}
-          inverted
+        ref={flatListRef}
+        data={[...Object.values(messages.pending), ...messages.confirmed].sort((a, b) => 
+          new Date(b.$createdAt) - new Date(a.$createdAt)
+        )}
+        renderItem={renderMessageItem}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={styles.messagesList}
+        inverted
         />
         
         <View style={styles.inputContainer}>
@@ -648,5 +691,14 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: '#3A4249'
-  }
+  },
+  errorBanner: {
+    backgroundColor: '#ff4444',
+    padding: 10,
+    alignItems: 'center'
+  },
+  errorText: {
+    color: 'white',
+    fontSize: 14
+  },
 });
