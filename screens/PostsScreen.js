@@ -50,7 +50,8 @@ const PostsScreen = () => {
       style={styles.postCard}
       onPress={() => navigation.navigate('PostDetail', { 
         postId: item.$id,
-        initialLikeCount: item.likeCount 
+        initialLikeCount: item.likeCount ,
+        initialComments: item.commentsCount || 0,
       })}
     >
       <View style={styles.postHeader}>
@@ -75,7 +76,7 @@ const PostsScreen = () => {
         </View>
         <View style={styles.interactionButton}>
           <Ionicons name="chatbubble-outline" size={20} color="#666" />
-          <Text style={styles.interactionText}>{item.comments?.length || 0}</Text>
+          <Text style={styles.interactionText}>{item.commentsCount || 0}</Text>
         </View>
       </View>
     </TouchableOpacity>

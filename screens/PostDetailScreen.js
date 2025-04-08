@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, ScrollView, ActivityIndicator } from 'react-native';
-import { getPostById, addComment , getUserId ,toggleLike} from '../lib/AppwriteService';
+import { getPostById, addComment, getUserId, toggleLike, getLikeCount, checkUserLike, userProfiles } from '../lib/AppwriteService';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PostDetailScreen = ({ route, navigation }) => {
   const { postId } = route.params;
@@ -9,23 +10,25 @@ const PostDetailScreen = ({ route, navigation }) => {
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasLiked, setHasLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+
+  const loadPost = async () => {
+    try {
+      const postData = await getPostById(postId);
+      setPost(postData);
+      const likes = await getLikeCount(postId);
+      setLikeCount(likes);
+      const userId = await getUserId();
+      const userHasLiked = await checkUserLike(postId, userId);
+      setHasLiked(userHasLiked);
+    } catch (error) {
+      console.error('Error loading post:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadPost = async () => {
-      try {
-        const postData = await getPostById(postId);
-        setPost(postData);
-        const userId = await getUserId();
-        const userLike = postData.likes?.documents?.find(
-          (like) => like.userId === userId
-        );
-        setHasLiked(!!userLike);
-      } catch (error) {
-        console.error('Error loading post:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadPost();
   }, [postId]);
 
@@ -34,10 +37,21 @@ const PostDetailScreen = ({ route, navigation }) => {
       try {
         const userId = await getUserId();
         const newComment = await addComment(postId, userId, commentText);
+        const savedProfileName = await AsyncStorage.getItem('profile_name');
+        const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
+        const formattedComment = {
+          ...newComment,
+          user: {
+            name: savedProfileName || 'Anonymous',
+            avatar: savedProfileImageUri || 'https://via.placeholder.com/150'
+          }
+        };
+        
         setPost(prev => ({
           ...prev,
-          comments: [...prev.comments, newComment]
+          comments: [...(prev.comments || []), formattedComment]
         }));
+        
         setCommentText('');
       } catch (error) {
         console.error('Error adding comment:', error);
@@ -47,13 +61,21 @@ const PostDetailScreen = ({ route, navigation }) => {
 
   const handleLike = async () => {
     try {
-      setHasLiked(!hasLiked);
       const userId = await getUserId();
-      await toggleLike(postId, userId); 
-      const updatedPost = await getPostById(postId);
-      setPost(updatedPost);
+      setHasLiked(!hasLiked);
+      setLikeCount(prevCount => hasLiked ? prevCount - 1 : prevCount + 1);
+      await toggleLike(postId, userId);
+      const updatedLikeCount = await getLikeCount(postId);
+      setLikeCount(updatedLikeCount);
+
+      const userLikeStatus = await checkUserLike(postId, userId);
+      setHasLiked(userLikeStatus);
     } catch (error) {
       console.error('Error toggling like:', error);
+      const userId = await getUserId();
+      const userLikeStatus = await checkUserLike(postId, userId);
+      setHasLiked(userLikeStatus);
+      setLikeCount(await getLikeCount(postId));
     }
   };
 
@@ -119,24 +141,27 @@ const PostDetailScreen = ({ route, navigation }) => {
           )}
 
           <View style={styles.postFooter}>
-          <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
-            <Ionicons 
-              name={hasLiked ? "heart" : "heart-outline"} 
-              size={24} 
-              color={hasLiked ? "#e74c3c" : "#666"} 
-            />
-            <Text style={styles.likeCount}>{post.likeCount}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
+              <Ionicons 
+                name={hasLiked ? "heart" : "heart-outline"} 
+                size={24} 
+                color={hasLiked ? "#e74c3c" : "#666"} 
+              />
+              <Text style={styles.likeCount}>{likeCount}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Comments List */}
         <Text style={styles.commentsTitle}>Comments ({post.comments?.length || 0})</Text>
         <FlatList
-          data={post.comments}
+          data={post.comments || []}
           renderItem={renderComment}
-          keyExtractor={(item) => item.$id}
+          keyExtractor={(item) => item.$id || String(Math.random())}
           scrollEnabled={false}
+          ListEmptyComponent={
+            <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+          }
         />
       </ScrollView>
 
@@ -286,6 +311,12 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 20,
     fontSize: 16,
+  },
+  noCommentsText: {
+    textAlign: 'center',
+    color: '#666',
+    padding: 16,
+    fontStyle: 'italic',
   },
 });
 
