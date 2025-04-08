@@ -12,7 +12,8 @@ import {
   StatusBar,
   SafeAreaView,
   BackHandler,
-  Image
+  Image,
+  AppState
 } from 'react-native';
 import { 
   databases, 
@@ -26,7 +27,7 @@ import {
 import { Query } from 'appwrite';
 import { Ionicons } from '@expo/vector-icons';
 
-const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
+const DEFAULT_AVATAR = require('../assets/avatar.png');
 
 export default function ChatScreen({ route, navigation }) {
   const { 
@@ -34,8 +35,6 @@ export default function ChatScreen({ route, navigation }) {
     friendName = 'Unknown', 
     conversationId = '' 
   } = route.params || {};
-
-  console.log("[CHAT] Initial params:", { friendId, friendName, conversationId });
 
   const [messages, setMessages] = useState({
     confirmed: [], 
@@ -50,77 +49,148 @@ export default function ChatScreen({ route, navigation }) {
     avatar: 'avatar.png', 
     status: 'offline' 
   });
-  const flatListRef = useRef(null);
+  const [isChatActive, setIsChatActive] = useState(true);
   const [isSending, setIsSending] = useState(false);
-  const [pendingMessages, setPendingMessages] = useState({});
+  const flatListRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
 
-  // Set user as online when entering chat
+  // ==================== UTILITY FUNCTIONS ====================
+
+  const findExistingConversation = async (userId, friendId) => {
+    try {
+      // Check both possible conversation directions
+      const [response1, response2] = await Promise.all([
+        databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.CONVERSATIONS,
+          [
+            Query.equal('participant1', userId),
+            Query.equal('participant2', friendId)
+          ]
+        ),
+        databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.CONVERSATIONS,
+          [
+            Query.equal('participant1', friendId),
+            Query.equal('participant2', userId)
+          ]
+        )
+      ]);
+
+      return response1.documents[0] || response2.documents[0] || null;
+    } catch (error) {
+      console.error("Error finding conversation:", error);
+      return null;
+    }
+  };
+
+  const createConversation = async (userId, friendId) => {
+    try {
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.CONVERSATIONS,
+        ID.unique(),
+        {
+          participant1: userId,
+          participant2: friendId,
+          lastMessage: "",
+          lastMessageAt: new Date().toISOString()
+        }
+      );
+      return response.$id;
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      throw error;
+    }
+  };
+
+  const subscribeToFriendStatus = () => {
+    // Implement status subscription
+    const interval = setInterval(async () => {
+      try {
+        const profile = await userProfiles.getProfileByUserId(friendId);
+        setFriendData(prev => ({
+          ...prev,
+          status: profile.status || 'offline'
+        }));
+      } catch (error) {
+        console.error("Error fetching friend status:", error);
+      }
+    }, 15000); // Check every 15 seconds
+
+    return () => clearInterval(interval);
+  };
+
+  // ==================== LIFECYCLE EFFECTS ====================
+
+  // App state handling
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      setIsChatActive(nextAppState === 'active');
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  // Online status management
   useEffect(() => {
     let mounted = true;
-  
     const setOnlineStatus = async () => {
       try {
         const user = await account.get();
-        if (mounted) {
-          await userProfiles.safeUpdateStatus(user.$id, 'online');
-        }
-      } catch {} // Ignore errors
+        if (mounted) await userProfiles.safeUpdateStatus(user.$id, 'online');
+      } catch {}
     };
-  
+
     setOnlineStatus();
-  
     return () => {
       mounted = false;
       const setOfflineStatus = async () => {
         try {
           const user = await account.get();
           await userProfiles.safeUpdateStatus(user.$id, 'offline');
-        } catch {} // Ignore errors
+        } catch {}
       };
       setOfflineStatus();
     };
   }, []);
 
-  // Handle back button
+  // Back handler
   useEffect(() => {
-    const backAction = () => {
-      navigation.navigate('FindFriend');
-      return true;
-    };
-
     const backHandler = BackHandler.addEventListener(
       'hardwareBackPress',
-      backAction
+      () => {
+        navigation.navigate('FindFriend');
+        return true;
+      }
     );
-
     return () => backHandler.remove();
   }, [navigation]);
 
-  // Initialize chat and get friend data
+  // Core chat initialization
   useEffect(() => {
     const initializeChat = async () => {
       try {
         setIsLoading(true);
-        
-        // Get current user info
         const user = await account.get();
         setCurrentUserId(user.$id);
         setCurrentUserName(user.name);
-  
-        // Get friend profile data
+
+        // Load friend profile
         const friendProfile = await userProfiles.getProfileByUserId(friendId);
         setFriendData({
           avatar: friendProfile.avatar || 'avatar.png',
           status: friendProfile.status || 'offline'
         });
-  
-        // Check if this is a new conversation or existing one
+
+        // Handle conversation ID
         if (conversationId.startsWith('new_')) {
-          const existingConversation = await findExistingConversation(user.$id, friendId);
-          
-          if (existingConversation) {
-            setDbConversationId(existingConversation.$id);
-            await loadMessages(existingConversation.$id);
+          const existingConv = await findExistingConversation(user.$id, friendId);
+          if (existingConv) {
+            setDbConversationId(existingConv.$id);
+            await loadMessages(existingConv.$id);
           } else {
             const newConvId = await createConversation(user.$id, friendId);
             setDbConversationId(newConvId);
@@ -135,111 +205,41 @@ export default function ChatScreen({ route, navigation }) {
         setIsLoading(false);
       }
     };
-  
+
     initializeChat();
-    
-    // Set up real-time subscriptions
     const unsubscribeMessages = subscribeToMessages();
     const unsubscribeStatus = subscribeToFriendStatus();
-    
+
     return () => {
       unsubscribeMessages();
       unsubscribeStatus();
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
   }, [conversationId, friendId]);
 
-  // auto-scroll when new messages arrive
+  // Smart polling mechanism
   useEffect(() => {
-    if (messages.length > 0 && flatListRef.current) {
-      flatListRef.current.scrollToIndex({ index: 0, animated: true });
-    }
-  }, [messages]);
+    const startPolling = () => {
+      if (!dbConversationId) return;
+      
+      // Clear existing interval
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      
+      // Set new interval based on chat activity
+      const interval = isChatActive ? 1000 : 5000;
+      pollingIntervalRef.current = setInterval(() => {
+        loadMessages(dbConversationId);
+      }, interval);
+    };
 
-  // Subscribe to friend's status changes
-  const subscribeToFriendStatus = () => {
-    const interval = setInterval(async () => {
-      try {
-        const friendProfile = await userProfiles.getProfileByUserId(friendId);
-        setFriendData(prev => ({
-          ...prev,
-          status: friendProfile.status || 'offline'
-        }));
-      } catch (error) {
-        console.error("Status update error:", error);
-      }
-    }, 10000); // Every 10 seconds
-  
-    return () => clearInterval(interval);
-  };
+    startPolling();
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
+  }, [dbConversationId, isChatActive]);
 
-  // Find if a conversation already exists between the two users
-  const findExistingConversation = async (userId, friendId) => {
-    try {
-      // First query for participant1=userId and participant2=friendId
-      const response1 = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.CONVERSATIONS,
-        [
-          Query.equal('participant1', userId),
-          Query.equal('participant2', friendId)
-        ]
-      );
-      
-      if (response1.documents.length > 0) {
-        console.log("[DEBUG] Found existing conversation (1):", response1.documents[0].$id);
-        return response1.documents[0];
-      }
-      
-      // If not found, try the opposite: participant1=friendId and participant2=userId
-      const response2 = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.CONVERSATIONS,
-        [
-          Query.equal('participant1', friendId),
-          Query.equal('participant2', userId)
-        ]
-      );
-      
-      if (response2.documents.length > 0) {
-        console.log("[DEBUG] Found existing conversation (2):", response2.documents[0].$id);
-        return response2.documents[0];
-      }
-      
-      return null;
-    } catch (error) {
-      console.error("[DEBUG] Error finding existing conversation:", error);
-      return null;
-    }
-  };
+  // ==================== CHAT FUNCTIONS ====================
 
-  // Create a new conversation
-  const createConversation = async (userId, friendId) => {
-    try {
-      const uniqueConversationId = `conv_${userId}_${friendId}_${new Date().getTime()}`;
-      
-      // Create conversation document
-      const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.CONVERSATIONS,
-        ID.unique(),
-        {
-          conversationId: uniqueConversationId,
-          lastMessage: "",
-          lastMessageAt: new Date(),
-          participant1: userId,
-          participant2: friendId
-        }
-      );
-      
-      console.log("[DEBUG] Created new conversation:", response.$id);
-      return response.$id;
-    } catch (error) {
-      console.error("[DEBUG] Error creating conversation:", error);
-      throw error;
-    }
-  };
-
-  // Load existing messages for a conversation
   const loadMessages = async (convId) => {
     try {
       const response = await databases.listDocuments(
@@ -248,23 +248,32 @@ export default function ChatScreen({ route, navigation }) {
         [
           Query.equal('conversationId', convId),
           Query.orderDesc('$createdAt'),
-          Query.limit(50) // Adjust limit as needed
+          Query.limit(100)
         ]
       );
-      
-      setMessages(prev => ({
-        ...prev,
-        confirmed: response.documents
-      }));
+
+      setMessages(prev => {
+        const currentIds = new Set(prev.confirmed.map(msg => msg.$id));
+        const newMessages = response.documents.filter(
+          msg => !currentIds.has(msg.$id)
+        );
+
+        if (newMessages.length > 0) {
+          return {
+            confirmed: [...newMessages, ...prev.confirmed],
+            pending: prev.pending
+          };
+        }
+        return prev;
+      });
     } catch (error) {
       console.error("Error loading messages:", error);
     }
   };
 
-  // Set up real-time message subscription
   const subscribeToMessages = () => {
     if (!dbConversationId) return () => {};
-  
+
     return realtime.subscribe(
       [`databases.${DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`],
       (response) => {
@@ -272,11 +281,11 @@ export default function ChatScreen({ route, navigation }) {
             response.payload.conversationId === dbConversationId) {
           
           setMessages(prev => {
-            // Check if we already have this message
-            const exists = prev.confirmed.some(msg => msg.$id === response.payload.$id) ||
-                           (response.payload.messageId && 
-                            prev.confirmed.some(msg => msg.messageId === response.payload.messageId));
-  
+            const exists = prev.confirmed.some(msg => 
+              msg.$id === response.payload.$id || 
+              msg.messageId === response.payload.messageId
+            );
+
             if (!exists) {
               return {
                 confirmed: [response.payload, ...prev.confirmed],
@@ -290,22 +299,13 @@ export default function ChatScreen({ route, navigation }) {
     );
   };
 
-  const allMessages = useMemo(() => {
-    const pending = Object.values(messages.pending);
-    return [...pending, ...messages.confirmed].sort((a, b) => 
-      new Date(b.$createdAt) - new Date(a.$createdAt)
-    );
-  }, [messages]);
-
-  // Send a new message
-  // Corrected sendMessage function
   const sendMessage = async () => {
     if (!newMessage.trim() || !dbConversationId || isSending) return;
-  
+
     setIsSending(true);
     const tempId = `temp_${Date.now()}`;
     const messageData = {
-      messageId: `msg_${new Date().getTime()}`,
+      messageId: `msg_${Date.now()}`,
       content: newMessage.trim(),
       conversationId: dbConversationId,
       senderId: currentUserId,
@@ -313,57 +313,42 @@ export default function ChatScreen({ route, navigation }) {
       $createdAt: new Date().toISOString(),
       status: 'sending'
     };
-  
-    // Add to pending messages
+
     setMessages(prev => ({
       ...prev,
-      pending: {
-        ...prev.pending,
-        [tempId]: messageData
-      }
+      pending: { ...prev.pending, [tempId]: messageData }
     }));
-  
+
     try {
       const response = await databases.createDocument(
         DATABASE_ID,
         COLLECTIONS.MESSAGES,
         ID.unique(),
-        {
-          ...messageData,
-          $id: undefined // Let server generate ID
-        }
+        { ...messageData, $id: undefined }
       );
-  
-      // Update conversation last message
+
       await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.CONVERSATIONS,
         dbConversationId,
         {
           lastMessage: newMessage.trim(),
-          lastMessageAt: new Date()
+          lastMessageAt: new Date().toISOString()
         }
       );
-  
-      // Move from pending to confirmed
+
       setMessages(prev => ({
         confirmed: [response, ...prev.confirmed],
         pending: Object.fromEntries(
           Object.entries(prev.pending).filter(([id]) => id !== tempId)
         )
       }));
-  
     } catch (error) {
-      console.error("Error sending message:", error);
-      // Mark as failed
       setMessages(prev => ({
         ...prev,
         pending: {
           ...prev.pending,
-          [tempId]: {
-            ...prev.pending[tempId],
-            status: 'failed'
-          }
+          [tempId]: { ...prev.pending[tempId], status: 'failed' }
         }
       }));
     } finally {
@@ -372,7 +357,8 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // Enhanced header component
+  // ==================== UI COMPONENTS ====================
+
   const renderHeader = () => (
     <View style={styles.header}>
       <TouchableOpacity 
@@ -417,7 +403,6 @@ export default function ChatScreen({ route, navigation }) {
     </View>
   );
 
-  // Render message item
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = item.senderId === currentUserId;
     const isPending = item.$id.startsWith('temp_');
@@ -477,7 +462,9 @@ export default function ChatScreen({ route, navigation }) {
       >
         <FlatList
           ref={flatListRef}
-          data={allMessages}
+          data={[...Object.values(messages.pending), ...messages.confirmed].sort((a, b) => 
+            new Date(b.$createdAt) - new Date(a.$createdAt)
+          )}
           renderItem={renderMessageItem}
           keyExtractor={item => item.$id}
           contentContainerStyle={styles.messagesList}
@@ -516,159 +503,150 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#1A1F23',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A1F23'
+  },
+  loadingText: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
     backgroundColor: '#1A1F23',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2D3439'
   },
   backButton: {
-    marginRight: 15,
+    marginRight: 15
   },
   headerUserInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    flex: 1
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 10,
+    marginRight: 12
   },
   avatarImage: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 20
   },
   statusIndicator: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: '#1A1F23',
     bottom: 0,
     right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#1A1F23'
   },
   headerTextContainer: {
-    flex: 1,
+    flex: 1
   },
   headerTitle: {
-    color: '#fff',
+    color: 'white',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   headerStatus: {
-    fontSize: 12,
+    fontSize: 14,
+    marginTop: 2
   },
   headerRight: {
-    width: 24, // Same as back button for balance
+    width: 24
   },
   keyboardAvoidingView: {
-    flex: 1,
+    flex: 1
   },
   messagesList: {
-    padding: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 10
   },
   messageBubble: {
     maxWidth: '80%',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 8
   },
   currentUserMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#01CC97',
+    backgroundColor: '#05907A',
+    borderBottomRightRadius: 2
   },
   otherUserMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#2D3439',
+    borderBottomLeftRadius: 2
+  },
+  pendingMessage: {
+    opacity: 0.7
+  },
+  failedMessage: {
+    borderWidth: 1,
+    borderColor: '#ff4444'
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 16
   },
   currentUserMessageText: {
-    color: '#fff',
+    color: 'white'
   },
   otherUserMessageText: {
-    color: '#333',
-  },
-  messageTime: {
-    fontSize: 10,
-    marginTop: 4,
-    textAlign: 'right',
-  },
-  currentUserMessageTime: {
-    color: '#e0e0e0',
-  },
-  otherUserMessageTime: {
-    color: '#777',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#fff',
-  },
-  input: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    paddingHorizontal: 15,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 20,
-    fontSize: 16,
-  },
-  sendButton: {
-    marginLeft: 10,
-    backgroundColor: '#01CC97',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#e0e0e0',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1A1F23',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#fff',
-  },
-  debugContainer: {
-    position: 'absolute',
-    bottom: 80,
-    left: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 10,
-    borderRadius: 5,
-  },
-  debugText: {
-    color: 'white',
-    fontSize: 12,
+    color: '#E0E0E0'
   },
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4
   },
-  statusIndicator: {
-    marginLeft: 8
+  messageTime: {
+    fontSize: 12
   },
-  pendingMessage: {
-    opacity: 0.7
+  currentUserMessageTime: {
+    color: 'rgba(255,255,255,0.7)'
   },
-  failedMessage: {
-    borderColor: '#ff4444',
-    borderWidth: 1
+  otherUserMessageTime: {
+    color: 'rgba(255,255,255,0.5)'
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#2D3439',
+    borderTopWidth: 1,
+    borderTopColor: '#3A4249'
+  },
+  input: {
+    flex: 1,
+    backgroundColor: '#3A4249',
+    color: 'white',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    maxHeight: 100,
+    marginRight: 10
+  },
+  sendButton: {
+    backgroundColor: '#05907A',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#3A4249'
   }
 });
