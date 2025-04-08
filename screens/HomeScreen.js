@@ -15,10 +15,12 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   React.useEffect(() => {
     const loadProfileData = async () => {
       try {
+        
         const savedProfileName = await AsyncStorage.getItem('profile_name');
         const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
         
         if (savedProfileName) {
+          
           setProfileData(prevData => ({ 
             ...prevData, 
             fullName: savedProfileName 

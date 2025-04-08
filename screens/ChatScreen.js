@@ -60,12 +60,12 @@ export default function ChatScreen({ route, navigation }) {
   const tempIdCounter = useRef(0);
 
   const keyExtractor = (item) => {
-    // For pending messages, use combination of timestamp and counter
+    // For pending messages, use their uniqueTempId
     if (item.$id.startsWith('temp_')) {
-      return item.uniqueTempId;
+      return `pending-${item.uniqueTempId}`;
     }
-    // For confirmed messages, use server ID
-    return item.$id;
+    // For confirmed messages, ensure we prefix to avoid conflicts
+    return `confirmed-${item.$id}`;
   };
 
   // ==================== UTILITY FUNCTIONS ====================
@@ -504,14 +504,19 @@ export default function ChatScreen({ route, navigation }) {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList
-        ref={flatListRef}
-        data={[...Object.values(messages.pending), ...messages.confirmed].sort((a, b) => 
-          new Date(b.$createdAt) - new Date(a.$createdAt)
-        )}
-        renderItem={renderMessageItem}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={styles.messagesList}
-        inverted
+          ref={flatListRef}
+          data={[
+            ...Object.values(messages.pending),
+            ...messages.confirmed.filter(msg => 
+              !Object.values(messages.pending).some(
+                pendingMsg => pendingMsg.messageId === msg.messageId
+              )
+            )
+          ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
+          renderItem={renderMessageItem}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={styles.messagesList}
+          inverted
         />
         
         <View style={styles.inputContainer}>
