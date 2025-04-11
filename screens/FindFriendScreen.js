@@ -10,11 +10,11 @@ import {
   BackHandler,
   Image
 } from 'react-native';
-import { account, getUserConversations, databases, DATABASE_ID, Query } from "../lib/AppwriteService";
+import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
-const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
+const DEFAULT_AVATAR = require('../assets/avatar.png');
 
 export default function FindFriendScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -42,7 +42,7 @@ export default function FindFriendScreen({ navigation }) {
 
   // Load conversations and users
   useEffect(() => {
-    const loadConversationsAndUsers = async () => {
+    const loadData = async () => {
       try {
         setIsLoading(true);
         const user = await account.get();
@@ -50,83 +50,81 @@ export default function FindFriendScreen({ navigation }) {
         
         const userConversations = await getUserConversations(user.$id);
         
-        // Get all participant IDs
-        const userIdsToFetch = new Set();
+        // Get participant IDs and fetch their profiles
+        const userIds = new Set();
         userConversations.forEach(conv => {
-          if (conv.participant1 !== user.$id) userIdsToFetch.add(conv.participant1);
-          if (conv.participant2 !== user.$id) userIdsToFetch.add(conv.participant2);
+          if (conv.participant1 !== user.$id) userIds.add(conv.participant1);
+          if (conv.participant2 !== user.$id) userIds.add(conv.participant2);
         });
-        
-        // Fetch user details with avatar and status
+
         const userMap = {};
-        const usersResponse = await databases.listDocuments(
-          DATABASE_ID,
-          '67d0bbf8003206b11780',
-          [
-            Query.select(['$id', 'name', 'avatar', 'status']),
-            Query.equal('$id', Array.from(userIdsToFetch))
-          ]
-        );
-        
-        usersResponse.documents.forEach(user => {
-          userMap[user.$id] = {
-            ...user,
-            avatar: user.avatar || 'avatar.png' // Default avatar
-          };
-        });
-        
+        await Promise.all(Array.from(userIds).map(async userId => {
+          try {
+            const profile = await userProfiles.getProfileByUserId(userId);
+            userMap[userId] = {
+              $id: userId,
+              name: profile.name,
+              avatar: profile.avatar || 'avatar.png',
+              status: profile.status || 'offline'
+            };
+          } catch (err) {
+            console.error(`Error loading profile for ${userId}:`, err);
+            userMap[userId] = {
+              $id: userId,
+              name: 'Unknown User',
+              avatar: 'avatar.png',
+              status: 'offline'
+            };
+          }
+        }));
+
         setUsers(userMap);
         setConversations(userConversations);
       } catch (err) {
-        console.error("Error loading conversations:", err);
+        console.error("Error loading data:", err);
         setError("Failed to load conversations. Please try again.");
       } finally {
         setIsLoading(false);
       }
     };
-    
-    if (isFocused) { 
-      loadConversationsAndUsers();
-    }
+
+    if (isFocused) loadData();
   }, [isFocused]);
 
-  // Real-time status updates
+  // Optimized status updates
   useEffect(() => {
+    if (!currentUserId) return;
+
     const updateStatuses = async () => {
       try {
-        // Get all unique user IDs from conversations
-        const userIds = [];
-        conversations.forEach(conv => {
-          if (conv.participant1 !== currentUserId) userIds.push(conv.participant1);
-          if (conv.participant2 !== currentUserId) userIds.push(conv.participant2);
-        });
-        
+        const userIds = conversations.flatMap(conv => [
+          conv.participant1,
+          conv.participant2
+        ].filter(id => id !== currentUserId));
+
         if (userIds.length === 0) return;
-        
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          '67d0bbf8003206b11780',
-          [
-            Query.select(['$id', 'status']),
-            Query.equal('$id', userIds)
-          ]
-        );
-        
-        setUsers(prevUsers => {
-          const updatedUsers = {...prevUsers};
-          response.documents.forEach(user => {
-            if (updatedUsers[user.$id]) {
-              updatedUsers[user.$id].status = user.status;
-            }
-          });
-          return updatedUsers;
-        });
+
+        const uniqueIds = [...new Set(userIds)];
+        await Promise.all(uniqueIds.map(async userId => {
+          try {
+            const profile = await userProfiles.getProfileByUserId(userId);
+            setUsers(prev => ({
+              ...prev,
+              [userId]: {
+                ...(prev[userId] || {}),
+                status: profile.status || 'offline'
+              }
+            }));
+          } catch (err) {
+            console.error(`Status update failed for ${userId}:`, err);
+          }
+        }));
       } catch (error) {
-        console.error("Error updating statuses:", error);
+        console.error("Status update error:", error);
       }
     };
 
-    const interval = setInterval(updateStatuses, 10000); // Update every 10 seconds
+    const interval = setInterval(updateStatuses, 10000);
     return () => clearInterval(interval);
   }, [conversations, currentUserId]);
 

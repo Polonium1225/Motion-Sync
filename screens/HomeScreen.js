@@ -2,6 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { account, userProfiles } from "../lib/AppwriteService";
+
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const [profileData, setProfileData] = React.useState({
@@ -13,10 +15,12 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   React.useEffect(() => {
     const loadProfileData = async () => {
       try {
+        
         const savedProfileName = await AsyncStorage.getItem('profile_name');
         const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
         
         if (savedProfileName) {
+          
           setProfileData(prevData => ({ 
             ...prevData, 
             fullName: savedProfileName 
@@ -47,14 +51,21 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   // Handle Logout
   const handleLogout = async () => {
     try {
-      // Clear AsyncStorage (or any other session data)
-      await AsyncStorage.clear();
+      // Try to set offline status FIRST while session is active
+      try {
+        const user = await account.get();
+        await userProfiles.safeUpdateStatus(user.$id, 'offline');
+      } catch {} // Ignore all errors
   
-      // Update isLoggedIn state to false
-      setIsLoggedIn(false); // This will trigger the AppNavigator to show the SignIn screen
+      // Clear local data
+      await AsyncStorage.clear();
+      await account.deleteSessions();
+      
+      // Update UI
+      setIsLoggedIn(false);
     } catch (error) {
-      console.error('Failed to logout:', error);
-      Alert.alert('Error', 'Failed to logout. Please try again.');
+      // Ensure logout completes even if everything fails
+      setIsLoggedIn(false);
     }
   };
 

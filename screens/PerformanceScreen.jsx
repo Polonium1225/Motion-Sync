@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import { saveHistory, getUserHistory , getUserId } from '../lib/AppwriteService';
-import { rand, round } from '@tensorflow/tfjs';
+
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
@@ -35,7 +35,8 @@ export default function PerformanceScreen() {
   const redirect = useCallback(() => {
     if (pastVideoUri && videoUri) {
       saveHistory(userId, pastVideoUri, videoUri);
-      navigation.navigate('PerformanceComparisonScreen');
+      console.log('History saved:', { userId, pastVideoUri, videoUri });
+      navigation.navigate('PerformanceComparisonScreen' , { videoUri, pastVideoUri });
     }
   }, [pastVideoUri, videoUri, navigation]);
 
@@ -67,7 +68,7 @@ export default function PerformanceScreen() {
           keyExtractor={(item) => item.$id}  
           numColumns={2}  
           renderItem={({ item }) => (  
-            <TouchableOpacity style={styles.recordItem} onPress={() => navigation.navigate('PerformanceComparisonScreen')}>
+            <TouchableOpacity style={styles.recordItem} onPress={() => navigation.navigate('PerformanceComparisonScreen', { videoUri: item.newVideoUri, pastVideoUri: item.pastVideoUri })}>
               <Text style={styles.recordText}>RECORD</Text>
               <Text style={styles.timestampText}>
                 {item.timestamp 
@@ -85,7 +86,7 @@ export default function PerformanceScreen() {
         <TouchableOpacity onPress={redirect}>  
           <Image  
             source={require('../assets/video.png')} 
-            style={{ width: 100, height: 100 }}   
+            style={{ width: 100, height: 100 ,margin:'auto'}}   
           />  
         </TouchableOpacity>  
         <Text style={styles.compareText}>Compare Past vs. Present Movements</Text>
@@ -103,11 +104,13 @@ export default function PerformanceScreen() {
       <Modal animationType="fade" transparent={true} visible={modalVisible}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Ionicons name="close" size={24} color="white" />
-            </TouchableOpacity>
+          <View style={styles.flexModel}>
             <Text style={styles.modalTitle}>Upload a new video</Text>
-
+              <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
+          </View>
+            
             {videoUri ? (
               <Video source={{ uri: videoUri }} style={styles.videoPreview} useNativeControls resizeMode="contain" />
             ) : (
@@ -129,11 +132,12 @@ export default function PerformanceScreen() {
       <Modal animationType="fade" transparent={true} visible={pastModalVisible}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
+          <View style={styles.flexModel}>
+            <Text style={styles.modalTitle}>Upload past video</Text>
             <TouchableOpacity style={styles.closeButton} onPress={() => setPastModalVisible(false)}>
               <Ionicons name="close" size={24} color="white" />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Upload past video</Text>
-
+          </View>
             {pastVideoUri ? (
               <Video source={{ uri: pastVideoUri }} style={styles.videoPreview} useNativeControls resizeMode="contain" />
             ) : (
@@ -153,31 +157,174 @@ export default function PerformanceScreen() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#22272B' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 35 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', marginLeft: 10 , color: 'white'},
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginVertical: 15 , color: '#00ffc0'},
-  historyContainer: { alignItems: 'center' },
-  recordItem: { backgroundColor: '#2D343C', width: 120, height: 120, margin: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  recordImage: { width: 80, height: 60, resizeMode: 'contain' },
-  recordText: { fontSize: 14, fontWeight: 'bold', marginTop: 5 , color: 'white'},
-  improvementContainer: { backgroundColor: '#2D343C', borderRadius: 10, margin: 15, padding: 15, alignItems: 'center' },
-  graphImage: { width: '100%', height: 100, resizeMode: 'contain' , marginVertical: 10 },
-  compareText: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginVertical: 10 , color: 'white'},
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-evenly', width: '100%' },
-  button: { backgroundColor: '#07A07C', paddingVertical: 12, paddingHorizontal: 60, borderRadius: 20, marginTop: 15, alignItems: 'center',alignSelf: 'center'},
-  buttonText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContainer: { backgroundColor: '#22272B', width: 300, padding: 20, borderRadius: 10, alignItems: 'center' },
-  closeButton: { alignSelf: 'flex-end' },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginVertical: 10 , color: 'white'},
-  modalImage: { width: 100, height: 100, resizeMode: 'contain', marginVertical: 10 },
-  videoPreview: { width: 250, height: 150, borderRadius: 10, marginVertical: 10 },
-  uploadButton: { paddingVertical: 7, paddingHorizontal: 25, borderColor: "#01CC97", borderWidth: 2, borderRadius: 30, marginTop: 15, width: '60%', height: 50, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', },
-  uploadButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
-  proceedButton: { backgroundColor: 'black', paddingVertical: 10, paddingHorizontal: 25, borderRadius: 5, marginTop: 10 ,width: '60%', height: 50, justifyContent: 'center', alignItems: 'center', alignSelf: 'center',borderRadius : 30},
-  proceedButtonText: { color: 'white', fontSize: 14, fontWeight: 'bold' },
-  timestampText: { color: 'white', fontSize: 12 },
+  flexModel: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingTop: 45,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    backgroundColor: '#2D343C',
+    borderBottomWidth: 1,
+    borderBottomColor: '#3A424A'
+  },
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: '800', 
+    marginLeft: 15, 
+    color: 'white',
+    letterSpacing: 0.5
+  },
+  sectionTitle: { 
+    fontSize: 22, 
+    fontWeight: '800', 
+    marginVertical: 20, 
+    color: '#00ffc0',
+    paddingHorizontal: 20,
+    alignSelf: 'flex-start'
+  },
+  historyContainer: { 
+    paddingHorizontal: 15 
+  },
+  recordItem: { 
+    backgroundColor: '#2D343C', 
+    width: '47%', 
+    height: 140, 
+    margin: 5,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  recordText: { 
+    fontSize: 15, 
+    fontWeight: '700', 
+    color: '#00ffc0',
+    marginBottom: 8
+  },
+  timestampText: { 
+    color: '#8D98A3', 
+    fontSize: 12, 
+    textAlign: 'center',
+    paddingHorizontal: 10
+  },
+  improvementContainer: { 
+    backgroundColor: '#2D343C', 
+    borderRadius: 20, 
+    margin: 20, 
+    padding: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5
+  },
+  compareText: { 
+    fontSize: 17, 
+    fontWeight: '600', 
+    textAlign: 'center', 
+    marginVertical: 15, 
+    color: 'white',
+    lineHeight: 24
+  },
+  buttonRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    width: '100%',
+    marginTop: 10
+  },
+  button: { 
+    backgroundColor: '#07A07C', 
+    paddingVertical: 16,
+    paddingHorizontal: 30,
+    borderRadius: 14,
+    flex: 1,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    shadowColor: '#07A07C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4
+  },
+  buttonText: { 
+    color: 'white', 
+    fontSize: 15, 
+    fontWeight: '700',
+    letterSpacing: 0.5
+  },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  modalContainer: { 
+    backgroundColor: '#2D343C', 
+    width: '90%', 
+    padding: 25,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8
+  },
+  modalTitle: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    marginBottom: 20, 
+    color: 'white',
+    textAlign: 'center'
+  },
+  videoPreview: { 
+    width: '100%', 
+    height: 180, 
+    borderRadius: 16, 
+    marginVertical: 15 
+  },
+  uploadButton: { 
+    backgroundColor: '#07A07C',
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+    marginTop: 15,
+    width: '100%',
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center'
+  },
+  uploadButtonText: { 
+    color: 'white', 
+    fontSize: 15, 
+    fontWeight: '700',
+    marginLeft: 10
+  },
+  proceedButton: { 
+    backgroundColor: '#22272B', 
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+    marginTop: 15,
+    width: '100%',
+    alignItems: 'center'
+  },
+  modalImage: { 
+    width: 120, 
+    height: 120, 
+    resizeMode: 'contain', 
+    marginVertical: 20,
+    tintColor: '#8D98A3'
+  },
 });

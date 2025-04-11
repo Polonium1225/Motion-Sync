@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,33 +12,34 @@ import {
   StatusBar,
   SafeAreaView,
   BackHandler,
-  Image
+  Image,
+  AppState
 } from 'react-native';
-import { databases, account, DATABASE_ID, ID } from "../lib/AppwriteService";
+import { 
+  databases, 
+  account, 
+  DATABASE_ID, 
+  ID, 
+  userProfiles, 
+  COLLECTIONS,
+  realtime
+} from "../lib/AppwriteService";
 import { Query } from 'appwrite';
 import { Ionicons } from '@expo/vector-icons';
 
-const DEFAULT_AVATAR = require('../assets/avatar.png'); // Make sure this path is correct
+const DEFAULT_AVATAR = require('../assets/avatar.png');
 
 export default function ChatScreen({ route, navigation }) {
-  console.log("[DEBUG] ChatScreen received route.params:", route.params);
-  
   const { 
     friendId = '', 
     friendName = 'Unknown', 
     conversationId = '' 
   } = route.params || {};
-  
-  console.log("[DEBUG] Destructured params:", {
-    friendId,
-    friendName,
-    conversationId
+
+  const [messages, setMessages] = useState({
+    confirmed: [], 
+    pending: {}    
   });
-
-  console.log("[DEBUG] Params received:", { friendId, friendName, conversationId });
-
-  
-  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [currentUserId, setCurrentUserId] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
@@ -48,373 +49,359 @@ export default function ChatScreen({ route, navigation }) {
     avatar: 'avatar.png', 
     status: 'offline' 
   });
+  const [isChatActive, setIsChatActive] = useState(true);
+  const [isSending, setIsSending] = useState(false);
   const flatListRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Set user as online when entering chat
-  useEffect(() => {
-    const setOnlineStatus = async () => {
-      try {
-        const user = await account.get();
-        try {
-          // Try to update status
-          await databases.updateDocument(
-            DATABASE_ID,
-            '67d0bbf8003206b11780', // Users collection
-            user.$id,
-            { status: 'online' }
-          );
-        } catch (error) {
-          // If document doesn't exist, create it
-          if (error.code === 404) {
-            await databases.createDocument(
-              DATABASE_ID,
-              '67d0bbf8003206b11780',
-              user.$id,
-              { 
-                status: 'online',
-                name: user.name || 'User',
-                avatar: 'avatar.png',
-                email: user.email || `${user.$id}@example.com`, // Try to get email from user account or use placeholder
-                password: 'placeholder-password',
-              }
-            );
-          } else {
-            console.error("Update status error:", error);
-          }
-        }
-      } catch (error) {
-        console.error("Online status error:", error);
-      }
-    };
-  
-    setOnlineStatus();
 
-    // Set up status cleanup when leaving
-    return () => {
-      const setOfflineStatus = async () => {
-        try {
-          const user = await account.get();
-          try {
-            await databases.updateDocument(
-              DATABASE_ID,
-              '67d0bbf8003206b11780',
-              user.$id,
-              { status: 'offline' }
-            );
-          } catch (error) {
-            // If updating fails and document doesn't exist, create it
-            if (error.code === 404) {
-              await databases.createDocument(
-                DATABASE_ID,
-                '67d0bbf8003206b11780',
-                user.$id,
-                { 
-                  status: 'offline',
-                  name: user.name || 'User',
-                  avatar: 'avatar.png',
-                  email: user.email || `${user.$id}@example.com`, // Add email
-                  password: 'placeholder-password'
-                }
-              );
-            } else {
-              console.error("Offline status error:", error);
-            }
-          }
-        } catch (error) {
-          console.error("Offline status error:", error);
-        }
-      };
-      
-      setOfflineStatus();
-    };
-  }, []);
+  // Add a ref for unique temporary IDs
+  const tempIdCounter = useRef(0);
 
-  // Handle back button
-  useEffect(() => {
-    const backAction = () => {
-      navigation.navigate('FindFriend');
-      return true;
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      backAction
-    );
-
-    return () => backHandler.remove();
-  }, [navigation]);
-
-  // Initialize chat and get friend data
-  useEffect(() => {
-    const initializeChat = async () => {
-      try {
-        console.log("[DEBUG] Starting initialization...");
-        setIsLoading(true);
-        
-        // Get current user info FIRST
-        const user = await account.get();
-        console.log("[DEBUG] Current user:", user);
-        setCurrentUserId(user.$id);
-        setCurrentUserName(user.name);
-  
-        console.log("[DEBUG] Checking conversation type...");
-        
-        // Get friend data (avatar and status)
-        // In the try/catch block where you handle friend data
-        try {
-          const friendResponse = await databases.getDocument(
-            DATABASE_ID,
-            '67d0bbf8003206b11780', // users collection
-            friendId
-          );
-          
-          setFriendData({
-            avatar: friendResponse.avatar || 'avatar.png',
-            status: friendResponse.status || 'offline'
-          });
-        } catch (error) {
-          console.log("[DEBUG] Friend data not found, using defaults:", error);
-          // If the user doesn't exist yet, create them with default values
-          if (error.code === 404) {
-            try {
-              await databases.createDocument(
-                DATABASE_ID,
-                '67d0bbf8003206b11780',
-                friendId,
-                { 
-                  name: friendName,
-                  status: 'offline',
-                  avatar: 'avatar.png',
-                  email: `${friendId}@example.com`, // Add a placeholder email
-                  password: 'placeholder-password',
-                }
-              );
-              
-              setFriendData({
-                avatar: 'avatar.png',
-                status: 'offline'
-              });
-            } catch (createError) {
-              console.error("Error creating friend document:", createError);
-            }
-          } else {
-            setFriendData({
-              avatar: 'avatar.png',
-              status: 'offline'
-            });
-          }
-        }
-
-      // Check if this is a new conversation or existing one
-      if (conversationId.startsWith('new_')) {
-        const existingConversation = await findExistingConversation(user.$id, friendId);
-        
-        if (existingConversation) {
-          setDbConversationId(existingConversation.$id);
-          await loadMessages(existingConversation.$id);
-        } else {
-          const newConvId = await createConversation(user.$id, friendId);
-          setDbConversationId(newConvId);
-        }
-      } else {
-        setDbConversationId(conversationId);
-        await loadMessages(conversationId);
-      }
-    } catch (error) {
-      console.error("[DEBUG] Initialization error:", error);
-    } finally {
-      console.log("[DEBUG] Initialization complete");
-      setIsLoading(false);
+  const keyExtractor = (item) => {
+    // For pending messages, use their uniqueTempId
+    if (item.$id.startsWith('temp_')) {
+      return `pending-${item.uniqueTempId}`;
     }
+    // For confirmed messages, ensure we prefix to avoid conflicts
+    return `confirmed-${item.$id}`;
   };
 
-  initializeChat();
-    
-    // Set up real-time subscriptions
-    const unsubscribeMessages = subscribeToMessages();
-    const unsubscribeStatus = subscribeToFriendStatus();
-    
-    return () => {
-      unsubscribeMessages();
-      unsubscribeStatus();
-    };
-  }, [conversationId, friendId]);
+  // ==================== UTILITY FUNCTIONS ====================
 
-  // Subscribe to friend's status changes
-  const subscribeToFriendStatus = () => {
-    const interval = setInterval(async () => {
-      try {
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          '67d0bbf8003206b11780', // Your users collection ID
-          [
-            Query.equal('$id', friendId),
-            Query.select(['status'])
-          ]
-        );
-  
-        if (response.documents.length > 0) {
-          setFriendData(prev => ({
-            ...prev,
-            status: response.documents[0].status || 'offline'
-          }));
-        }
-      } catch (error) {
-        console.error("Status update error:", error);
-      }
-    }, 10000); // Every 10 seconds
-  
-    return () => clearInterval(interval);
-  };
-
-  // Find if a conversation already exists between the two users
   const findExistingConversation = async (userId, friendId) => {
     try {
-      // First query for participant1=userId and participant2=friendId
-      const response1 = await databases.listDocuments(
-        DATABASE_ID,
-        '67edc4ef0032ae87bfe4', // conversations collection
-        [
-          Query.equal('participant1', userId),
-          Query.equal('participant2', friendId)
-        ]
-      );
-      
-      if (response1.documents.length > 0) {
-        console.log("[DEBUG] Found existing conversation (1):", response1.documents[0].$id);
-        return response1.documents[0];
-      }
-      
-      // If not found, try the opposite: participant1=friendId and participant2=userId
-      const response2 = await databases.listDocuments(
-        DATABASE_ID,
-        '67edc4ef0032ae87bfe4', // conversations collection
-        [
-          Query.equal('participant1', friendId),
-          Query.equal('participant2', userId)
-        ]
-      );
-      
-      if (response2.documents.length > 0) {
-        console.log("[DEBUG] Found existing conversation (2):", response2.documents[0].$id);
-        return response2.documents[0];
-      }
-      
-      return null;
+      // Check both possible conversation directions
+      const [response1, response2] = await Promise.all([
+        databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.CONVERSATIONS,
+          [
+            Query.equal('participant1', userId),
+            Query.equal('participant2', friendId)
+          ]
+        ),
+        databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.CONVERSATIONS,
+          [
+            Query.equal('participant1', friendId),
+            Query.equal('participant2', userId)
+          ]
+        )
+      ]);
+
+      return response1.documents[0] || response2.documents[0] || null;
     } catch (error) {
-      console.error("[DEBUG] Error finding existing conversation:", error);
+      console.error("Error finding conversation:", error);
       return null;
     }
   };
 
-  // Create a new conversation
   const createConversation = async (userId, friendId) => {
     try {
-      const uniqueConversationId = `conv_${userId}_${friendId}_${new Date().getTime()}`;
-      
-      // Create conversation document
       const response = await databases.createDocument(
         DATABASE_ID,
-        '67edc4ef0032ae87bfe4', // conversations collection
+        COLLECTIONS.CONVERSATIONS,
         ID.unique(),
         {
-          conversationId: uniqueConversationId,
-          lastMessage: "",
-          lastMessageAt: new Date(),
           participant1: userId,
-          participant2: friendId
+          participant2: friendId,
+          lastMessage: "",
+          lastMessageAt: new Date().toISOString()
         }
       );
-      
-      console.log("[DEBUG] Created new conversation:", response.$id);
       return response.$id;
     } catch (error) {
-      console.error("[DEBUG] Error creating conversation:", error);
+      console.error("Error creating conversation:", error);
       throw error;
     }
   };
 
-  // Load existing messages for a conversation
-  const loadMessages = async (convId) => {
-    try {
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        '67edc5c00017db23e0fa', // messages collection
-        [
-          Query.equal('conversationId', convId),
-          Query.orderDesc('$createdAt')
-        ]
-      );
-      
-      setMessages(response.documents);
-      console.log("[DEBUG] Loaded messages:", response.documents.length);
-    } catch (error) {
-      console.error("[DEBUG] Error loading messages:", error);
-    }
-  };
-
-  // Set up real-time message subscription
-  const subscribeToMessages = () => {
-    // This is a polling mechanism for now
-    // For production, implement Appwrite's realtime API
+  const subscribeToFriendStatus = () => {
+    // Implement status subscription
     const interval = setInterval(async () => {
-      if (dbConversationId) {
-        await loadMessages(dbConversationId);
+      try {
+        const profile = await userProfiles.getProfileByUserId(friendId);
+        setFriendData(prev => ({
+          ...prev,
+          status: profile.status || 'offline'
+        }));
+      } catch (error) {
+        console.error("Error fetching friend status:", error);
       }
-    }, 3000);
-    
+    }, 15000); // Check every 15 seconds
+
     return () => clearInterval(interval);
   };
 
-  // Send a new message
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !dbConversationId) return;
-    
-    try {
-      // Create message document
-      const messageData = {
-        messageId: `msg_${new Date().getTime()}`,
-        content: newMessage.trim(),
-        conversationId: dbConversationId,
-        senderId: currentUserId
+  // ==================== LIFECYCLE EFFECTS ====================
+
+  // App state handling
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      setIsChatActive(nextAppState === 'active');
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  // Online status management
+  useEffect(() => {
+    let mounted = true;
+    const setOnlineStatus = async () => {
+      try {
+        const user = await account.get();
+        if (mounted) await userProfiles.safeUpdateStatus(user.$id, 'online');
+      } catch {}
+    };
+
+    setOnlineStatus();
+    return () => {
+      mounted = false;
+      const setOfflineStatus = async () => {
+        try {
+          const user = await account.get();
+          await userProfiles.safeUpdateStatus(user.$id, 'offline');
+        } catch {}
       };
-      
-      await databases.createDocument(
-        DATABASE_ID,
-        '67edc5c00017db23e0fa', // messages collection
-        ID.unique(),
-        messageData
-      );
-      
-      // Update conversation with last message
-      await databases.updateDocument(
-        DATABASE_ID,
-        '67edc4ef0032ae87bfe4', // conversations collection
-        dbConversationId,
-        {
-          lastMessage: newMessage.trim(),
-          lastMessageAt: new Date()
+      setOfflineStatus();
+    };
+  }, []);
+
+  // Back handler
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        navigation.navigate('FindFriend');
+        return true;
+      }
+    );
+    return () => backHandler.remove();
+  }, [navigation]);
+
+  // Core chat initialization
+  useEffect(() => {
+    const initializeChat = async () => {
+      try {
+        setIsLoading(true);
+        const user = await account.get();
+        setCurrentUserId(user.$id);
+        setCurrentUserName(user.name);
+
+        // Load friend profile
+        const friendProfile = await userProfiles.getProfileByUserId(friendId);
+        setFriendData({
+          avatar: friendProfile.avatar || 'avatar.png',
+          status: friendProfile.status || 'offline'
+        });
+
+        // Handle conversation ID
+        if (conversationId.startsWith('new_')) {
+          const existingConv = await findExistingConversation(user.$id, friendId);
+          if (existingConv) {
+            setDbConversationId(existingConv.$id);
+            await loadMessages(existingConv.$id);
+          } else {
+            const newConvId = await createConversation(user.$id, friendId);
+            setDbConversationId(newConvId);
+          }
+        } else {
+          setDbConversationId(conversationId);
+          await loadMessages(conversationId);
         }
+      } catch (error) {
+        console.error("Initialization error:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeChat();
+    const unsubscribeMessages = subscribeToMessages();
+    const unsubscribeStatus = subscribeToFriendStatus();
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeStatus();
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
+  }, [conversationId, friendId]);
+
+  // Smart polling mechanism (updated)
+  useEffect(() => {
+    const loadMessagesWithRetry = async () => {
+      try {
+        await loadMessages(dbConversationId);
+      } catch (error) {
+        console.error("Polling error:", error);
+      }
+    };
+  
+    const startPolling = () => {
+      if (!dbConversationId) return;
+      
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      
+      const interval = isChatActive ? 1000 : 5000;
+      pollingIntervalRef.current = setInterval(loadMessagesWithRetry, interval);
+    };
+  
+    startPolling();
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    };
+  }, [dbConversationId, isChatActive]);
+
+  // ==================== CHAT FUNCTIONS ====================
+
+  const loadMessages = async (convId, retryCount = 0) => {
+    try {
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.MESSAGES,
+        [
+          Query.equal('conversationId', convId),
+          Query.orderDesc('$createdAt'),
+          Query.limit(100)
+        ]
       );
-      
-      // Optimistically update UI
-      setMessages(prevMessages => [
-        {
-          ...messageData,
-          $id: `temp_${Date.now()}`,
-          $createdAt: new Date().toISOString()
-        },
-        ...prevMessages
-      ]);
-      
-      // Clear input
-      setNewMessage('');
+  
+      setMessages(prev => {
+        const currentIds = new Set(prev.confirmed.map(msg => msg.$id));
+        const newMessages = response.documents.filter(
+          msg => !currentIds.has(msg.$id)
+        );
+  
+        if (newMessages.length > 0) {
+          return {
+            confirmed: [...newMessages, ...prev.confirmed],
+            pending: prev.pending
+          };
+        }
+        return prev;
+      });
     } catch (error) {
-      console.error("[DEBUG] Error sending message:", error);
+      console.log("Error loading messages:", error);
+      setErrorMessage('Connection issues - messages might not load properly');
+      setTimeout(() => setErrorMessage(''), 5000);
+      
+      // Retry up to 3 times with exponential backoff
+      if (retryCount < 3) {
+        const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return loadMessages(convId, retryCount + 1);
+      }
     }
   };
 
-  // Enhanced header component
+  const subscribeToMessages = () => {
+    if (!dbConversationId) return () => {};
+
+    return realtime.subscribe(
+      [`databases.${DATABASE_ID}.collections.${COLLECTIONS.MESSAGES}.documents`],
+      (response) => {
+        if (response.events.includes('databases.*.collections.*.documents.*.create') &&
+            response.payload.conversationId === dbConversationId) {
+          
+          setMessages(prev => {
+            const exists = prev.confirmed.some(msg => 
+              msg.$id === response.payload.$id || 
+              msg.messageId === response.payload.messageId
+            );
+
+            if (!exists) {
+              return {
+                confirmed: [response.payload, ...prev.confirmed],
+                pending: prev.pending
+              };
+            }
+            return prev;
+          });
+        }
+      }
+    );
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !dbConversationId || isSending) return;
+
+    setIsSending(true);
+    
+    // Generate unique temp ID with counter
+    tempIdCounter.current += 1;
+    const tempId = `temp_${Date.now()}_${tempIdCounter.current}`;
+    
+    const messageData = {
+      messageId: `msg_${Date.now()}_${tempIdCounter.current}`,
+      content: newMessage.trim(),
+      conversationId: dbConversationId,
+      senderId: currentUserId,
+      $id: tempId,
+      uniqueTempId: tempId, // Add unique identifier for pending messages
+      $createdAt: new Date().toISOString(),
+      status: 'sending'
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      pending: { ...prev.pending, [tempId]: messageData }
+    }));
+
+    try {
+      const response = await databases.createDocument(
+        DATABASE_ID,
+        COLLECTIONS.MESSAGES,
+        ID.unique(),
+        {
+          ...messageData,
+          $id: undefined,
+          uniqueTempId: undefined
+        }
+      );
+
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.CONVERSATIONS,
+        dbConversationId,
+        {
+          lastMessage: newMessage.trim(),
+          lastMessageAt: new Date().toISOString()
+        }
+      );
+
+      setMessages(prev => ({
+        confirmed: [response, ...prev.confirmed],
+        pending: Object.fromEntries(
+          Object.entries(prev.pending).filter(([id]) => id !== tempId)
+        )
+      }));
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setMessages(prev => ({
+        ...prev,
+        pending: {
+          ...prev.pending,
+          [tempId]: { ...prev.pending[tempId], status: 'failed' }
+        }
+      }));
+    } finally {
+      setIsSending(false);
+      setNewMessage('');
+    }
+  };
+
+  // ==================== UI COMPONENTS ====================
+
+  {errorMessage ? (
+    <View style={styles.errorBanner}>
+      <Text style={styles.errorText}>{errorMessage}</Text>
+    </View>
+  ) : null}
+
   const renderHeader = () => (
     <View style={styles.header}>
       <TouchableOpacity 
@@ -459,14 +446,17 @@ export default function ChatScreen({ route, navigation }) {
     </View>
   );
 
-  // Render message item
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = item.senderId === currentUserId;
-    
+    const isPending = item.$id.startsWith('temp_');
+    const isFailed = item.status === 'failed';
+  
     return (
       <View style={[
         styles.messageBubble,
-        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage
+        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
+        isPending && styles.pendingMessage,
+        isFailed && styles.failedMessage
       ]}>
         <Text style={[
           styles.messageText,
@@ -474,12 +464,20 @@ export default function ChatScreen({ route, navigation }) {
         ]}>
           {item.content}
         </Text>
-        <Text style={[
-          styles.messageTime,
-          isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
-        ]}>
-          {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </Text>
+        <View style={styles.messageFooter}>
+          <Text style={[
+            styles.messageTime,
+            isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
+          ]}>
+            {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+          {isPending && (
+            <ActivityIndicator size="small" color="#999" style={styles.statusIndicator} />
+          )}
+          {isFailed && (
+            <Ionicons name="warning" size={16} color="#ff4444" style={styles.statusIndicator} />
+          )}
+        </View>
       </View>
     );
   };
@@ -507,9 +505,16 @@ export default function ChatScreen({ route, navigation }) {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          data={[
+            ...Object.values(messages.pending),
+            ...messages.confirmed.filter(msg => 
+              !Object.values(messages.pending).some(
+                pendingMsg => pendingMsg.messageId === msg.messageId
+              )
+            )
+          ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
           renderItem={renderMessageItem}
-          keyExtractor={item => item.$id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.messagesList}
           inverted
         />
@@ -526,27 +531,19 @@ export default function ChatScreen({ route, navigation }) {
           <TouchableOpacity 
             style={[
               styles.sendButton,
-              !newMessage.trim() && styles.sendButtonDisabled
+              (!newMessage.trim() || isSending) && styles.sendButtonDisabled
             ]}
             onPress={sendMessage}
-            disabled={!newMessage.trim()}
+            disabled={!newMessage.trim() || isSending}
           >
             <Ionicons 
               name="send" 
               size={20} 
-              color={newMessage.trim() ? "#fff" : "#888"} 
+              color={newMessage.trim() && !isSending ? "#fff" : "#888"} 
             />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-      {/* Temporary debug view - remove after debugging 
-      <View style={styles.debugContainer}>
-        <Text style={styles.debugText}>Debug Info:</Text>
-        <Text style={styles.debugText}>Friend ID: {friendId}</Text>
-        <Text style={styles.debugText}>Friend Name: {friendName}</Text>
-        <Text style={styles.debugText}>Conversation ID: {conversationId}</Text>
-        <Text style={styles.debugText}>Current User ID: {currentUserId}</Text>
-      </View>*/}
     </SafeAreaView>
   );
 }
@@ -554,144 +551,159 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#1A1F23',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#1A1F23'
+  },
+  loadingText: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 16
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
     backgroundColor: '#1A1F23',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2D3439'
   },
   backButton: {
-    marginRight: 15,
+    marginRight: 15
   },
   headerUserInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    flex: 1
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 10,
+    marginRight: 12
   },
   avatarImage: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 20
   },
   statusIndicator: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: '#1A1F23',
     bottom: 0,
     right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#1A1F23'
   },
   headerTextContainer: {
-    flex: 1,
+    flex: 1
   },
   headerTitle: {
-    color: '#fff',
+    color: 'white',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
   headerStatus: {
-    fontSize: 12,
+    fontSize: 14,
+    marginTop: 2
   },
   headerRight: {
-    width: 24, // Same as back button for balance
+    width: 24
   },
   keyboardAvoidingView: {
-    flex: 1,
+    flex: 1
   },
   messagesList: {
-    padding: 15,
+    paddingVertical: 15,
+    paddingHorizontal: 10
   },
   messageBubble: {
     maxWidth: '80%',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 8,
+    marginBottom: 8
   },
   currentUserMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#01CC97',
+    backgroundColor: '#05907A',
+    borderBottomRightRadius: 2
   },
   otherUserMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#2D3439',
+    borderBottomLeftRadius: 2
+  },
+  pendingMessage: {
+    opacity: 0.7
+  },
+  failedMessage: {
+    borderWidth: 1,
+    borderColor: '#ff4444'
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 16
   },
   currentUserMessageText: {
-    color: '#fff',
+    color: 'white'
   },
   otherUserMessageText: {
-    color: '#333',
+    color: '#E0E0E0'
+  },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4
   },
   messageTime: {
-    fontSize: 10,
-    marginTop: 4,
-    textAlign: 'right',
+    fontSize: 12
   },
   currentUserMessageTime: {
-    color: '#e0e0e0',
+    color: 'rgba(255,255,255,0.7)'
   },
   otherUserMessageTime: {
-    color: '#777',
+    color: 'rgba(255,255,255,0.5)'
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: '#2D3439',
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: '#fff',
+    borderTopColor: '#3A4249'
   },
   input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    paddingHorizontal: 15,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#3A4249',
+    color: 'white',
     borderRadius: 20,
-    fontSize: 16,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    maxHeight: 100,
+    marginRight: 10
   },
   sendButton: {
-    marginLeft: 10,
-    backgroundColor: '#01CC97',
+    backgroundColor: '#05907A',
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   sendButtonDisabled: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#3A4249'
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1A1F23',
-  },
-  loadingText: {
-    marginTop: 10,
-    color: '#fff',
-  },
-  debugContainer: {
-    position: 'absolute',
-    bottom: 80,
-    left: 10,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+  errorBanner: {
+    backgroundColor: '#ff4444',
     padding: 10,
-    borderRadius: 5,
+    alignItems: 'center'
   },
-  debugText: {
+  errorText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 14
   },
 });

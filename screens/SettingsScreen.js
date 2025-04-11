@@ -1,186 +1,407 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Button } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';  
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { account, databases, storage, ID, Query } from '../lib/AppwriteService';
 
 export default function SettingsScreen() {
-  const [isEditing, setIsEditing] = useState(false); // To toggle the edit mode
-  const [fullName, setFullName] = useState('FULL NAME'); // State for full name
-  const [profileImage, setProfileImage] = useState(require('../assets/icon.png')); // Default profile image
-  
-  // Function to handle image selection using Expo Image Picker
+  const [name, setName] = useState('');
+  const [image, setImage] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Load current user data
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const user = await account.get();
+        setName(user.name);
+        
+        // Load profile image if exists
+        const profiles = await databases.listDocuments(
+          '67d0bba1000e9caec4f2',
+          'user_profiles',
+          [Query.equal('userId', user.$id)]
+        );
+        
+        if (profiles.documents[0]?.avatar) {
+          const url = storage.getFilePreview('profile_images', profiles.documents[0].avatar);
+          setImage(url.href);
+        }
+      } catch (error) {
+        console.log('Load error:', error);
+        Alert.alert('Error', 'Failed to load profile');
+      }
+    };
+    loadUser();
+  }, []);
+
   const pickImage = async () => {
-    // Request permission to access the media library
-    let permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      alert('Permission to access media library is required!');
-      return;
-    }
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow access to your photos');
+        return;
+      }
 
-    // Pick the image
-    let pickerResult = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
+      // Pick image - using the modern approach
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaType: ImagePicker.MediaType.photo, // Fixed mediaType
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
 
-    // Check if user didn't cancel the picker
-    if (!pickerResult.canceled) { // Note: "canceled" not "cancelled"
-      // Update the profile image with the selected image URI
-      setProfileImage({ uri: pickerResult.assets[0].uri }); // Access URI through assets array
+      if (!result.canceled && result.assets && result.assets[0]) {
+        setImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.log('Image picker error:', error);
+      Alert.alert('Error', 'Failed to pick image');
     }
   };
 
-  // Function to save the profile
-  const saveProfile = () => {
-    setIsEditing(false); // Close the edit mode
-    // You can handle saving the name and image here (e.g., to a server or local storage)
+  const uploadImage = async (uri) => {
+    try {
+      const fileId = ID.unique();
+      const fileExtension = uri.split('.').pop();
+      
+      // Get file info
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) throw new Error('File does not exist');
+      
+      // Read file content
+      const fileContent = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Create file object for Appwrite
+      const file = {
+        name: `${fileId}.${fileExtension}`,
+        mimeType: `image/${fileExtension}`,
+        size: fileInfo.size || (fileContent.length * 3/4), // Estimate size if missing
+        base64: fileContent,
+      };
+
+      // Upload to Appwrite
+      const response = await storage.createFile(
+        'profile_images',
+        fileId,
+        file
+      );
+      
+      return fileId;
+    } catch (error) {
+      console.log('Upload error:', error);
+      throw new Error('Failed to upload image');
+    }
+  };
+
+  const saveProfile = async () => {
+    try {
+      setLoading(true);
+      
+      // Update account name
+      await account.updateName(name);
+      
+      // Upload image if changed
+      let avatarId = null;
+      if (image && !image.includes('profile_images')) {
+        avatarId = await uploadImage(image);
+      }
+      
+      // Update profile in database
+      const user = await account.get();
+      const profiles = await databases.listDocuments(
+        '67d0bba1000e9caec4f2',
+        'user_profiles',
+        [Query.equal('userId', user.$id)]
+      );
+      
+      const updateData = { name };
+      if (avatarId) updateData.avatar = avatarId;
+      
+      if (profiles.documents[0]) {
+        await databases.updateDocument(
+          '67d0bba1000e9caec4f2',
+          'user_profiles',
+          profiles.documents[0].$id,
+          updateData
+        );
+      } else {
+        await databases.createDocument(
+          '67d0bba1000e9caec4f2',
+          'user_profiles',
+          ID.unique(),
+          {
+            userId: user.$id,
+            ...updateData,
+            status: 'online'
+          }
+        );
+      }
+      
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (error) {
+      console.log('Save error:', error);
+      Alert.alert('Error', error.message || 'Failed to save profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Profile Section */}
-      <View style={styles.profileSection}>
-        {/* Profile Image */}
+    <View style={{ padding: 20 }}>
+      <TouchableOpacity onPress={pickImage}>
         <Image
-          source={profileImage}  // Dynamically set the profile image
-          style={styles.profileImage}
+          source={image ? { uri: image } : require('../assets/icon.png')}
+          style={{ width: 100, height: 100, borderRadius: 50 }}
         />
-        <Text style={styles.fullName}>{fullName}</Text>
+        <Text style={{ textAlign: 'center', marginTop: 8 }}>Change Photo</Text>
+      </TouchableOpacity>
 
-        {/* Edit Profile Button */}
-        {!isEditing ? (
-          <TouchableOpacity style={styles.editProfileButton} onPress={() => setIsEditing(true)}>
-            <Text style={styles.editProfileText}>EDIT PROFILE</Text>
-          </TouchableOpacity>
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder="Your Name"
+        style={{ 
+          borderWidth: 1, 
+          borderColor: '#ccc',
+          padding: 12,
+          marginVertical: 20,
+          borderRadius: 5
+        }}
+      />
+
+      <TouchableOpacity 
+        onPress={saveProfile}
+        disabled={loading}
+        style={{ 
+          backgroundColor: '#007AFF', 
+          padding: 15, 
+          borderRadius: 5,
+          opacity: loading ? 0.7 : 1
+        }}
+      >
+        {loading ? (
+          <ActivityIndicator color="white" />
         ) : (
-          <View style={styles.editPanel}>
-            {/* Image Upload Button */}
-            <Button title="Upload Image" onPress={pickImage} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter full name"
-              value={fullName}
-              onChangeText={setFullName} // Update full name as user types
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={saveProfile}>
-              <Text style={styles.saveText}>SAVE</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>
+            Save Profile
+          </Text>
         )}
-      </View>
-
-      {/* Settings Buttons */}
-      <TouchableOpacity style={styles.settingButton}>
-        <Text style={styles.settingText}>DARK MODE</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.settingButton}>
-        <Icon name="credit-card" size={20} color="#fff" />
-        <Text style={styles.settingText}>Subscription & Payments</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.settingButton}>
-        <Icon name="phone" size={20} color="#fff" />
-        <Text style={styles.settingText}>Support</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    resizeMode: 'cover', // Ensures the background image covers the entire screen
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#1F2229', // Optional: Adds a slight dark overlay for readability
-  },
-  profileSection: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 10,
-  },
-  fullName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',  // Updated to white for better visibility on dark backgrounds
-  },
-  editProfileButton: {
-    backgroundColor: '#22272B',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderColor: "#01CC97",  
-    borderWidth: 2,          
-    borderRadius: 30,
-    marginTop: 15,
-    width: '200',
-    height: '50',
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-  },
-  editProfileText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  editPanel: {
-    marginTop: 20,
-    alignItems: 'center',
-    width: '100%',
-  },
-  input: {
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 10,
-    marginBottom: 10,
-    width: '80%',
-    paddingHorizontal: 10,
-    color: '#fff',
-  },
-  saveButton: {
-    backgroundColor: '#01CC97',
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 30,
-    marginTop: 15,
-    width: '200',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  settingButton: {
-    backgroundColor: '#1F2229', 
-    borderRadius: 10,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    marginVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: "#01CC97", 
-    borderWidth: 2,          
-    shadowColor: '#000',  
-    shadowOffset: { width: 0, height: 4 },  
-    shadowOpacity: 0.3,  
-    shadowRadius: 1,  
-    elevation: 5,  
-  },
-  settingText: {
-    fontSize: 16,
-    marginLeft: 10,
-    color: '#fff',
-  },
-});
+// const styles = StyleSheet.create({
+//   container: {
+//     flex: 1,
+//     backgroundColor: '#f5f5f5',
+//   },
+//   contentContainer: {
+//     paddingBottom: 30,
+//   },
+//   loadingContainer: {
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//   },
+//   profileSection: {
+//     alignItems: 'center',
+//     padding: 20,
+//     backgroundColor: '#fff',
+//     marginBottom: 15,
+//     borderRadius: 10,
+//     marginHorizontal: 15,
+//     marginTop: 15,
+//     shadowColor: '#000',
+//     shadowOffset: { width: 0, height: 2 },
+//     shadowOpacity: 0.1,
+//     shadowRadius: 6,
+//     elevation: 3,
+//   },
+//   profileImageContainer: {
+//     position: 'relative',
+//     marginBottom: 15,
+//   },
+//   profileImage: {
+//     width: 120,
+//     height: 120,
+//     borderRadius: 60,
+//     borderWidth: 3,
+//     borderColor: '#fff',
+//     shadowColor: '#000',
+//     shadowOffset: { width: 0, height: 2 },
+//     shadowOpacity: 0.2,
+//     shadowRadius: 4,
+//   },
+//   editImageOverlay: {
+//     position: 'absolute',
+//     bottom: 0,
+//     right: 0,
+//     backgroundColor: '#007AFF',
+//     width: 40,
+//     height: 40,
+//     borderRadius: 20,
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     borderWidth: 2,
+//     borderColor: '#fff',
+//   },
+//   fullName: {
+//     fontSize: 22,
+//     fontWeight: '600',
+//     marginBottom: 15,
+//     color: '#333',
+//   },
+//   editProfileButton: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     backgroundColor: '#007AFF',
+//     paddingVertical: 10,
+//     paddingHorizontal: 20,
+//     borderRadius: 25,
+//     marginBottom: 10,
+//   },
+//   buttonIcon: {
+//     marginRight: 8,
+//   },
+//   editProfileText: {
+//     color: '#fff',
+//     fontWeight: '600',
+//     fontSize: 16,
+//   },
+//   editPanel: {
+//     width: '100%',
+//     marginTop: 10,
+//   },
+//   sectionTitle: {
+//     fontSize: 18,
+//     fontWeight: '600',
+//     color: '#333',
+//     marginBottom: 20,
+//     textAlign: 'center',
+//   },
+//   inputContainer: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     backgroundColor: '#f0f0f0',
+//     borderRadius: 10,
+//     paddingHorizontal: 15,
+//     marginBottom: 20,
+//     height: 50,
+//   },
+//   inputIcon: {
+//     marginRight: 10,
+//   },
+//   input: {
+//     flex: 1,
+//     height: '100%',
+//     fontSize: 16,
+//     color: '#333',
+//   },
+//   uploadLabel: {
+//     fontSize: 16,
+//     color: '#666',
+//     marginBottom: 10,
+//   },
+//   uploadButton: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//     backgroundColor: '#007AFF',
+//     paddingVertical: 12,
+//     borderRadius: 8,
+//     marginBottom: 20,
+//   },
+//   uploadButtonText: {
+//     color: '#fff',
+//     fontWeight: '600',
+//     fontSize: 16,
+//   },
+//   progressContainer: {
+//     marginBottom: 20,
+//   },
+//   progressText: {
+//     fontSize: 14,
+//     color: '#666',
+//     marginBottom: 5,
+//   },
+//   progressBar: {
+//     height: 6,
+//     backgroundColor: '#e0e0e0',
+//     borderRadius: 3,
+//     overflow: 'hidden',
+//   },
+//   progressFill: {
+//     height: '100%',
+//     backgroundColor: '#007AFF',
+//   },
+//   buttonGroup: {
+//     flexDirection: 'row',
+//     justifyContent: 'space-between',
+//     marginTop: 10,
+//   },
+//   actionButton: {
+//     flex: 1,
+//     paddingVertical: 12,
+//     borderRadius: 8,
+//     alignItems: 'center',
+//     justifyContent: 'center',
+//   },
+//   saveButton: {
+//     backgroundColor: '#007AFF',
+//     marginLeft: 10,
+//   },
+//   cancelButton: {
+//     backgroundColor: '#e0e0e0',
+//     marginRight: 10,
+//   },
+//   actionButtonText: {
+//     color: '#fff',
+//     fontWeight: '600',
+//     fontSize: 16,
+//   },
+//   settingsSection: {
+//     backgroundColor: '#fff',
+//     borderRadius: 10,
+//     marginHorizontal: 15,
+//     paddingVertical: 10,
+//     shadowColor: '#000',
+//     shadowOffset: { width: 0, height: 2 },
+//     shadowOpacity: 0.1,
+//     shadowRadius: 6,
+//     elevation: 3,
+//   },
+//   settingsTitle: {
+//     fontSize: 14,
+//     fontWeight: '600',
+//     color: '#999',
+//     paddingHorizontal: 20,
+//     paddingVertical: 10,
+//     textTransform: 'uppercase',
+//   },
+//   settingButton: {
+//     flexDirection: 'row',
+//     alignItems: 'center',
+//     paddingVertical: 15,
+//     paddingHorizontal: 20,
+//     borderBottomWidth: 1,
+//     borderBottomColor: '#f0f0f0',
+//   },
+//   settingIcon: {
+//     width: 30,
+//     height: 30,
+//     borderRadius: 15,
+//     backgroundColor: '#007AFF',
+//     justifyContent: 'center',
+//     alignItems: 'center',
+//     marginRight: 15,
+//   },
+//   settingText: {
+//     flex: 1,
+//     fontSize: 16,
+//     color: '#333',
+//   },
+// });
