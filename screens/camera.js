@@ -15,7 +15,7 @@ import { Camera, useCameraPermissions } from 'expo-camera';
 const API_KEY = "b747416a-bf1b-4417-af5a-25c2996507af";
 
 // For local testing, use localhost on an emulator or your machine's local IP for a physical device
-const API_HOST = "poseapi-zvlf.onrender.com"; // Change this to your server's IP if testing on physical device
+const API_HOST = "d28c-196-200-142-15.ngrok-free.app" //"poseapi-zvlf.onrender.com"; // Change this to your server's IP if testing on physical device
 
 // Construct the API URL - use HTTPS in production
 const PROTOCOL = "https"; // Change to "https" for production
@@ -171,6 +171,10 @@ export default function App() {
             domStorageEnabled={true}
             allowsInlineMediaPlayback={true}
             mediaPlaybackRequiresUserAction={false}
+            androidHardwareAccelerationDisabled={true}
+            onShouldStartLoadWithRequest={() => true}
+            setSupportMultipleWindows={false}
+            trustAllCerts={true}
             style={styles.webView}
             source={{ uri: posetracker_url }}
             originWhitelist={['*']}

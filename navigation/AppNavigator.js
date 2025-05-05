@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Import all your screens
 import HomeScreen from '../screens/HomeScreen';
+import test from '../screens/test';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProgressScreen from '../screens/ProgressScreen';
 import PostsScreen from '../screens/PostsScreen'; 
@@ -90,6 +91,11 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen 
             name="FindFriend" 
             component={FindFriendScreen} 
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="test" 
+            component={test} 
             options={{ headerShown: false }}
           />
           <Stack.Screen 

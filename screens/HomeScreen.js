@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-na
 import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, userProfiles } from "../lib/AppwriteService";
+import { useNavigation } from '@react-navigation/native'; // Import the hook
 
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
@@ -10,6 +11,11 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     profileImage: require('../assets/icon.png'),
     fullName: 'Name'
   });
+
+  const navigation1 = useNavigation();
+  const handleNavigate = () => {
+    navigation1.navigate('test');  // Navigate to CameraScreen when the button is pressed
+  };
 
   // Load profile data when component mounts
   React.useEffect(() => {
@@ -92,7 +98,7 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
       {/* Buttons Section */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Error Detection & Feedback</Text>
+          <Text style={styles.buttonText} onPress={handleNavigate}>Error Detection & Feedback</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.button}>
