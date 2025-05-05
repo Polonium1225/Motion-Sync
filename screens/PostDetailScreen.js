@@ -48,16 +48,17 @@ const PostDetailScreen = ({ route }) => {
         minute: '2-digit'
       });
     };
-
+  
     return (
       <View style={styles.commentContainer}>
         <Image 
-          source={{ uri: item.user?.avatar || 'https://via.placeholder.com/150' }} 
-          style={styles.commentAvatar} 
+          source={{ uri: item.user?.avatar }} 
+          style={styles.commentAvatar}
+          defaultSource={{ uri: 'https://via.placeholder.com/150' }}
         />
         <View style={styles.commentContent}>
           <View style={styles.commentHeader}>
-            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+            <Text style={styles.commentAuthor}>{item.user?.name}</Text>
             <Text style={styles.commentDate}>
               {formatDate(item.$createdAt)}
             </Text>
@@ -93,10 +94,7 @@ const PostDetailScreen = ({ route }) => {
           comments: [...prev.comments, {
             ...newComment,
             $createdAt: new Date().toISOString(),
-            user: {
-              name: 'You',
-              avatar: newComment.user?.avatar || 'https://via.placeholder.com/150'
-            }
+            user: newComment.user // This now includes the avatar URL
           }]
         }));
         setComment('');
