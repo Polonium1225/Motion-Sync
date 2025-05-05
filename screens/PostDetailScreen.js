@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getPostById, addComment, toggleLike, checkUserLike, getLikeCount } from '../lib/AppwriteService';
+import { 
+  getPostById, 
+  addComment, 
+  toggleLike, 
+  checkUserLike, 
+  getLikeCount,
+  getUserId
+} from '../lib/AppwriteService';
 
 const PostDetailScreen = ({ route }) => {
   const { postId } = route.params;
@@ -10,6 +17,7 @@ const PostDetailScreen = ({ route }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [commentLoading, setCommentLoading] = useState(false);  
 
   useEffect(() => {
     const loadPost = async () => {
@@ -29,6 +37,19 @@ const PostDetailScreen = ({ route }) => {
     loadPost();
   }, [postId]);
 
+  const refreshComments = async () => {
+    try {
+      const commentsResponse = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.COMMENTS,
+        [Query.equal('postId', postId), Query.orderAsc('$createdAt')]
+      );
+      // Update comments state
+    } catch (error) {
+      console.error('Error refreshing comments:', error);
+    }
+  };
+
   const handleLike = async () => {
     try {
       const userId = await getUserId();
@@ -44,6 +65,7 @@ const PostDetailScreen = ({ route }) => {
     if (!comment.trim()) return;
     
     try {
+      setCommentLoading(true);
       const userId = await getUserId();
       const newComment = await addComment(postId, userId, comment);
       
@@ -63,6 +85,9 @@ const PostDetailScreen = ({ route }) => {
     } catch (error) {
       console.error('Error adding comment:', error);
     }
+   finally {
+    setCommentLoading(false);
+  }
   };
 
   if (loading || !post) {
@@ -121,8 +146,12 @@ const PostDetailScreen = ({ route }) => {
           value={comment}
           onChangeText={setComment}
         />
-        <TouchableOpacity onPress={handleComment}>
-          <Ionicons name="send" size={24} color="#007AFF" />
+        <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
+          {commentLoading ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : (
+            <Ionicons name="send" size={24} color="#007AFF" />
+          )}
         </TouchableOpacity>
       </View>
     </View>
