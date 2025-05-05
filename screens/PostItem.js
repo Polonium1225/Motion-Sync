@@ -36,14 +36,20 @@ const PostItem = ({ post, navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Image source={{ uri: post.user?.avatar }} style={styles.avatar} />
+        <Image 
+        source={{ uri: post.user?.avatar }} 
+        
+        style={styles.avatar} />
         <Text style={styles.username}>{post.user?.name}</Text>
       </View>
       
       <Text style={styles.content}>{post.content}</Text>
       
       {post.imageUrl && (
-        <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+        <Image 
+        source={{ uri: post.imageUrl }} 
+
+        style={styles.postImage} />
       )}
       
       <View style={styles.footer}>

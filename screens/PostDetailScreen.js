@@ -10,6 +10,8 @@ import {
   getUserId
 } from '../lib/AppwriteService';
 
+const DEFAULT_AVATAR = require('../assets/avatar.png');
+
 const PostDetailScreen = ({ route }) => {
   const { postId } = route.params;
   const [post, setPost] = useState(null);
@@ -52,13 +54,13 @@ const PostDetailScreen = ({ route }) => {
     return (
       <View style={styles.commentContainer}>
         <Image 
-          source={{ uri: item.user?.avatar }} 
+          source={item.user?.avatar ? { uri: item.user.avatar } : DEFAULT_AVATAR}
           style={styles.commentAvatar}
-          defaultSource={{ uri: 'https://via.placeholder.com/150' }}
+          defaultSource={DEFAULT_AVATAR}
         />
         <View style={styles.commentContent}>
           <View style={styles.commentHeader}>
-            <Text style={styles.commentAuthor}>{item.user?.name}</Text>
+            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
             <Text style={styles.commentDate}>
               {formatDate(item.$createdAt)}
             </Text>
@@ -118,10 +120,14 @@ const PostDetailScreen = ({ route }) => {
   return (
     <View style={styles.container}>
       <View style={styles.postContainer}>
-        <View style={styles.header}>
-          <Image source={{ uri: post.user?.avatar }} style={styles.avatar} />
-          <Text style={styles.username}>{post.user?.name}</Text>
-        </View>
+      <View style={styles.header}>
+        <Image 
+          source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
+          style={styles.avatar}
+          defaultSource={DEFAULT_AVATAR}
+        />
+        <Text style={styles.username}>{post.user?.name}</Text>
+      </View>
         
         <Text style={styles.content}>{post.content}</Text>
         
