@@ -37,17 +37,16 @@ export default function SettingsScreen() {
           const profile = profiles.documents[0];
           setProfileDoc(profile);
           
-          // If profile has avatar, get preview URL
+          // If profile has avatar, get direct file URL (without transformations)
           if (profile.avatar) {
             try {
-              // Create the proper file preview URL using direct URL construction
-              // This is more reliable than using storage.getFilePreview in some environments
-              const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/preview?width=400&height=400&gravity=center&quality=100&project=${PROJECT_ID}`;
+              // Create direct download URL instead of preview URL (which requires a paid plan)
+              const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
               
               console.log('Loading avatar image from:', imageUrl);
               setImage(imageUrl);
             } catch (error) {
-              console.log('Error getting file preview:', error);
+              console.log('Error getting file view:', error);
             }
           }
         }
