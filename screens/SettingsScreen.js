@@ -95,17 +95,16 @@ export default function SettingsScreen() {
         mimeType
       });
       
-      // Read file as Blob
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      
-      if (!fileInfo.exists) {
-        throw new Error('File does not exist');
-      }
-      
       // Create a base64 string from the file
       const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      
+      // Calculate approximate size based on base64 string length
+      // This is a workaround since FileSystem.getInfoAsync might not return size on some platforms
+      const approximateSize = Math.ceil(base64.length * 0.75); // Convert base64 size to binary size
+      
+      console.log('Base64 length:', base64.length, 'Approximate size:', approximateSize);
       
       // Create file in Appwrite storage
       await storage.createFile(
@@ -113,7 +112,7 @@ export default function SettingsScreen() {
         fileId,            // file ID
         {
           type: mimeType,
-          size: fileInfo.size,
+          size: approximateSize,
           name: fileName,
           data: base64
         }
