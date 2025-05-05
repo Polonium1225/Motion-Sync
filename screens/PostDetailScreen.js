@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { 
   getPostById, 
@@ -17,7 +17,7 @@ const PostDetailScreen = ({ route }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [commentLoading, setCommentLoading] = useState(false);  
+  const [commentLoading, setCommentLoading] = useState(false);
 
   useEffect(() => {
     const loadPost = async () => {
@@ -37,17 +37,35 @@ const PostDetailScreen = ({ route }) => {
     loadPost();
   }, [postId]);
 
-  const refreshComments = async () => {
-    try {
-      const commentsResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.COMMENTS,
-        [Query.equal('postId', postId), Query.orderAsc('$createdAt')]
-      );
-      // Update comments state
-    } catch (error) {
-      console.error('Error refreshing comments:', error);
-    }
+  const renderComment = ({ item }) => {
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    return (
+      <View style={styles.commentContainer}>
+        <Image 
+          source={{ uri: item.user?.avatar || 'https://via.placeholder.com/150' }} 
+          style={styles.commentAvatar} 
+        />
+        <View style={styles.commentContent}>
+          <View style={styles.commentHeader}>
+            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+            <Text style={styles.commentDate}>
+              {formatDate(item.$createdAt)}
+            </Text>
+          </View>
+          <Text style={styles.commentText}>{item.content}</Text>
+        </View>
+      </View>
+    );
   };
 
   const handleLike = async () => {
@@ -74,9 +92,10 @@ const PostDetailScreen = ({ route }) => {
           ...prev,
           comments: [...prev.comments, {
             ...newComment,
+            $createdAt: new Date().toISOString(),
             user: {
               name: 'You',
-              avatar: 'https://via.placeholder.com/150'
+              avatar: newComment.user?.avatar || 'https://via.placeholder.com/150'
             }
           }]
         }));
@@ -84,10 +103,10 @@ const PostDetailScreen = ({ route }) => {
       }
     } catch (error) {
       console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment');
+    } finally {
+      setCommentLoading(false);
     }
-   finally {
-    setCommentLoading(false);
-  }
   };
 
   if (loading || !post) {
@@ -126,15 +145,7 @@ const PostDetailScreen = ({ route }) => {
       
       <FlatList
         data={post.comments}
-        renderItem={({ item }) => (
-          <View style={styles.comment}>
-            <Image source={{ uri: item.user?.avatar }} style={styles.commentAvatar} />
-            <View style={styles.commentContent}>
-              <Text style={styles.commentAuthor}>{item.user?.name}</Text>
-              <Text style={styles.commentText}>{item.content}</Text>
-            </View>
-          </View>
-        )}
+        renderItem={renderComment}
         keyExtractor={item => item.$id}
         style={styles.commentsList}
       />
@@ -206,31 +217,43 @@ const styles = StyleSheet.create({
     marginLeft: 5,
     fontSize: 14,
   },
-  commentsList: {
-    flex: 1,
-  },
-  comment: {
+  commentContainer: {
     flexDirection: 'row',
-    marginBottom: 15,
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
   },
   commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
   },
   commentContent: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 10,
-    borderRadius: 10,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
   commentAuthor: {
     fontWeight: 'bold',
-    marginBottom: 3,
+    fontSize: 14,
+    color: '#333',
+  },
+  commentDate: {
+    fontSize: 12,
+    color: '#888',
   },
   commentText: {
     fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  commentsList: {
+    flex: 1,
   },
   commentInputContainer: {
     flexDirection: 'row',
