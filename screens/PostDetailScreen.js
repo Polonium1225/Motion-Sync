@@ -1,8 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, ScrollView, ActivityIndicator } from 'react-native';
-import { getPostById, addComment, getUserId, toggleLike, getLikeCount, checkUserLike, userProfiles } from '../lib/AppwriteService';
+import { getPostById, addComment, getUserId, toggleLike, getLikeCount, checkUserLike, userProfiles} from '../lib/AppwriteService';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
+const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Your project ID
+const POSTS_BUCKET_ID = 'profile_images';
+
+const DEFAULT_AVATAR = require('../assets/avatar.png'); 
+
+const getPostImageUrl = (fileId) => {
+  if (!fileId) return null;
+  return `${API_ENDPOINT}/storage/buckets/${POSTS_BUCKET_ID}/files/${fileId}/view?project=${PROJECT_ID}`;
+};
 
 const PostDetailScreen = ({ route, navigation }) => {
   const { postId } = route.params;
@@ -82,8 +93,12 @@ const PostDetailScreen = ({ route, navigation }) => {
   const renderComment = ({ item }) => (
     <View style={styles.commentCard}>
       <Image 
-        source={{ uri: item.user?.avatar || 'https://via.placeholder.com/150' }} 
-        style={styles.commentAvatar} 
+        source={{
+          uri: item.user?.avatar || 
+               `${API_ENDPOINT}/storage/buckets/profile_images/files/default_avatar/view?project=${PROJECT_ID}`
+        }} 
+        style={styles.commentAvatar}
+        defaultSource={DEFAULT_AVATAR} 
       />
       <View style={styles.commentContent}>
         <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
@@ -122,21 +137,27 @@ const PostDetailScreen = ({ route, navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Post Content */}
         <View style={styles.postContainer}>
-          <View style={styles.postHeader}>
-            <Image 
-              source={{ uri: post.user?.avatar || 'https://via.placeholder.com/150' }} 
-              style={styles.avatar} 
-            />
-            <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
-          </View>
+        <View style={styles.postHeader}>
+          <Image 
+            source={{
+              uri: post.user?.avatar || 
+                  `${API_ENDPOINT}/storage/buckets/profile_images/files/default_avatar/view?project=${PROJECT_ID}`
+            }} 
+            style={styles.avatar} 
+            defaultSource={DEFAULT_AVATAR}
+          />
+          <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
+        </View>
 
           <Text style={styles.postContent}>{post.content}</Text>
 
-          {post.imageUrl && (
+          {post.imageId && (
             <Image
-              source={{ uri: post.imageUrl }}
+              source={{ uri: getPostImageUrl(post.imageId) }}
               style={styles.postImage}
               resizeMode="cover"
+              defaultSource={require('../assets/image_placeholder.png')}
+              onError={(e) => console.log('Failed to load image:', e.nativeEvent.error)}
             />
           )}
 

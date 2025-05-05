@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, TextInput, TouchableOpacity, Text, StyleSheet, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { createPost , getUserId } from '../lib/AppwriteService';
+import { createPost , getUserId, uploadPostImage} from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
 
 const CreatePostScreen = () => {
@@ -47,17 +47,34 @@ const CreatePostScreen = () => {
       Alert.alert('Empty post', 'Please add some text or an image');
       return;
     }
-
+  
     try {
-      const userId = await getUserId(); // Replace with actual user ID
-      const success = await createPost(userId, content, imageUri);
+      const userId = await getUserId();
+      console.log('User ID:', userId); // Debug log
+      let imageFileId = null;
+      
+      if (imageUri) {
+        console.log('Starting image upload...'); // Debug log
+        imageFileId = await uploadPostImage(imageUri);
+        console.log('Image uploaded with ID:', imageFileId); // Debug log
+      }
+  
+      console.log('Creating post...'); // Debug log
+      const success = await createPost(userId, content, imageFileId);
       
       if (success) {
+        console.log('Post created successfully'); // Debug log
         navigation.goBack();
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to create post');
-      console.error('Post creation error:', error);
+      console.error('Detailed post creation error:', {
+        message: error.message,
+        stack: error.stack
+      });
+      Alert.alert(
+        'Error', 
+        'Failed to create post. Please check your connection and try again.'
+      );
     }
   };
 

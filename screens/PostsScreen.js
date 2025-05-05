@@ -2,7 +2,7 @@ import React, { useEffect, useState , useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { useNavigation ,useFocusEffect  } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { getPostsWithUsers  } from '../lib/AppwriteService';
+import { getPostsWithUsers, getPostImageUrl  } from '../lib/AppwriteService';
 
 const PostsScreen = () => {
   const [posts, setPosts] = useState([]);
@@ -64,10 +64,11 @@ const PostsScreen = () => {
       <Text style={styles.postContent}>{item.content}</Text>
       {item.imageUrl && (
         <Image 
-          source={{ uri: item.imageUrl }} 
-          style={styles.postImage}
-          resizeMode="cover"
-        />
+        source={{ uri: getPostImageUrl(item.imageId) }} 
+        style={styles.postImage}
+        resizeMode="cover"
+        defaultSource={require('../assets/image_placeholder.png')} // Add a placeholder
+      />
       )}
       <View style={styles.postFooter}>
         <View style={styles.interactionButton}>
