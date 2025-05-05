@@ -26,7 +26,8 @@ export default function SearchFriendsScreen({ navigation }) {
         const user = await account.get();
         setCurrentUserId(user.$id);
         
-        // Fetch all user profiles except current user
+        console.log("Fetching user profiles..."); // Debug log
+        
         const response = await databases.listDocuments(
           DATABASE_ID,
           COLLECTIONS.USER_PROFILES,
@@ -36,21 +37,25 @@ export default function SearchFriendsScreen({ navigation }) {
           ]
         );
         
-        setUsers(response.documents.map(doc => {
+        console.log("Received profiles:", response.documents); // Debug log
+        
+        const mappedUsers = response.documents.map(doc => {
           let avatarUrl = DEFAULT_AVATAR;
           
-          // If profile has avatar, create the proper URL
           if (doc.avatar) {
             avatarUrl = `${API_ENDPOINT}/storage/buckets/${BUCKET_ID}/files/${doc.avatar}/view?project=${PROJECT_ID}`;
           }
           
           return {
             $id: doc.userId,
-            name: doc.name,
+            name: doc.name || 'Unknown User', // Fallback for name
             avatar: avatarUrl,
-            status: doc.status || 'offline'
+            status: doc.status || 'offline' // Fallback for status
           };
-        }));
+        });
+        
+        console.log("Mapped users:", mappedUsers); // Debug log
+        setUsers(mappedUsers);
       } catch (error) {
         console.error("Error fetching users:", error);
         setError("Couldn't load users. Please try again later.");
@@ -90,27 +95,48 @@ export default function SearchFriendsScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [currentUserId]);
 
-  const renderUserItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.userItem}
-      onPress={() => startConversation(item.$id, item.name)}
-    >
-      <View style={styles.avatarContainer}>
-        <Image 
-          source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
-          style={styles.avatarImage}
-          defaultSource={DEFAULT_AVATAR}
-          onError={() => console.log("Failed to load avatar")}
-        />
-        <View style={[
-          styles.statusIndicator,
-          { backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
-        ]} />
-      </View>
-      
-      {/* ... rest of the render code remains the same ... */}
-    </TouchableOpacity>
-  );
+  const renderUserItem = ({ item }) => {
+    console.log("Rendering user:", item); // Debug log
+    
+    return (
+      <TouchableOpacity 
+        style={styles.userItem}
+        onPress={() => startConversation(item.$id, item.name)}
+      >
+        <View style={styles.avatarContainer}>
+          <Image 
+            source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
+            style={styles.avatarImage}
+            defaultSource={DEFAULT_AVATAR}
+          />
+          <View style={[
+            styles.statusIndicator,
+            { 
+              backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E',
+              borderColor: '#fff' // Make sure this is visible
+            }
+          ]} />
+        </View>
+        
+        <View style={styles.userInfo}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {item.name || 'Unknown User'}
+          </Text>
+          <Text style={[
+            styles.userStatus,
+            { 
+              color: item.status === 'online' ? '#4CAF50' : '#9E9E9E',
+              fontSize: 12 // Make sure it's visible
+            }
+          ]}>
+            {item.status === 'online' ? 'Online' : 'Offline'}
+          </Text>
+        </View>
+        
+        <Ionicons name="chevron-forward" size={20} color="#666" />
+      </TouchableOpacity>
+    );
+  };
 
   const startConversation = async (friendId, friendName) => {
     try {

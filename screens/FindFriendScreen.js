@@ -195,7 +195,21 @@ const renderConversationItem = ({ item }) => {
         ]} />
       </View>
       
-      {/* ... rest of your rendering code ... */}
+      <View style={styles.conversationInfo}>
+        <Text style={styles.friendName}>{friend.name}</Text>
+        <Text style={styles.lastMessage} numberOfLines={1}>
+          {item.lastMessage || "Start a conversation"}
+        </Text>
+      </View>
+      
+      <View style={styles.statusTextContainer}>
+        <Text style={[
+          styles.statusText,
+          { color: friend.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+        ]}>
+          {friend.status === 'online' ? 'Online' : 'Offline'}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 };
