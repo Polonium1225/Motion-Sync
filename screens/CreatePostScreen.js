@@ -7,77 +7,75 @@ import { useNavigation } from '@react-navigation/native';
 
 const CreatePostScreen = () => {
   const [content, setContent] = useState('');
-  const [imageUri, setImageUri] = useState(null);
+  const [imageObj, setImageObj] = useState(null); // Store full image object instead of just URI
+  const [uploading, setUploading] = useState(false);
   const navigation = useNavigation();
 
   const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
 
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
-    }
-  };
-
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'We need camera access to take photos');
-      return;
-    }
-
-    let result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setImageUri(result.assets[0].uri);
+      if (!result.canceled && result.assets.length > 0) {
+        setImageObj(result.assets[0]);
+        console.log('Selected image:', result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Image picker error:', error);
+      Alert.alert('Error', 'Failed to select image');
     }
   };
 
   const handlePost = async () => {
-    if (!content.trim() && !imageUri) {
+    if (!content.trim() && !imageObj) {
       Alert.alert('Empty post', 'Please add some text or an image');
       return;
     }
   
     try {
+      setUploading(true);
       const userId = await getUserId();
-      console.log('User ID:', userId); // Debug log
       let imageFileId = null;
       
-      if (imageUri) {
-        console.log('Starting image upload...'); // Debug log
-        imageFileId = await uploadPostImage(imageUri);
-        console.log('Image uploaded with ID:', imageFileId); // Debug log
+      if (imageObj) {
+        imageFileId = await uploadPostImage(imageObj);
       }
   
-      console.log('Creating post...'); // Debug log
-      const success = await createPost(userId, content, imageFileId);
+      // Create just the post (without like/comment counts)
+      const postId = await createPost(userId, content, imageFileId);
       
-      if (success) {
-        console.log('Post created successfully'); // Debug log
-        navigation.goBack();
-      }
+      navigation.goBack();
+      Alert.alert('Success', 'Post created successfully!');
     } catch (error) {
-      console.error('Detailed post creation error:', {
-        message: error.message,
-        stack: error.stack
-      });
-      Alert.alert(
-        'Error', 
-        'Failed to create post. Please check your connection and try again.'
-      );
+      console.error('Post creation failed:', error);
+      Alert.alert('Error', error.message || 'Failed to create post');
+    } finally {
+      setUploading(false);
     }
   };
 
+  const takePhoto = async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'We need camera access to take photos');
+        return;
+      }
+
+      let result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setImageUri(result.assets[0].uri);
+      }
+    };
   return (
     <View style={styles.container}>
       <TextInput
@@ -101,9 +99,12 @@ const CreatePostScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {imageUri && (
+      {imageObj && (
         <View style={styles.imagePreviewContainer}>
-          <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+        <Image 
+          source={{ uri: imageObj.uri }} 
+          style={styles.imagePreview} 
+        />
           <TouchableOpacity 
             style={styles.removeImageButton} 
             onPress={() => setImageUri(null)}

@@ -64,11 +64,11 @@ const PostsScreen = () => {
       <Text style={styles.postContent}>{item.content}</Text>
       {item.imageUrl && (
         <Image 
-        source={{ uri: getPostImageUrl(item.imageId) }} 
-        style={styles.postImage}
-        resizeMode="cover"
-        defaultSource={require('../assets/image_placeholder.png')} // Add a placeholder
-      />
+          source={{ uri: item.imageUrl }} 
+          style={styles.postImage}
+          resizeMode="cover"
+          defaultSource={require('../assets/image_placeholder.png')} // Add a placeholder
+        />
       )}
       <View style={styles.postFooter}>
         <View style={styles.interactionButton}>
