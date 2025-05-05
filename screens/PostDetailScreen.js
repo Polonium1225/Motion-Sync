@@ -1,181 +1,180 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, ScrollView, ActivityIndicator } from 'react-native';
-import { getPostById, addComment, getUserId, toggleLike, getLikeCount, checkUserLike, userProfiles } from '../lib/AppwriteService';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  getPostById, 
+  addComment, 
+  toggleLike, 
+  checkUserLike, 
+  getLikeCount,
+  getUserId
+} from '../lib/AppwriteService';
 
-const PostDetailScreen = ({ route, navigation }) => {
+const DEFAULT_AVATAR = require('../assets/avatar.png');
+
+const PostDetailScreen = ({ route }) => {
   const { postId } = route.params;
   const [post, setPost] = useState(null);
-  const [commentText, setCommentText] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [hasLiked, setHasLiked] = useState(false);
+  const [comment, setComment] = useState('');
+  const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
-
-  const loadPost = async () => {
-    try {
-      const postData = await getPostById(postId);
-      setPost(postData);
-      const likes = await getLikeCount(postId);
-      setLikeCount(likes);
-      const userId = await getUserId();
-      const userHasLiked = await checkUserLike(postId, userId);
-      setHasLiked(userHasLiked);
-    } catch (error) {
-      console.error('Error loading post:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [loading, setLoading] = useState(true);
+  const [commentLoading, setCommentLoading] = useState(false);
 
   useEffect(() => {
+    return () => {
+      if (route.params?.onGoBack) {
+        route.params.onGoBack();
+      }
+    };
+  }, [route.params?.onGoBack]); // Add dependency here
+
+  useEffect(() => {
+    const loadPost = async () => {
+      try {
+        const postData = await getPostById(postId);
+        setPost(postData);
+        
+        const userId = await getUserId();
+        setIsLiked(await checkUserLike(postId, userId));
+        setLikeCount(await getLikeCount(postId));
+      } catch (error) {
+        console.error('Error loading post:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadPost();
   }, [postId]);
 
-  const handleAddComment = async () => {
-    if (commentText.trim()) {
-      try {
-        const userId = await getUserId();
-        const newComment = await addComment(postId, userId, commentText);
-        const savedProfileName = await AsyncStorage.getItem('profile_name');
-        const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
-        const formattedComment = {
-          ...newComment,
-          user: {
-            name: savedProfileName || 'Anonymous',
-            avatar: savedProfileImageUri || 'https://via.placeholder.com/150'
-          }
-        };
-        
-        setPost(prev => ({
-          ...prev,
-          comments: [...(prev.comments || []), formattedComment]
-        }));
-        
-        setCommentText('');
-      } catch (error) {
-        console.error('Error adding comment:', error);
-      }
-    }
+  const renderComment = ({ item }) => {
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+  
+    return (
+      <View style={styles.commentContainer}>
+        <Image 
+          source={item.user?.avatar ? { uri: item.user.avatar } : DEFAULT_AVATAR}
+          style={styles.commentAvatar}
+          defaultSource={DEFAULT_AVATAR}
+        />
+        <View style={styles.commentContent}>
+          <View style={styles.commentHeader}>
+            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+            <Text style={styles.commentDate}>
+              {formatDate(item.$createdAt)}
+            </Text>
+          </View>
+          <Text style={styles.commentText}>{item.content}</Text>
+        </View>
+      </View>
+    );
   };
 
   const handleLike = async () => {
     try {
       const userId = await getUserId();
-      setHasLiked(!hasLiked);
-      setLikeCount(prevCount => hasLiked ? prevCount - 1 : prevCount + 1);
-      await toggleLike(postId, userId);
-      const updatedLikeCount = await getLikeCount(postId);
-      setLikeCount(updatedLikeCount);
-
-      const userLikeStatus = await checkUserLike(postId, userId);
-      setHasLiked(userLikeStatus);
+      const newLikeCount = await toggleLike(postId, userId);
+      setLikeCount(newLikeCount);
+      setIsLiked(!isLiked);
     } catch (error) {
       console.error('Error toggling like:', error);
-      const userId = await getUserId();
-      const userLikeStatus = await checkUserLike(postId, userId);
-      setHasLiked(userLikeStatus);
-      setLikeCount(await getLikeCount(postId));
     }
   };
 
-  const renderComment = ({ item }) => (
-    <View style={styles.commentCard}>
-      <Image 
-        source={{ uri: item.user?.avatar || 'https://via.placeholder.com/150' }} 
-        style={styles.commentAvatar} 
-      />
-      <View style={styles.commentContent}>
-        <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
-        <Text style={styles.commentText}>{item.content}</Text>
-      </View>
-    </View>
-  );
+  const handleComment = async () => {
+    if (!comment.trim()) return;
+    
+    try {
+      setCommentLoading(true);
+      const userId = await getUserId();
+      const newComment = await addComment(postId, userId, comment);
+      
+      if (newComment) {
+        setPost(prev => ({
+          ...prev,
+          comments: [...prev.comments, {
+            ...newComment,
+            $createdAt: new Date().toISOString(),
+            user: newComment.user // This now includes the avatar URL
+          }]
+        }));
+        setComment('');
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment');
+    } finally {
+      setCommentLoading(false);
+    }
+  };
 
-  if (loading) {
+  if (loading || !post) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#05907A" />
-      </View>
-    );
-  }
-
-  if (!post) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Post not found</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header with Back Button */}
+      <View style={styles.postContainer}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Post Details</Text>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Post Content */}
-        <View style={styles.postContainer}>
-          <View style={styles.postHeader}>
-            <Image 
-              source={{ uri: post.user?.avatar || 'https://via.placeholder.com/150' }} 
-              style={styles.avatar} 
-            />
-            <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
-          </View>
-
-          <Text style={styles.postContent}>{post.content}</Text>
-
-          {post.imageUrl && (
-            <Image
-              source={{ uri: post.imageUrl }}
-              style={styles.postImage}
-              resizeMode="cover"
-            />
-          )}
-
-          <View style={styles.postFooter}>
-            <TouchableOpacity style={styles.likeButton} onPress={handleLike}>
-              <Ionicons 
-                name={hasLiked ? "heart" : "heart-outline"} 
-                size={24} 
-                color={hasLiked ? "#e74c3c" : "#666"} 
-              />
-              <Text style={styles.likeCount}>{likeCount}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Comments List */}
-        <Text style={styles.commentsTitle}>Comments ({post.comments?.length || 0})</Text>
-        <FlatList
-          data={post.comments || []}
-          renderItem={renderComment}
-          keyExtractor={(item) => item.$id || String(Math.random())}
-          scrollEnabled={false}
-          ListEmptyComponent={
-            <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
-          }
+        <Image 
+          source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
+          style={styles.avatar}
+          defaultSource={DEFAULT_AVATAR}
         />
-      </ScrollView>
-
-      {/* Comment Input */}
+        <Text style={styles.username}>{post.user?.name}</Text>
+      </View>
+        
+        <Text style={styles.content}>{post.content}</Text>
+        
+        {post.imageUrl && (
+          <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+        )}
+        
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+            <Ionicons 
+              name={isLiked ? "heart" : "heart-outline"} 
+              size={24} 
+              color={isLiked ? "#ff0000" : "#000"} 
+            />
+            <Text style={styles.actionText}>{likeCount}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      
+      <FlatList
+        data={post.comments}
+        renderItem={renderComment}
+        keyExtractor={item => item.$id}
+        style={styles.commentsList}
+      />
+      
       <View style={styles.commentInputContainer}>
         <TextInput
           style={styles.commentInput}
-          placeholder="Add a comment..."
-          value={commentText}
-          onChangeText={setCommentText}
-          multiline
+          placeholder="Write a comment..."
+          value={comment}
+          onChangeText={setComment}
         />
-        <TouchableOpacity style={styles.commentButton} onPress={handleAddComment}>
-          <Ionicons name="send" size={24} color="#05907A" />
+        <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
+          {commentLoading ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : (
+            <Ionicons name="send" size={24} color="#007AFF" />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -185,138 +184,103 @@ const PostDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    padding: 15,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  postContainer: {
+    marginBottom: 20,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  postContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 12,
+    marginRight: 10,
   },
   username: {
+    fontWeight: 'bold',
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
   },
-  postContent: {
+  content: {
+    marginBottom: 10,
     fontSize: 15,
-    lineHeight: 22,
-    color: '#333',
-    marginBottom: 16,
   },
   postImage: {
     width: '100%',
     height: 300,
-    borderRadius: 12,
-    marginBottom: 16,
+    borderRadius: 10,
+    marginBottom: 10,
   },
-  postFooter: {
+  actions: {
+    flexDirection: 'row',
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#eee',
-    paddingTop: 12,
   },
-  likeButton: {
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginRight: 20,
   },
-  likeCount: {
-    color: '#333',
-    fontWeight: '500',
+  actionText: {
+    marginLeft: 5,
+    fontSize: 14,
   },
-  commentsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
-  commentCard: {
+  commentContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    marginBottom: 16,
     padding: 12,
-    marginBottom: 8,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 12,
   },
   commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: 12,
   },
   commentContent: {
     flex: 1,
   },
-  commentAuthor: {
-    fontWeight: '600',
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 4,
+  },
+  commentAuthor: {
+    fontWeight: 'bold',
+    fontSize: 14,
     color: '#333',
   },
+  commentDate: {
+    fontSize: 12,
+    color: '#888',
+  },
   commentText: {
-    color: '#666',
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  commentsList: {
+    flex: 1,
   },
   commentInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 8,
     borderTopWidth: 1,
     borderTopColor: '#eee',
+    paddingTop: 10,
   },
   commentInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginRight: 8,
-  },
-  commentButton: {
-    padding: 8,
-  },
-  errorText: {
-    textAlign: 'center',
-    color: '#666',
-    marginTop: 20,
-    fontSize: 16,
-  },
-  noCommentsText: {
-    textAlign: 'center',
-    color: '#666',
-    padding: 16,
-    fontStyle: 'italic',
+    padding: 10,
+    marginRight: 10,
   },
 });
 

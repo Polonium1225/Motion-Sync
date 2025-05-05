@@ -28,6 +28,9 @@ import { Query } from 'appwrite';
 import { Ionicons } from '@expo/vector-icons';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; 
+const PROJECT_ID = '67d0bb27002cfc0b22d2';
+const BUCKET_ID = 'profile_images';
 
 export default function ChatScreen({ route, navigation }) {
   const { 
@@ -60,12 +63,12 @@ export default function ChatScreen({ route, navigation }) {
   const tempIdCounter = useRef(0);
 
   const keyExtractor = (item) => {
-    // For pending messages, use their uniqueTempId
+    // For pending messages, use their uniqueTempId with a prefix
     if (item.$id.startsWith('temp_')) {
-      return `pending-${item.uniqueTempId}`;
+      return `pending_${item.uniqueTempId || Date.now()}`;
     }
-    // For confirmed messages, ensure we prefix to avoid conflicts
-    return `confirmed-${item.$id}`;
+    // For confirmed messages, add a prefix and ensure uniqueness
+    return `confirmed_${item.$id}_${item.$createdAt || Date.now()}`;
   };
 
   // ==================== UTILITY FUNCTIONS ====================
@@ -191,11 +194,17 @@ export default function ChatScreen({ route, navigation }) {
         const user = await account.get();
         setCurrentUserId(user.$id);
         setCurrentUserName(user.name);
-
-        // Load friend profile
+    
+        // Load friend profile with proper avatar URL
         const friendProfile = await userProfiles.getProfileByUserId(friendId);
+        let avatarUrl = DEFAULT_AVATAR;
+        
+        if (friendProfile.avatar) {
+          avatarUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${friendProfile.avatar}/view?project=${PROJECT_ID}`;
+        }
+    
         setFriendData({
-          avatar: friendProfile.avatar || 'avatar.png',
+          avatar: avatarUrl,
           status: friendProfile.status || 'offline'
         });
 
@@ -413,18 +422,11 @@ export default function ChatScreen({ route, navigation }) {
       
       <View style={styles.headerUserInfo}>
         <View style={styles.avatarContainer}>
-          {friendData.avatar && friendData.avatar !== 'avatar.png' ? (
-            <Image 
-              source={{ uri: friendData.avatar }} 
-              style={styles.avatarImage}
-              defaultSource={DEFAULT_AVATAR}
-            />
-          ) : (
-            <Image 
-              source={DEFAULT_AVATAR}
-              style={styles.avatarImage}
-            />
-          )}
+          <Image 
+            source={typeof friendData.avatar === 'string' ? { uri: friendData.avatar } : friendData.avatar}
+            style={styles.avatarImage}
+            defaultSource={DEFAULT_AVATAR}
+          />
           <View style={[
             styles.statusIndicator,
             { backgroundColor: friendData.status === 'online' ? '#4CAF50' : '#9E9E9E' }
@@ -448,7 +450,7 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = item.senderId === currentUserId;
-    const isPending = item.$id.startsWith('temp_');
+    const isPending = item.isPending || item.$id.startsWith('temp_');
     const isFailed = item.status === 'failed';
   
     return (
@@ -506,12 +508,12 @@ export default function ChatScreen({ route, navigation }) {
         <FlatList
           ref={flatListRef}
           data={[
-            ...Object.values(messages.pending),
-            ...messages.confirmed.filter(msg => 
-              !Object.values(messages.pending).some(
+            ...Object.values(messages.pending).map(msg => ({ ...msg, isPending: true })),
+            ...messages.confirmed
+              .filter(msg => !Object.values(messages.pending).some(
                 pendingMsg => pendingMsg.messageId === msg.messageId
-              )
-            )
+              ))
+              .map(msg => ({ ...msg, isPending: false }))
           ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
           renderItem={renderMessageItem}
           keyExtractor={keyExtractor}

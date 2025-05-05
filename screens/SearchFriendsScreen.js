@@ -7,6 +7,9 @@ import { account, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } fro
 import { Ionicons } from '@expo/vector-icons';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; 
+const PROJECT_ID = '67d0bb27002cfc0b22d2';
+const BUCKET_ID = 'profile_images'; 
 
 export default function SearchFriendsScreen({ navigation }) {
   const [users, setUsers] = useState([]);
@@ -23,7 +26,8 @@ export default function SearchFriendsScreen({ navigation }) {
         const user = await account.get();
         setCurrentUserId(user.$id);
         
-        // Fetch all user profiles except current user
+        console.log("Fetching user profiles..."); // Debug log
+        
         const response = await databases.listDocuments(
           DATABASE_ID,
           COLLECTIONS.USER_PROFILES,
@@ -33,12 +37,25 @@ export default function SearchFriendsScreen({ navigation }) {
           ]
         );
         
-        setUsers(response.documents.map(doc => ({
-          $id: doc.userId, // Use userId as identifier
-          name: doc.name,
-          avatar: doc.avatar || 'avatar.png',
-          status: doc.status || 'offline'
-        })));
+        console.log("Received profiles:", response.documents); // Debug log
+        
+        const mappedUsers = response.documents.map(doc => {
+          let avatarUrl = DEFAULT_AVATAR;
+          
+          if (doc.avatar) {
+            avatarUrl = `${API_ENDPOINT}/storage/buckets/${BUCKET_ID}/files/${doc.avatar}/view?project=${PROJECT_ID}`;
+          }
+          
+          return {
+            $id: doc.userId,
+            name: doc.name || 'Unknown User', // Fallback for name
+            avatar: avatarUrl,
+            status: doc.status || 'offline' // Fallback for status
+          };
+        });
+        
+        console.log("Mapped users:", mappedUsers); // Debug log
+        setUsers(mappedUsers);
       } catch (error) {
         console.error("Error fetching users:", error);
         setError("Couldn't load users. Please try again later.");
@@ -78,44 +95,48 @@ export default function SearchFriendsScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [currentUserId]);
 
-  const renderUserItem = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.userItem}
-      onPress={() => startConversation(item.$id, item.name)}
-    >
-      <View style={styles.avatarContainer}>
-        {item.avatar && item.avatar !== 'avatar.png' ? (
+  const renderUserItem = ({ item }) => {
+    console.log("Rendering user:", item); // Debug log
+    
+    return (
+      <TouchableOpacity 
+        style={styles.userItem}
+        onPress={() => startConversation(item.$id, item.name)}
+      >
+        <View style={styles.avatarContainer}>
           <Image 
-            source={{ uri: item.avatar }} 
+            source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
             style={styles.avatarImage}
             defaultSource={DEFAULT_AVATAR}
-            onError={() => console.log("Failed to load avatar")}
           />
-        ) : (
-          <Image 
-            source={DEFAULT_AVATAR}
-            style={styles.avatarImage}
-          />
-        )}
-        <View style={[
-          styles.statusIndicator,
-          { backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
-        ]} />
-      </View>
-      
-      <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.name}</Text>
-        <Text style={[
-          styles.userStatus,
-          { color: item.status === 'online' ? '#4CAF50' : '#9E9E9E' }
-        ]}>
-          {item.status === 'online' ? 'Online' : 'Offline'}
-        </Text>
-      </View>
-      
-      <Ionicons name="chevron-forward" size={20} color="#666" />
-    </TouchableOpacity>
-  );
+          <View style={[
+            styles.statusIndicator,
+            { 
+              backgroundColor: item.status === 'online' ? '#4CAF50' : '#9E9E9E',
+              borderColor: '#fff' // Make sure this is visible
+            }
+          ]} />
+        </View>
+        
+        <View style={styles.userInfo}>
+          <Text style={styles.userName} numberOfLines={1}>
+            {item.name || 'Unknown User'}
+          </Text>
+          <Text style={[
+            styles.userStatus,
+            { 
+              color: item.status === 'online' ? '#4CAF50' : '#9E9E9E',
+              fontSize: 12 // Make sure it's visible
+            }
+          ]}>
+            {item.status === 'online' ? 'Online' : 'Offline'}
+          </Text>
+        </View>
+        
+        <Ionicons name="chevron-forward" size={20} color="#666" />
+      </TouchableOpacity>
+    );
+  };
 
   const startConversation = async (friendId, friendName) => {
     try {
