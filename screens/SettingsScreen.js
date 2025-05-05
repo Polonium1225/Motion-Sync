@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Aler
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
+import { Client } from 'appwrite'; // Make sure this is imported
 
 export default function SettingsScreen() {
   const [name, setName] = useState('');
@@ -12,8 +13,9 @@ export default function SettingsScreen() {
   const [profileDoc, setProfileDoc] = useState(null);
   const [selectedImageObj, setSelectedImageObj] = useState(null); // Store full image object
 
-  // Your Appwrite project ID - make sure to replace with your actual project ID
+  // Your Appwrite project ID and endpoint - make sure these match your AppwriteService.js
   const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Replace with your project ID from AppwriteService
+  const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Replace if you're using a different endpoint
 
   // Load current user data
   useEffect(() => {
@@ -38,8 +40,12 @@ export default function SettingsScreen() {
           // If profile has avatar, get preview URL
           if (profile.avatar) {
             try {
-              const filePreview = storage.getFilePreview('profile_images', profile.avatar);
-              setImage(filePreview.href);
+              // Create the proper file preview URL using direct URL construction
+              // This is more reliable than using storage.getFilePreview in some environments
+              const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/preview?width=400&height=400&gravity=center&quality=100&project=${PROJECT_ID}`;
+              
+              console.log('Loading avatar image from:', imageUrl);
+              setImage(imageUrl);
             } catch (error) {
               console.log('Error getting file preview:', error);
             }
