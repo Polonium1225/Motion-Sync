@@ -115,7 +115,6 @@ const PostsScreen = () => {
   );
 };
 
-// Add these new styles to your existing StyleSheet
 const styles = StyleSheet.create({
   container: {
     flex: 1,

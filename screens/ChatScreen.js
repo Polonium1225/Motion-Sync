@@ -63,12 +63,12 @@ export default function ChatScreen({ route, navigation }) {
   const tempIdCounter = useRef(0);
 
   const keyExtractor = (item) => {
-    // For pending messages, use their uniqueTempId
+    // For pending messages, use their uniqueTempId with a prefix
     if (item.$id.startsWith('temp_')) {
-      return `pending-${item.uniqueTempId}`;
+      return `pending_${item.uniqueTempId || Date.now()}`;
     }
-    // For confirmed messages, ensure we prefix to avoid conflicts
-    return `confirmed-${item.$id}`;
+    // For confirmed messages, add a prefix and ensure uniqueness
+    return `confirmed_${item.$id}_${item.$createdAt || Date.now()}`;
   };
 
   // ==================== UTILITY FUNCTIONS ====================
@@ -450,7 +450,7 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = item.senderId === currentUserId;
-    const isPending = item.$id.startsWith('temp_');
+    const isPending = item.isPending || item.$id.startsWith('temp_');
     const isFailed = item.status === 'failed';
   
     return (
@@ -508,12 +508,12 @@ export default function ChatScreen({ route, navigation }) {
         <FlatList
           ref={flatListRef}
           data={[
-            ...Object.values(messages.pending),
-            ...messages.confirmed.filter(msg => 
-              !Object.values(messages.pending).some(
+            ...Object.values(messages.pending).map(msg => ({ ...msg, isPending: true })),
+            ...messages.confirmed
+              .filter(msg => !Object.values(messages.pending).some(
                 pendingMsg => pendingMsg.messageId === msg.messageId
-              )
-            )
+              ))
+              .map(msg => ({ ...msg, isPending: false }))
           ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
           renderItem={renderMessageItem}
           keyExtractor={keyExtractor}
