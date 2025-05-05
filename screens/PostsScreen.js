@@ -2,24 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { View, FlatList, ActivityIndicator } from 'react-native';
 import PostItem from '../screens/PostItem'
 import { getPostsWithUsers } from '../lib/AppwriteService';
+import { useFocusEffect } from '@react-navigation/native';
+
 
 const PostScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadPosts = async () => {
-      try {
-        const fetchedPosts = await getPostsWithUsers();
-        setPosts(fetchedPosts);
-      } catch (error) {
-        console.error('Error loading posts:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadPosts();
-  }, []);
+  const loadPosts = async () => {
+    try {
+      const fetchedPosts = await getPostsWithUsers();
+      setPosts(fetchedPosts);
+    } catch (error) {
+      console.error('Error loading posts:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadPosts();
+    }, [])
+  );
 
   if (loading) {
     return (

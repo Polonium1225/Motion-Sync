@@ -22,6 +22,14 @@ const PostDetailScreen = ({ route }) => {
   const [commentLoading, setCommentLoading] = useState(false);
 
   useEffect(() => {
+    return () => {
+      if (route.params?.onGoBack) {
+        route.params.onGoBack();
+      }
+    };
+  }, [route.params?.onGoBack]); // Add dependency here
+
+  useEffect(() => {
     const loadPost = async () => {
       try {
         const postData = await getPostById(postId);

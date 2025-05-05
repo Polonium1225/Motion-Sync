@@ -1,24 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId } from '../lib/AppwriteService';
+import { DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
+import DEFAULT_AVATAR from '../assets/avatar.png';
+
+// Add your Appwrite project ID and endpoint (should match AppwriteService.js)
+const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Replace with your actual project ID
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Replace if different
 
 const PostItem = ({ post, navigation }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [loadingAvatar, setLoadingAvatar] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const userId = await getUserId();
+      setIsLiked(await checkUserLike(post.$id, userId));
+      setLikeCount(await getLikeCount(post.$id));
+      setCommentCount(await getCommentsCount(post.$id));
+      
+      // Load avatar URL if available
+      if (post.user?.avatar) {
+        setLoadingAvatar(true);
+        try {
+          // Construct direct download URL for the avatar
+          const url = `${API_ENDPOINT}/storage/buckets/profile_images/files/${post.user.avatar}/view?project=${PROJECT_ID}`;
+          setAvatarUrl(url);
+        } catch (error) {
+          console.log('Error getting avatar URL:', error);
+          setAvatarUrl(null);
+        } finally {
+          setLoadingAvatar(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading post data:', error);
+    }
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const userId = await getUserId();
-        setIsLiked(await checkUserLike(post.$id, userId));
-        setLikeCount(await getLikeCount(post.$id));
-        setCommentCount(await getCommentsCount(post.$id));
-      } catch (error) {
-        console.error('Error loading post data:', error);
-      }
-    };
     loadData();
   }, [post.$id]);
 
@@ -36,10 +60,19 @@ const PostItem = ({ post, navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Image 
-        source={{ uri: post.user?.avatar }} 
-        
-        style={styles.avatar} />
+        {loadingAvatar ? (
+          <ActivityIndicator size="small" style={styles.avatar} />
+        ) : (
+          <Image 
+            source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
+            style={styles.avatar}
+            defaultSource={DEFAULT_AVATAR}
+            onError={(e) => {
+              console.log('Failed to load avatar:', e.nativeEvent.error);
+              setAvatarUrl(null);
+            }}
+          />
+        )}
         <Text style={styles.username}>{post.user?.name}</Text>
       </View>
       
@@ -47,9 +80,10 @@ const PostItem = ({ post, navigation }) => {
       
       {post.imageUrl && (
         <Image 
-        source={{ uri: post.imageUrl }} 
-
-        style={styles.postImage} />
+          source={{ uri: post.imageUrl }}
+          style={styles.postImage}
+          resizeMode="cover"
+        />
       )}
       
       <View style={styles.footer}>
@@ -64,7 +98,10 @@ const PostItem = ({ post, navigation }) => {
         
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => navigation.navigate('PostDetail', { postId: post.$id })}
+          onPress={() => navigation.navigate('PostDetail', { 
+            postId: post.$id,
+            onGoBack: loadData
+          })}
         >
           <Ionicons name="chatbubble-outline" size={24} color="#000" />
           <Text style={styles.actionText}>{commentCount}</Text>
@@ -96,6 +133,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
+    backgroundColor: '#f0f0f0',
   },
   username: {
     fontWeight: 'bold',
