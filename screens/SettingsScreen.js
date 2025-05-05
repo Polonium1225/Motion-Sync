@@ -1,37 +1,54 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { account, databases, storage, ID, Query } from '../lib/AppwriteService';
+import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
 
 export default function SettingsScreen() {
   const [name, setName] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState(null);
+  const [profileDoc, setProfileDoc] = useState(null);
 
   // Load current user data
   useEffect(() => {
     const loadUser = async () => {
       try {
+        setLoading(true);
         const user = await account.get();
-        setName(user.name);
+        setUserId(user.$id);
+        setName(user.name || '');
         
-        // Load profile image if exists
+        // Load profile from database
         const profiles = await databases.listDocuments(
-          '67d0bba1000e9caec4f2',
-          'user_profiles',
+          DATABASE_ID,
+          COLLECTIONS.USER_PROFILES,
           [Query.equal('userId', user.$id)]
         );
         
-        if (profiles.documents[0]?.avatar) {
-          const url = storage.getFilePreview('profile_images', profiles.documents[0].avatar);
-          setImage(url.href);
+        if (profiles.documents.length > 0) {
+          const profile = profiles.documents[0];
+          setProfileDoc(profile);
+          
+          // If profile has avatar, get preview URL
+          if (profile.avatar) {
+            try {
+              const filePreview = storage.getFilePreview('profile_images', profile.avatar);
+              setImage(filePreview.href);
+            } catch (error) {
+              console.log('Error getting file preview:', error);
+            }
+          }
         }
       } catch (error) {
-        console.log('Load error:', error);
+        console.log('Load user error:', error);
         Alert.alert('Error', 'Failed to load profile');
+      } finally {
+        setLoading(false);
       }
     };
+    
     loadUser();
   }, []);
 
@@ -39,111 +56,129 @@ export default function SettingsScreen() {
     try {
       // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
       if (status !== 'granted') {
         Alert.alert('Permission required', 'Please allow access to your photos');
         return;
       }
 
-      // Pick image - using the modern approach
+      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaType: ImagePicker.MediaType.photo, // Fixed mediaType
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.7,
       });
 
-      if (!result.canceled && result.assets && result.assets[0]) {
+      console.log('Image picker result:', result);
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
         setImage(result.assets[0].uri);
       }
     } catch (error) {
       console.log('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image');
+      Alert.alert('Error', error.message || 'Failed to pick image');
     }
   };
 
   const uploadImage = async (uri) => {
     try {
       const fileId = ID.unique();
-      const fileExtension = uri.split('.').pop();
+      const fileName = uri.split('/').pop();
+      const fileExtension = fileName.split('.').pop().toLowerCase();
+      const mimeType = `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`;
       
-      // Get file info
+      console.log('Uploading image with details:', {
+        uri,
+        fileId,
+        fileExtension,
+        mimeType
+      });
+      
+      // Read file as Blob
       const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (!fileInfo.exists) throw new Error('File does not exist');
       
-      // Read file content
-      const fileContent = await FileSystem.readAsStringAsync(uri, {
+      if (!fileInfo.exists) {
+        throw new Error('File does not exist');
+      }
+      
+      // Create a base64 string from the file
+      const base64 = await FileSystem.readAsStringAsync(uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-
-      // Create file object for Appwrite
-      const file = {
-        name: `${fileId}.${fileExtension}`,
-        mimeType: `image/${fileExtension}`,
-        size: fileInfo.size || (fileContent.length * 3/4), // Estimate size if missing
-        base64: fileContent,
-      };
-
-      // Upload to Appwrite
-      const response = await storage.createFile(
-        'profile_images',
-        fileId,
-        file
+      
+      // Create file in Appwrite storage
+      await storage.createFile(
+        'profile_images',  // bucket ID
+        fileId,            // file ID
+        {
+          type: mimeType,
+          size: fileInfo.size,
+          name: fileName,
+          data: base64
+        }
       );
       
       return fileId;
     } catch (error) {
-      console.log('Upload error:', error);
-      throw new Error('Failed to upload image');
+      console.error('Upload image error:', error);
+      throw new Error(`Failed to upload image: ${error.message}`);
     }
   };
 
   const saveProfile = async () => {
+    if (!userId) {
+      Alert.alert('Error', 'User not logged in');
+      return;
+    }
+    
     try {
       setLoading(true);
       
       // Update account name
       await account.updateName(name);
       
-      // Upload image if changed
-      let avatarId = null;
+      // Upload new image if selected
+      let avatarId = profileDoc?.avatar;
       if (image && !image.includes('profile_images')) {
+        console.log('Uploading new image...');
         avatarId = await uploadImage(image);
+        console.log('Image uploaded with ID:', avatarId);
       }
       
-      // Update profile in database
-      const user = await account.get();
-      const profiles = await databases.listDocuments(
-        '67d0bba1000e9caec4f2',
-        'user_profiles',
-        [Query.equal('userId', user.$id)]
-      );
+      // Prepare update data
+      const updateData = { 
+        name,
+        userId,
+        status: profileDoc?.status || 'online',
+      };
       
-      const updateData = { name };
-      if (avatarId) updateData.avatar = avatarId;
+      if (avatarId) {
+        updateData.avatar = avatarId;
+      }
       
-      if (profiles.documents[0]) {
+      // Update or create profile document
+      if (profileDoc) {
+        console.log('Updating existing profile:', profileDoc.$id);
         await databases.updateDocument(
-          '67d0bba1000e9caec4f2',
-          'user_profiles',
-          profiles.documents[0].$id,
+          DATABASE_ID,
+          COLLECTIONS.USER_PROFILES,
+          profileDoc.$id,
           updateData
         );
       } else {
+        console.log('Creating new profile');
         await databases.createDocument(
-          '67d0bba1000e9caec4f2',
-          'user_profiles',
+          DATABASE_ID,
+          COLLECTIONS.USER_PROFILES,
           ID.unique(),
-          {
-            userId: user.$id,
-            ...updateData,
-            status: 'online'
-          }
+          updateData
         );
       }
       
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
-      console.log('Save error:', error);
+      console.error('Save profile error:', error);
       Alert.alert('Error', error.message || 'Failed to save profile');
     } finally {
       setLoading(false);
@@ -151,42 +186,37 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={{ padding: 20 }}>
-      <TouchableOpacity onPress={pickImage}>
-        <Image
-          source={image ? { uri: image } : require('../assets/icon.png')}
-          style={{ width: 100, height: 100, borderRadius: 50 }}
-        />
-        <Text style={{ textAlign: 'center', marginTop: 8 }}>Change Photo</Text>
+    <View style={styles.container}>
+      <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
+        {image ? (
+          <Image
+            source={{ uri: image }}
+            style={styles.profileImage}
+          />
+        ) : (
+          <View style={styles.placeholderImage}>
+            <Text style={styles.placeholderText}>{name.charAt(0) || 'U'}</Text>
+          </View>
+        )}
+        <Text style={styles.changePhotoText}>Change Photo</Text>
       </TouchableOpacity>
 
       <TextInput
         value={name}
         onChangeText={setName}
         placeholder="Your Name"
-        style={{ 
-          borderWidth: 1, 
-          borderColor: '#ccc',
-          padding: 12,
-          marginVertical: 20,
-          borderRadius: 5
-        }}
+        style={styles.input}
       />
 
       <TouchableOpacity 
         onPress={saveProfile}
         disabled={loading}
-        style={{ 
-          backgroundColor: '#007AFF', 
-          padding: 15, 
-          borderRadius: 5,
-          opacity: loading ? 0.7 : 1
-        }}
+        style={[styles.saveButton, loading && styles.disabledButton]}
       >
         {loading ? (
           <ActivityIndicator color="white" />
         ) : (
-          <Text style={{ color: 'white', textAlign: 'center', fontWeight: 'bold' }}>
+          <Text style={styles.saveButtonText}>
             Save Profile
           </Text>
         )}
@@ -194,6 +224,63 @@ export default function SettingsScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  imageContainer: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#f0f0f0',
+  },
+  placeholderImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#e1e1e1',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    fontSize: 40,
+    color: '#777',
+  },
+  changePhotoText: {
+    marginTop: 10,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 15,
+    marginVertical: 15,
+    fontSize: 16,
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  saveButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+});
 
 // const styles = StyleSheet.create({
 //   container: {
