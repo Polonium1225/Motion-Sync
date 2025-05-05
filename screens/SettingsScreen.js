@@ -10,6 +10,10 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
   const [profileDoc, setProfileDoc] = useState(null);
+  const [selectedImageObj, setSelectedImageObj] = useState(null); // Store full image object
+
+  // Your Appwrite project ID - make sure to replace with your actual project ID
+  const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Replace with your project ID from AppwriteService
 
   // Load current user data
   useEffect(() => {
@@ -74,6 +78,7 @@ export default function SettingsScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setImage(result.assets[0].uri);
+        setSelectedImageObj(result.assets[0]); // Store full image object
       }
     } catch (error) {
       console.log('Image picker error:', error);
@@ -81,44 +86,48 @@ export default function SettingsScreen() {
     }
   };
 
-  const uploadImage = async (uri) => {
+  const uploadImage = async (imageObject) => {
     try {
+      // Generate a unique ID for the file
       const fileId = ID.unique();
-      const fileName = uri.split('/').pop();
-      const fileExtension = fileName.split('.').pop().toLowerCase();
-      const mimeType = `image/${fileExtension === 'jpg' ? 'jpeg' : fileExtension}`;
+      console.log('Generated file ID:', fileId);
       
-      console.log('Uploading image with details:', {
-        uri,
-        fileId,
-        fileExtension,
-        mimeType
+      // Create FormData object for file upload
+      const formData = new FormData();
+      formData.append('fileId', fileId);
+      formData.append('file', {
+        uri: imageObject.uri,
+        type: imageObject.mimeType || 'image/jpeg',
+        name: imageObject.fileName || 'upload.jpg'
       });
       
-      // Create a base64 string from the file
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+      console.log('FormData prepared with file:', {
+        uri: imageObject.uri,
+        type: imageObject.mimeType || 'image/jpeg',
+        name: imageObject.fileName || 'upload.jpg'
       });
       
-      // Calculate approximate size based on base64 string length
-      // This is a workaround since FileSystem.getInfoAsync might not return size on some platforms
-      const approximateSize = Math.ceil(base64.length * 0.75); // Convert base64 size to binary size
-      
-      console.log('Base64 length:', base64.length, 'Approximate size:', approximateSize);
-      
-      // Create file in Appwrite storage
-      await storage.createFile(
-        'profile_images',  // bucket ID
-        fileId,            // file ID
+      // Direct HTTP request to Appwrite API
+      const response = await fetch(
+        `https://cloud.appwrite.io/v1/storage/buckets/profile_images/files`, 
         {
-          type: mimeType,
-          size: approximateSize,
-          name: fileName,
-          data: base64
+          method: 'POST',
+          headers: {
+            'X-Appwrite-Project': PROJECT_ID,
+            // No Content-Type header here - fetch will set it with the boundary for FormData
+          },
+          body: formData,
         }
       );
       
-      return fileId;
+      const result = await response.json();
+      console.log('Upload response:', result);
+      
+      if (response.ok) {
+        return result.$id;
+      } else {
+        throw new Error(result.message || 'Upload failed');
+      }
     } catch (error) {
       console.error('Upload image error:', error);
       throw new Error(`Failed to upload image: ${error.message}`);
@@ -139,9 +148,9 @@ export default function SettingsScreen() {
       
       // Upload new image if selected
       let avatarId = profileDoc?.avatar;
-      if (image && !image.includes('profile_images')) {
+      if (image && selectedImageObj && !image.includes('profile_images')) {
         console.log('Uploading new image...');
-        avatarId = await uploadImage(image);
+        avatarId = await uploadImage(selectedImageObj);
         console.log('Image uploaded with ID:', avatarId);
       }
       
