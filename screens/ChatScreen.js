@@ -28,6 +28,9 @@ import { Query } from 'appwrite';
 import { Ionicons } from '@expo/vector-icons';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; 
+const PROJECT_ID = '67d0bb27002cfc0b22d2';
+const BUCKET_ID = 'profile_images';
 
 export default function ChatScreen({ route, navigation }) {
   const { 
@@ -191,11 +194,17 @@ export default function ChatScreen({ route, navigation }) {
         const user = await account.get();
         setCurrentUserId(user.$id);
         setCurrentUserName(user.name);
-
-        // Load friend profile
+    
+        // Load friend profile with proper avatar URL
         const friendProfile = await userProfiles.getProfileByUserId(friendId);
+        let avatarUrl = DEFAULT_AVATAR;
+        
+        if (friendProfile.avatar) {
+          avatarUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${friendProfile.avatar}/view?project=${PROJECT_ID}`;
+        }
+    
         setFriendData({
-          avatar: friendProfile.avatar || 'avatar.png',
+          avatar: avatarUrl,
           status: friendProfile.status || 'offline'
         });
 
@@ -413,18 +422,11 @@ export default function ChatScreen({ route, navigation }) {
       
       <View style={styles.headerUserInfo}>
         <View style={styles.avatarContainer}>
-          {friendData.avatar && friendData.avatar !== 'avatar.png' ? (
-            <Image 
-              source={{ uri: friendData.avatar }} 
-              style={styles.avatarImage}
-              defaultSource={DEFAULT_AVATAR}
-            />
-          ) : (
-            <Image 
-              source={DEFAULT_AVATAR}
-              style={styles.avatarImage}
-            />
-          )}
+          <Image 
+            source={typeof friendData.avatar === 'string' ? { uri: friendData.avatar } : friendData.avatar}
+            style={styles.avatarImage}
+            defaultSource={DEFAULT_AVATAR}
+          />
           <View style={[
             styles.statusIndicator,
             { backgroundColor: friendData.status === 'online' ? '#4CAF50' : '#9E9E9E' }
