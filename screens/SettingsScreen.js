@@ -241,8 +241,8 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#22272B', // Dark background like HomeScreen
     padding: 20,
-    backgroundColor: '#fff',
   },
   imageContainer: {
     alignItems: 'center',
@@ -251,47 +251,56 @@ const styles = StyleSheet.create({
   profileImage: {
     width: 120,
     height: 120,
-    borderRadius: 60,
-    backgroundColor: '#f0f0f0',
+    borderRadius: 60, // Consistent with HomeScreen's rounded aesthetic
+    borderWidth: 2,
+    borderColor: '#01CC97', // Vibrant border color like HomeScreen buttons
   },
   placeholderImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#e1e1e1',
+    backgroundColor: '#33383D', // Darker placeholder to match theme
     justifyContent: 'center',
     alignItems: 'center',
   },
   placeholderText: {
     fontSize: 40,
-    color: '#777',
+    color: '#ddd', // Light gray like HomeScreen's name text
+    fontWeight: '600',
   },
   changePhotoText: {
     marginTop: 10,
-    color: '#007AFF',
-    fontWeight: '500',
+    color: '#01CC97', // Match HomeScreen's button border color
+    fontWeight: '600', // Bolder like HomeScreen's buttonText
+    fontSize: 16,
   },
   input: {
+    backgroundColor: '#33383D', // Dark input background
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#01CC97', // Vibrant border like HomeScreen buttons
     borderRadius: 8,
     padding: 15,
     marginVertical: 15,
     fontSize: 16,
+    color: '#fff', // White text for readability
   },
   saveButton: {
-    backgroundColor: '#007AFF',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: '#22272B', // Transparent background like HomeScreen buttons
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderColor: '#01CC97', // Vibrant green border
+    borderWidth: 2,
+    borderRadius: 30, // Rounded like HomeScreen buttons
     alignItems: 'center',
+    marginTop: 15,
   },
   disabledButton: {
-    opacity: 0.7,
+    opacity: 0.7, // Same as original
   },
   saveButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
+    color: '#fff', // White text like HomeScreen buttonText
+    fontWeight: '600', // Bold like HomeScreen
+    fontSize: 18, // Slightly larger like HomeScreen
   },
 });
 

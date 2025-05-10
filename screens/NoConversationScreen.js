@@ -19,6 +19,7 @@ export default function NoConversationScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#22272B',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,

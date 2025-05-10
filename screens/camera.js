@@ -13,7 +13,7 @@ import { Camera, useCameraPermissions } from 'expo-camera';
 import { API_CONFIG } from './config'; // Correct for config.js // Import centralized config
 
 // Construct the API URL using config
-const POSETRACKER_API = `${API_CONFIG.PROTOCOL}://${API_CONFIG.BASE_URL}/pose_tracker/tracking`;
+const POSETRACKER_API = `${API_CONFIG.BASE_URL}/pose_tracker/tracking`;
 
 const { width, height } = Dimensions.get('window');
 

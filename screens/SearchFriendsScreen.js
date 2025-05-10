@@ -271,7 +271,7 @@ export default function SearchFriendsScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#22272B',
   },
   header: {
     flexDirection: 'row',

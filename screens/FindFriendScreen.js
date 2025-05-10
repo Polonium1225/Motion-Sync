@@ -191,7 +191,7 @@ const renderConversationItem = ({ item }) => {
         />
         <View style={[
           styles.statusIndicator,
-          { backgroundColor: friend.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+          { backgroundColor: friend.status === 'online' ? '#01CC97' : '#9E9E9E' }
         ]} />
       </View>
       
@@ -205,7 +205,7 @@ const renderConversationItem = ({ item }) => {
       <View style={styles.statusTextContainer}>
         <Text style={[
           styles.statusText,
-          { color: friend.status === 'online' ? '#4CAF50' : '#9E9E9E' }
+          { color: friend.status === 'online' ? '#01CC97' : '#9E9E9E' }
         ]}>
           {friend.status === 'online' ? 'Online' : 'Offline'}
         </Text>
@@ -261,19 +261,21 @@ const renderConversationItem = ({ item }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#22272B',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
+    color:'#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    backgroundColor: '#2D343C',
   },
   backButton: {
     marginRight: 10,
   },
   title: {
+    color:'#fff',
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
@@ -286,18 +288,25 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   searchBar: {
-    backgroundColor: '#f5f5f5',
     padding: 15,
     margin: 15,
     borderRadius: 10,
     fontSize: 16,
+    backgroundColor: '#33383D', // Dark input background
+    borderWidth: 1,
+    borderColor: '#01CC97', // Vibrant border like HomeScreen buttons
+    borderRadius: 8,
+    marginVertical: 15,
+    fontSize: 16,
+    color: '#fff', // White text for readability
+    
   },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    backgroundColor: '#2D343C',
   },
   avatarContainer: {
     position: 'relative',
@@ -308,6 +317,8 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     resizeMode: 'cover',
+    
+
   },
   statusIndicator: {
     position: 'absolute',
@@ -325,6 +336,7 @@ const styles = StyleSheet.create({
   friendName: {
     fontSize: 16,
     fontWeight: 'bold',
+    color:'#fff',
     marginBottom: 4,
   },
   lastMessage: {

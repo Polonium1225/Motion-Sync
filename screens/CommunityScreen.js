@@ -53,6 +53,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
+    backgroundColor: '#22272B',
     alignItems: 'center',
     padding: 20,
   },
@@ -60,7 +61,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 40,
-    color: '#333'
+    color: '#fff'
   },
   button: {
     backgroundColor: '#01CC97',
