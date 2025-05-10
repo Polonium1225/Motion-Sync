@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } fr
 import * as DocumentPicker from 'expo-document-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { API_CONFIG } from 'config'; // Import centralized config
 
-const SERVER_URL = 'http://192.168.1.104:8000/uploads'; // Replace with your backend URL
+const SERVER_URL = `${API_CONFIG.BASE_URL}/uploads`; // Use config for base URL
 
 export default function VideoUploadScreen({ navigation }) {
   const [pastVideo, setPastVideo] = useState(null);
@@ -39,7 +40,7 @@ export default function VideoUploadScreen({ navigation }) {
       type: 'video/mp4',
     });
 
-    const response = await fetch(`${SERVER_URL}/uploads`, {
+    const response = await fetch(SERVER_URL, {
       method: 'POST',
       body: formData,
       headers: {
@@ -67,7 +68,7 @@ export default function VideoUploadScreen({ navigation }) {
       const newUpload = await uploadVideo(newVideo);
 
       // Call compare endpoint
-      const compareResponse = await fetch(`${SERVER_URL}/compare`, {
+      const compareResponse = await fetch(`${API_CONFIG.BASE_URL}/compare`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

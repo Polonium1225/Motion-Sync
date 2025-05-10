@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import { saveHistory, getUserId } from '../lib/AppwriteService';
+import { API_CONFIG } from './config'; // Import centralized config
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
@@ -63,7 +64,7 @@ export default function PerformanceScreen() {
       formDataCompare.append("past_video_url", pastUrl);
       formDataCompare.append("new_video_url", newUrl);
   
-      const compareResponse = await fetch('http://192.168.1.104:8000/compare', {
+      const compareResponse = await fetch(`${API_CONFIG.BASE_URL}/compare`, {
         method: 'POST',
         body: formDataCompare,
         headers: {
@@ -119,7 +120,7 @@ export default function PerformanceScreen() {
     });
 
     try {
-      const response = await fetch('http://192.168.1.104:8000/uploads', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/uploads`, {
         method: 'POST',
         body: formData,
         headers: {

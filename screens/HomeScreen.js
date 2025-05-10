@@ -2,76 +2,129 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { account, userProfiles } from "../lib/AppwriteService";
-import { useNavigation } from '@react-navigation/native'; // Import the hook
-
+import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
+import { useNavigation } from '@react-navigation/native';
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const [profileData, setProfileData] = React.useState({
     profileImage: require('../assets/icon.png'),
-    fullName: 'Name'
+    fullName: 'Name',
   });
 
   const navigation1 = useNavigation();
   const handleNavigate = () => {
-    navigation1.navigate('test');  // Navigate to CameraScreen when the button is pressed
+    navigation1.navigate('test'); // Replace with your actual route (e.g., CameraScreen)
   };
+
+  const PROJECT_ID = '67d0bb27002cfc0b22d2';
+  const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
 
   // Load profile data when component mounts
   React.useEffect(() => {
     const loadProfileData = async () => {
       try {
-        
-        const savedProfileName = await AsyncStorage.getItem('profile_name');
-        const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
-        
-        if (savedProfileName) {
-          
-          setProfileData(prevData => ({ 
-            ...prevData, 
-            fullName: savedProfileName 
-          }));
+        // Check if user is authenticated
+        let user;
+        try {
+          user = await account.get();
+        } catch (error) {
+          if (error.code === 401 || error.message.includes('missing scope')) {
+            console.log('User not authenticated, redirecting to login...');
+            setIsLoggedIn(false);
+            navigation.navigate('Login');
+            return;
+          }
+          throw error;
         }
-        
-        if (savedProfileImageUri) {
-          setProfileData(prevData => ({ 
-            ...prevData, 
-            profileImage: { uri: savedProfileImageUri } 
-          }));
+
+        const userId = user.$id;
+
+        // Load profile from database
+        const profiles = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.USER_PROFILES,
+          [Query.equal('userId', userId)]
+        );
+
+        let newProfileData = {
+          fullName: user.name || 'Name',
+          profileImage: require('../assets/icon.png'),
+        };
+
+        if (profiles.documents.length > 0) {
+          const profile = profiles.documents[0];
+          newProfileData.fullName = profile.name || user.name || 'Name';
+
+          // If profile has avatar, get direct file URL
+          if (profile.avatar && profile.avatar !== 'avatar.png') {
+            try {
+              const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
+              newProfileData.profileImage = { uri: imageUrl };
+            } catch (error) {
+              console.log('Error getting file view:', error);
+            }
+          }
+        }
+
+        setProfileData(newProfileData);
+
+        // Update AsyncStorage for offline fallback
+        await AsyncStorage.setItem('profile_name', newProfileData.fullName);
+        if (newProfileData.profileImage.uri) {
+          await AsyncStorage.setItem('profile_image', newProfileData.profileImage.uri);
         }
       } catch (error) {
         console.error('Failed to load profile data:', error);
+        Alert.alert('Error', 'Failed to load profile data. Using cached data if available.');
+
+        // Fallback to AsyncStorage
+        try {
+          const savedProfileName = await AsyncStorage.getItem('profile_name');
+          const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
+          if (savedProfileName || savedProfileImageUri) {
+            setProfileData({
+              fullName: savedProfileName || 'Name',
+              profileImage: savedProfileImageUri ? { uri: savedProfileImageUri } : require('../assets/icon.png'),
+            });
+          }
+        } catch (storageError) {
+          console.error('Failed to load from AsyncStorage:', storageError);
+        }
       }
     };
 
     loadProfileData();
 
-    // Set up a focus listener to reload data when screen comes into focus
+    // Reload data when screen comes into focus
     const unsubscribe = navigation.addListener('focus', () => {
       loadProfileData();
     });
 
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, setIsLoggedIn]);
 
   // Handle Logout
   const handleLogout = async () => {
     try {
-      // Try to set offline status FIRST while session is active
+      // Set offline status
       try {
         const user = await account.get();
         await userProfiles.safeUpdateStatus(user.$id, 'offline');
-      } catch {} // Ignore all errors
-  
+      } catch (error) {
+        console.log('Error setting offline status:', error);
+      }
+
       // Clear local data
       await AsyncStorage.clear();
       await account.deleteSessions();
-      
-      // Update UI
+
+      // Update UI and redirect
       setIsLoggedIn(false);
+      navigation.navigate('Login');
     } catch (error) {
-      // Ensure logout completes even if everything fails
+      console.error('Logout error:', error);
       setIsLoggedIn(false);
+      navigation.navigate('Login');
     }
   };
 
@@ -85,7 +138,7 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
         </View>
 
         <Image
-          source={profileData.profileImage} // Use the profile image from state
+          source={profileData.profileImage}
           style={styles.profileImage}
         />
       </View>
@@ -97,17 +150,16 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
 
       {/* Buttons Section */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText} onPress={handleNavigate}>Error Detection & Feedback</Text>
+        <TouchableOpacity style={styles.button} onPress={handleNavigate}>
+          <Text style={styles.buttonText}>Error Detection & Feedback</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.button}>
           <Text style={styles.buttonText}>Compare with Professional Model</Text>
         </TouchableOpacity>
 
-        {/* Logout Button */}
-        <TouchableOpacity 
-          style={[styles.button, styles.logoutButton]} 
+        <TouchableOpacity
+          style={[styles.button, styles.logoutButton]}
           onPress={handleLogout}
         >
           <Text style={styles.buttonText}>Logout</Text>
@@ -120,10 +172,10 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    resizeMode: 'cover', // Ensures the background image covers the entire screen
+    resizeMode: 'cover',
   },
   header: {
-    flexDirection: 'row', 
+    flexDirection: 'row',
     alignItems: 'center',
     marginTop: 20,
     marginBottom: 20,
@@ -131,7 +183,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#22272B', // Added transparency to blend with background
+    backgroundColor: '#22272B',
     padding: 20,
   },
   profileImageContainer: {
@@ -143,13 +195,13 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 40,
-    marginRight: 15, 
+    marginRight: 15,
   },
   button: {
     backgroundColor: '#22272B',
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: "#01CC97",
+    borderColor: '#01CC97',
     borderWidth: 2,
     borderRadius: 30,
     marginTop: 15,
@@ -160,7 +212,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   logoutButton: {
-    borderColor: '#FF3B30', // Red color for logout button
+    borderColor: '#FF3B30',
   },
   buttonText: {
     color: '#fff',
@@ -178,11 +230,14 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   buttonContainer: {
-    flexDirection: 'column', 
-    alignItems: 'center', 
+    flexDirection: 'column',
+    alignItems: 'center',
     marginTop: 70,
   },
   card: {
     paddingTop: 20,
-  }
+  },
+  contentContainer: {
+    flex: 1,
+  },
 });

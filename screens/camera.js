@@ -10,16 +10,10 @@ import {
 } from 'react-native';
 import WebView from 'react-native-webview';
 import { Camera, useCameraPermissions } from 'expo-camera';
+import { API_CONFIG } from './config'; // Correct for config.js // Import centralized config
 
-// API key and configuration
-const API_KEY = "b747416a-bf1b-4417-af5a-25c2996507af";
-
-// For local testing, use localhost on an emulator or your machine's local IP for a physical device
-const API_HOST = "d28c-196-200-142-15.ngrok-free.app" //"poseapi-zvlf.onrender.com"; // Change this to your server's IP if testing on physical device
-
-// Construct the API URL - use HTTPS in production
-const PROTOCOL = "https"; // Change to "https" for production
-const POSETRACKER_API = `${PROTOCOL}://${API_HOST}/pose_tracker/tracking`;
+// Construct the API URL using config
+const POSETRACKER_API = `${API_CONFIG.PROTOCOL}://${API_CONFIG.BASE_URL}/pose_tracker/tracking`;
 
 const { width, height } = Dimensions.get('window');
 
@@ -60,8 +54,8 @@ export default function App() {
   const difficulty = "easy";
   const skeleton = true;
 
-  // Full URL with query parameters
-  const posetracker_url = `${POSETRACKER_API}?token=${API_KEY}&exercise=${exercise}&difficulty=${difficulty}&width=${width}&height=${height}&skeleton=${skeleton}`;
+  // Full URL with query parameters using config
+  const posetracker_url = `${POSETRACKER_API}?token=${API_CONFIG.API_KEY}&exercise=${exercise}&difficulty=${difficulty}&width=${width}&height=${height}&skeleton=${skeleton}`;
 
   // Debug the URL being accessed
   console.log("Connecting to: ", posetracker_url);
@@ -181,7 +175,7 @@ export default function App() {
             injectedJavaScript={jsBridge}
             onMessage={onMessage}
             debuggingEnabled={true}
-            mixedContentMode="compatibility" // Changed from "always" to "compatibility"
+            mixedContentMode="compatibility"
             onError={(syntheticEvent) => {
               const { nativeEvent } = syntheticEvent;
               console.warn('WebView error:', nativeEvent);
