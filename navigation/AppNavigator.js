@@ -39,6 +39,8 @@ function MainTabs({ setIsLoggedIn }) {
           shadowOpacity: 0, // Remove shadow on iOS
           borderTopColor: 'transparent',
           height: 60,
+          paddingBottom: 5, // Add padding to avoid conflict with phone navigation
+          marginBottom: 5, // Add margin to avoid conflict with phone navigation
         },
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textSecondary,
@@ -47,6 +49,8 @@ function MainTabs({ setIsLoggedIn }) {
         },
         // Explicitly set label position to avoid layout issues
         tabBarLabelPosition: 'below-icon',
+        // Add safe area insets to avoid conflicts with phone navigation
+        safeAreaInsets: { bottom: 10 },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 

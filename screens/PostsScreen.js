@@ -6,6 +6,8 @@ import { getPostsWithUsers } from '../lib/AppwriteService';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost, getUserId, uploadPostImage } from '../lib/AppwriteService';
+import Colors from '../constants/color';
+import Fonts from '../constants/fonts';
 
 const PostsScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
@@ -25,7 +27,7 @@ const PostsScreen = ({ navigation }) => {
       }
     })();
   }, []);
-  
+
   useEffect(() => {
     (async () => {
       // Request camera roll permissions when component mounts
@@ -109,7 +111,7 @@ const PostsScreen = ({ navigation }) => {
       setUploading(true);
       const userId = await getUserId();
       let imageFileId = null;
-      
+
       if (imageObj) {
         imageFileId = await uploadPostImage(imageObj);
       }
@@ -129,8 +131,8 @@ const PostsScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
@@ -138,11 +140,11 @@ const PostsScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       {/* Create Post Button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.createPostButton}
         onPress={() => setShowCreateModal(true)}
       >
-        <Ionicons name="create-outline" size={24} color="white" />
+        <Ionicons name="create-outline" size={24} color={Colors.textPrimary} />
         <Text style={styles.createPostButtonText}>Create Post</Text>
       </TouchableOpacity>
 
@@ -164,12 +166,12 @@ const PostsScreen = ({ navigation }) => {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Ionicons name="close" size={24} color="black" />
+              <Ionicons name="close" size={24} color={Colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Create Post</Text>
             <TouchableOpacity onPress={handlePost} disabled={uploading}>
               {uploading ? (
-                <ActivityIndicator size="small" color="#05907A" />
+                <ActivityIndicator size="small" color={Colors.primary} />
               ) : (
                 <Text style={styles.postButtonText}>Post</Text>
               )}
@@ -179,6 +181,7 @@ const PostsScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="What's on your mind?"
+            placeholderTextColor={Colors.textSecondary}
             multiline
             numberOfLines={4}
             value={content}
@@ -187,28 +190,28 @@ const PostsScreen = ({ navigation }) => {
 
           <View style={styles.imageButtonsContainer}>
             <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-              <Ionicons name="image" size={24} color="#05907A" />
+              <Ionicons name="image" size={24} color={Colors.primary} />
               <Text style={styles.buttonText}>Add Photo</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-              <Ionicons name="camera" size={24} color="#05907A" />
+              <Ionicons name="camera" size={24} color={Colors.primary} />
               <Text style={styles.buttonText}>Take Photo</Text>
             </TouchableOpacity>
           </View>
 
           {imageObj && (
             <View style={styles.imagePreviewContainer}>
-              <Image 
-                source={{ uri: imageObj.uri }} 
+              <Image
+                source={{ uri: imageObj.uri }}
                 style={styles.imagePreview}
                 onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
               />
-              <TouchableOpacity 
-                style={styles.removeImageButton} 
+              <TouchableOpacity
+                style={styles.removeImageButton}
                 onPress={() => setImageObj(null)}
               >
-                <Ionicons name="close" size={20} color="white" />
+                <Ionicons name="close" size={20} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
           )}
@@ -221,7 +224,7 @@ const PostsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     padding: 10,
   },
   listContent: {
@@ -229,7 +232,7 @@ const styles = StyleSheet.create({
   },
   createPostButton: {
     flexDirection: 'row',
-    backgroundColor: '#05907A',
+    backgroundColor: Colors.primary,
     borderRadius: 25,
     padding: 12,
     alignItems: 'center',
@@ -238,14 +241,13 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   createPostButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.textPrimary,
+    ...Fonts.getFont('medium', 'bold'),
   },
   modalContainer: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -254,21 +256,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...Fonts.getFont('large', 'bold'),
+    color: Colors.textPrimary,
   },
   postButtonText: {
-    color: '#05907A',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.primary,
+    ...Fonts.getFont('medium', 'bold'),
   },
   input: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.surfaceDark,
     borderRadius: 12,
     padding: 16,
-    fontSize: 16,
+    ...Fonts.getFont('medium', 'regular'),
+    color: Colors.textPrimary,
     minHeight: 150,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   imageButtonsContainer: {
     flexDirection: 'row',
@@ -282,17 +286,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'white',
+    backgroundColor: Colors.surfaceDark,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#05907A',
+    borderColor: Colors.primary,
   },
   imagePreviewContainer: {
     marginBottom: 20,
     borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   imagePreview: {
     width: '100%',
@@ -308,9 +314,8 @@ const styles = StyleSheet.create({
     padding: 5,
   },
   buttonText: {
-    color: '#05907A',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Colors.primary,
+    ...Fonts.getFont('small', 'bold'),
   },
 });
 

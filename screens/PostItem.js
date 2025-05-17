@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId } from '../lib/AppwriteService';
 import { DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
 import DEFAULT_AVATAR from '../assets/avatar.png';
+import Colors from '../constants/color';
+import Fonts from '../constants/fonts';
 
 // Add your Appwrite project ID and endpoint (should match AppwriteService.js)
 const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Replace with your actual project ID
@@ -22,7 +24,7 @@ const PostItem = ({ post, navigation }) => {
       setIsLiked(await checkUserLike(post.$id, userId));
       setLikeCount(await getLikeCount(post.$id));
       setCommentCount(await getCommentsCount(post.$id));
-      
+
       // Load avatar URL if available
       if (post.user?.avatar) {
         setLoadingAvatar(true);
@@ -61,9 +63,9 @@ const PostItem = ({ post, navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         {loadingAvatar ? (
-          <ActivityIndicator size="small" style={styles.avatar} />
+          <ActivityIndicator size="small" color={Colors.primary} style={styles.avatar} />
         ) : (
-          <Image 
+          <Image
             source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
             style={styles.avatar}
             defaultSource={DEFAULT_AVATAR}
@@ -75,35 +77,35 @@ const PostItem = ({ post, navigation }) => {
         )}
         <Text style={styles.username}>{post.user?.name}</Text>
       </View>
-      
+
       <Text style={styles.content}>{post.content}</Text>
-      
+
       {post.imageUrl && (
-        <Image 
+        <Image
           source={{ uri: post.imageUrl }}
           style={styles.postImage}
           resizeMode="cover"
         />
       )}
-      
+
       <View style={styles.footer}>
         <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-          <Ionicons 
-            name={isLiked ? "heart" : "heart-outline"} 
-            size={24} 
-            color={isLiked ? "#ff0000" : "#000"} 
+          <Ionicons
+            name={isLiked ? "heart" : "heart-outline"}
+            size={24}
+            color={isLiked ? Colors.primary : Colors.textSecondary}
           />
           <Text style={styles.actionText}>{likeCount}</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => navigation.navigate('PostDetail', { 
+          onPress={() => navigation.navigate('PostDetail', {
             postId: post.$id,
             onGoBack: loadData
           })}
         >
-          <Ionicons name="chatbubble-outline" size={24} color="#000" />
+          <Ionicons name="chatbubble-outline" size={24} color={Colors.accentBlue} />
           <Text style={styles.actionText}>{commentCount}</Text>
         </TouchableOpacity>
       </View>
@@ -113,7 +115,7 @@ const PostItem = ({ post, navigation }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.surfaceDark,
     borderRadius: 10,
     padding: 15,
     marginBottom: 15,
@@ -122,6 +124,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   header: {
     flexDirection: 'row',
@@ -133,26 +137,31 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.primary,
   },
   username: {
-    fontWeight: 'bold',
-    fontSize: 16,
+    ...Fonts.getFont('medium', 'bold'),
+    color: Colors.textPrimary,
   },
   content: {
     marginBottom: 10,
-    fontSize: 15,
+    ...Fonts.getFont('medium', 'regular'),
+    color: Colors.textPrimary,
   },
   postImage: {
     width: '100%',
     height: 300,
     borderRadius: 10,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   footer: {
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: Colors.border,
     paddingTop: 10,
   },
   actionButton: {
@@ -162,7 +171,8 @@ const styles = StyleSheet.create({
   },
   actionText: {
     marginLeft: 5,
-    fontSize: 14,
+    ...Fonts.getFont('small', 'regular'),
+    color: Colors.textPrimary,
   },
 });
 
