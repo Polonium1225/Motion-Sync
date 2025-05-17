@@ -34,7 +34,7 @@ function MainTabs({ setIsLoggedIn }) {
           backgroundColor: '#1A1F23',
           borderTopWidth: 0,
         },
-        tabBarActiveTintColor: '#05907A',
+        tabBarActiveTintColor: '#ff4c48',
         tabBarInactiveTintColor: '#888',
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;

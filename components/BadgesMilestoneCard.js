@@ -33,7 +33,7 @@ export default function BadgesMilestoneCard() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#2D343C',
+    backgroundColor: '#0c1423',
     borderRadius: 10,
     padding: 20,
     marginVertical: 15,
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2D343C',
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: "#01CC97",  // Correct property
+    borderColor: "#ff4c48",  // Correct property
     width:200,
     borderWidth: 2,          // Required for the border to appear
     borderRadius: 30,

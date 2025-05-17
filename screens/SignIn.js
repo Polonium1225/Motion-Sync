@@ -8,12 +8,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ImageBackground, // 👈 Updated import
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { account, userProfiles } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// 👈 Import the background image
+import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image
 
 export default function SignIn({ setIsLoggedIn }) {
   const [email, setEmail] = useState("");
@@ -66,13 +70,18 @@ export default function SignIn({ setIsLoggedIn }) {
 
   return (
     <KeyboardAvoidingView 
-      behavior={Platform.OS === "ios" ? "padding" : "height"} // Prevents keyboard dismissal
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
-      <View style={styles.container}>
-        <LinearGradient colors={["#01CC97", "#22272B"]} style={styles.topSection}>
+      {/* 👈 Replace View with ImageBackground */}
+      <ImageBackground
+        source={backgroundImage} // 👈 Set the background image
+        style={styles.container}
+        resizeMode="cover" // 👈 Ensure the image covers the screen
+      >
+        <View colors={["#ff4c48", "#04032d"]} style={styles.topSection}>
           <Text style={styles.welcomeText}>Welcome Back</Text>
-        </LinearGradient>
+        </View>
 
         <View style={styles.formContainer}>
           <Text style={styles.signInText}>Sign In</Text>
@@ -81,7 +90,7 @@ export default function SignIn({ setIsLoggedIn }) {
           <View>
             <Text style={styles.inputText}>Email</Text>
             <View style={styles.inputWrapper}>
-              <Octicons name="person" size={20} color="#01CC97" />
+              <Octicons name="person" size={20} color="#ff4c48" />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
@@ -91,7 +100,7 @@ export default function SignIn({ setIsLoggedIn }) {
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                autoFocus={false} // Prevent focus loss
+                autoFocus={false}
               />
             </View>
           </View>
@@ -100,7 +109,7 @@ export default function SignIn({ setIsLoggedIn }) {
           <View>
             <Text style={styles.inputText}>Password</Text>
             <View style={styles.inputWrapper}>
-              <Octicons name="lock" size={20} color="#01CC97" />
+              <Octicons name="lock" size={20} color="#ff4c48" />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Your Password"
@@ -109,7 +118,7 @@ export default function SignIn({ setIsLoggedIn }) {
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                autoFocus={false} // Prevent focus loss
+                autoFocus={false}
               />
               <TouchableOpacity style={{ padding: 10 }} onPress={() => setShowPassword(!showPassword)}>
                 <Ionicons
@@ -134,11 +143,11 @@ export default function SignIn({ setIsLoggedIn }) {
 
           {/* Fixed Login Button with pointerEvents */}
           <LinearGradient
-            colors={['#01CC97', '#000000']}
+            colors={['#ff4c48', '#0b0a1f']}
             start={{ x: 0, y: 0 }}
-            end={{ x: 0.2, y: 1 }}
+            end={{ x: 0.3, y: 1 }}
             style={[styles.loginButton, styles.androidShadow]}
-            pointerEvents="box-none" // 👈 Allow touches to pass through
+            pointerEvents="box-none"
           >
             <TouchableOpacity 
               style={styles.buttonInner} 
@@ -148,7 +157,7 @@ export default function SignIn({ setIsLoggedIn }) {
             </TouchableOpacity>
           </LinearGradient>
         </View>
-      </View>
+      </ImageBackground>
     </KeyboardAvoidingView>
   );
 }
@@ -156,7 +165,7 @@ export default function SignIn({ setIsLoggedIn }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#e5e5e5",
+    // 👈 Remove backgroundColor since the image will be the background
   },
   topSection: {
     height: "50%",
@@ -170,7 +179,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flex: 1,
-    backgroundColor: "#1F2229",
+    backgroundColor: "#0b0a1f",
     marginTop: -80,
     alignItems: 'center',
     borderTopLeftRadius: 30,
@@ -178,7 +187,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   signInText: {
-    color: "#01CC97",
+    color: "#ff4c48",
     fontSize: 24,
     fontWeight: "bold",
     marginTop: 35,
@@ -190,7 +199,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "90%",
     backgroundColor: "#1F2229",
-    borderColor: "#01CC97",
+    borderColor: "#ff4c48",
     borderWidth: 2,
     borderRadius: 30,
     paddingLeft: 10,
@@ -223,7 +232,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   signUpText: {
-    color: "#01CC97",
+    color: "#ff4c48",
     fontWeight: 'bold',
   },
   boxShadow: {
@@ -245,7 +254,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   buttonInner: {
-    width: 50,  // 👈 Explicit dimensions for tappable area
+    width: 50,
     height: 50,
     alignItems: "center",
     justifyContent: "center",

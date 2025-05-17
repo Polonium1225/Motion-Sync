@@ -1,7 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet,ImageBackground } from 'react-native';
 import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
 import { useNavigation } from '@react-navigation/native';
+
+
+import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image
 
 export default function ProgressScreen() {
   const navigation = useNavigation();
@@ -9,11 +12,15 @@ export default function ProgressScreen() {
     navigation.navigate('Performance');
   };
   return (
-    
+    <ImageBackground
+        source={backgroundImage} // 👈 Set the background image
+        style={styles.container}
+        resizeMode="cover" // 👈 Ensure the image covers the screen
+      >
       <View style={styles.container}>
         <Text style={styles.title}>Performance</Text>
         <Text style={styles.description}>
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc maximus, nulla ut commodo sagittis, sapien dui mattis dui, non pulvinar lorem felis nec erat.
+          in this section you get to analyse pre recorded videos and imaged to see your progress you can analyse your  movement based on scientific etrics calculated from the pose estimation.
         </Text>
 
         <TouchableOpacity style={styles.button} onPress={handleNavigate}>
@@ -22,7 +29,7 @@ export default function ProgressScreen() {
 
         {/* Milestone Card Component */}
         <BadgesMilestoneCard />
-      </View>
+      </View></ImageBackground>
     
   );
 }
@@ -36,10 +43,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
-    backgroundColor: '#1F2229', // Added transparency for readability
+    //backgroundColor: '#1F2229', // Added transparency for readability
   },
   button: {
-    backgroundColor: '#07A07C',
+    backgroundColor: '#ff4c48',
     paddingVertical: 12,
     paddingHorizontal: 60,
     borderRadius: 20,
@@ -55,7 +62,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginBottom: 10,
     fontWeight: 'bold',
-    color: '#00ffc0', // Changed to white for better contrast
+    color: '#ff4c48', // Changed to white for better contrast
     textAlign: 'center',
   },
   description: {

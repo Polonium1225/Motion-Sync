@@ -1,9 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert,ImageBackground } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
+
+
+import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const [profileData, setProfileData] = React.useState({
@@ -129,6 +132,11 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   };
 
   return (
+    <ImageBackground
+        source={backgroundImage} // 👈 Set the background image
+        style={styles.container}
+        resizeMode="cover" // 👈 Ensure the image covers the screen
+      >
     <View style={styles.container}>
       {/* Profile Image in the top-right */}
       <View style={styles.header}>
@@ -158,14 +166,10 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
           <Text style={styles.buttonText}>Compare with Professional Model</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.logoutButton]}
-          onPress={handleLogout}
-        >
-          <Text style={styles.buttonText}>Logout</Text>
-        </TouchableOpacity>
+        
       </View>
     </View>
+    </ImageBackground>
   );
 }
 
@@ -178,16 +182,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 20,
+    
     marginBottom: 20,
     justifyContent: 'space-between',
   },
   container: {
     flex: 1,
-    backgroundColor: '#22272B',
+    
     padding: 20,
   },
   profileImageContainer: {
     position: 'absolute',
+    
     top: 20,
     right: 20,
   },
@@ -198,10 +204,11 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   button: {
-    backgroundColor: '#22272B',
+    backgroundColor: 'transparent',
+    textAlign:"center",
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: '#01CC97',
+    borderColor: '#ff4c48',
     borderWidth: 2,
     borderRadius: 30,
     marginTop: 15,
@@ -216,6 +223,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#fff',
+    textAlign:"center",
     fontSize: 18,
     fontWeight: '600',
   },
@@ -230,6 +238,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   buttonContainer: {
+    
     flexDirection: 'column',
     alignItems: 'center',
     marginTop: 70,

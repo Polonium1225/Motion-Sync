@@ -2,20 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
-import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
-import { Client } from 'appwrite'; // Make sure this is imported
+import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS, userProfiles } from '../lib/AppwriteService';
+import { Client } from 'appwrite';
+import { useNavigation } from '@react-navigation/native';
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ setIsLoggedIn }) {
   const [name, setName] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState(null);
   const [profileDoc, setProfileDoc] = useState(null);
-  const [selectedImageObj, setSelectedImageObj] = useState(null); // Store full image object
+  const [selectedImageObj, setSelectedImageObj] = useState(null);
 
-  // Your Appwrite project ID and endpoint - make sure these match your AppwriteService.js
-  const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Replace with your project ID from AppwriteService
-  const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Replace if you're using a different endpoint
+  const navigation = useNavigation();
+
+  const PROJECT_ID = '67d0bb27002cfc0b22d2';
+  const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
 
   // Load current user data
   useEffect(() => {
@@ -26,7 +28,6 @@ export default function SettingsScreen() {
         setUserId(user.$id);
         setName(user.name || '');
         
-        // Load profile from database
         const profiles = await databases.listDocuments(
           DATABASE_ID,
           COLLECTIONS.USER_PROFILES,
@@ -37,12 +38,9 @@ export default function SettingsScreen() {
           const profile = profiles.documents[0];
           setProfileDoc(profile);
           
-          // If profile has avatar, get direct file URL (without transformations)
           if (profile.avatar) {
             try {
-              // Create direct download URL instead of preview URL (which requires a paid plan)
               const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
-              
               console.log('Loading avatar image from:', imageUrl);
               setImage(imageUrl);
             } catch (error) {
@@ -63,7 +61,6 @@ export default function SettingsScreen() {
 
   const pickImage = async () => {
     try {
-      // Request permissions
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
@@ -71,7 +68,6 @@ export default function SettingsScreen() {
         return;
       }
 
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -83,7 +79,7 @@ export default function SettingsScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         setImage(result.assets[0].uri);
-        setSelectedImageObj(result.assets[0]); // Store full image object
+        setSelectedImageObj(result.assets[0]);
       }
     } catch (error) {
       console.log('Image picker error:', error);
@@ -93,11 +89,9 @@ export default function SettingsScreen() {
 
   const uploadImage = async (imageObject) => {
     try {
-      // Generate a unique ID for the file
       const fileId = ID.unique();
       console.log('Generated file ID:', fileId);
       
-      // Create FormData object for file upload
       const formData = new FormData();
       formData.append('fileId', fileId);
       formData.append('file', {
@@ -112,14 +106,12 @@ export default function SettingsScreen() {
         name: imageObject.fileName || 'upload.jpg'
       });
       
-      // Direct HTTP request to Appwrite API
       const response = await fetch(
         `https://cloud.appwrite.io/v1/storage/buckets/profile_images/files`, 
         {
           method: 'POST',
           headers: {
             'X-Appwrite-Project': PROJECT_ID,
-            // No Content-Type header here - fetch will set it with the boundary for FormData
           },
           body: formData,
         }
@@ -148,10 +140,8 @@ export default function SettingsScreen() {
     try {
       setLoading(true);
       
-      // Update account name
       await account.updateName(name);
       
-      // Upload new image if selected
       let avatarId = profileDoc?.avatar;
       if (image && selectedImageObj && !image.includes('profile_images')) {
         console.log('Uploading new image...');
@@ -159,7 +149,6 @@ export default function SettingsScreen() {
         console.log('Image uploaded with ID:', avatarId);
       }
       
-      // Prepare update data
       const updateData = { 
         name,
         userId,
@@ -170,7 +159,6 @@ export default function SettingsScreen() {
         updateData.avatar = avatarId;
       }
       
-      // Update or create profile document
       if (profileDoc) {
         console.log('Updating existing profile:', profileDoc.$id);
         await databases.updateDocument(
@@ -195,6 +183,28 @@ export default function SettingsScreen() {
       Alert.alert('Error', error.message || 'Failed to save profile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle Logout (moved from HomeScreen)
+  const handleLogout = async () => {
+    try {
+      try {
+        const user = await account.get();
+        await userProfiles.safeUpdateStatus(user.$id, 'offline');
+      } catch (error) {
+        console.log('Error setting offline status:', error);
+      }
+
+      await AsyncStorage.clear();
+      await account.deleteSessions();
+
+      setIsLoggedIn(false);
+      navigation.navigate('Login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      setIsLoggedIn(false);
+      navigation.navigate('Login');
     }
   };
 
@@ -234,6 +244,20 @@ export default function SettingsScreen() {
           </Text>
         )}
       </TouchableOpacity>
+
+      <TouchableOpacity 
+        onPress={handleLogout}
+        disabled={loading}
+        style={[styles.saveButton, styles.logoutButton, loading && styles.disabledButton]}
+      >
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text style={styles.saveButtonText}>
+            Logout
+          </Text>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -241,7 +265,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#22272B', // Dark background like HomeScreen
+    backgroundColor: '#22272B',
     padding: 20,
   },
   imageContainer: {
@@ -251,266 +275,58 @@ const styles = StyleSheet.create({
   profileImage: {
     width: 120,
     height: 120,
-    borderRadius: 60, // Consistent with HomeScreen's rounded aesthetic
+    borderRadius: 60,
     borderWidth: 2,
-    borderColor: '#01CC97', // Vibrant border color like HomeScreen buttons
+    borderColor: '#01CC97',
   },
   placeholderImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#33383D', // Darker placeholder to match theme
+    backgroundColor: '#33383D',
     justifyContent: 'center',
     alignItems: 'center',
   },
   placeholderText: {
     fontSize: 40,
-    color: '#ddd', // Light gray like HomeScreen's name text
+    color: '#ddd',
     fontWeight: '600',
   },
   changePhotoText: {
     marginTop: 10,
-    color: '#01CC97', // Match HomeScreen's button border color
-    fontWeight: '600', // Bolder like HomeScreen's buttonText
+    color: '#01CC97',
+    fontWeight: '600',
     fontSize: 16,
   },
   input: {
-    backgroundColor: '#33383D', // Dark input background
+    backgroundColor: '#33383D',
     borderWidth: 1,
-    borderColor: '#01CC97', // Vibrant border like HomeScreen buttons
+    borderColor: '#01CC97',
     borderRadius: 8,
     padding: 15,
     marginVertical: 15,
     fontSize: 16,
-    color: '#fff', // White text for readability
+    color: '#fff',
   },
   saveButton: {
-    backgroundColor: '#22272B', // Transparent background like HomeScreen buttons
+    backgroundColor: '#22272B',
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: '#01CC97', // Vibrant green border
+    borderColor: '#01CC97',
     borderWidth: 2,
-    borderRadius: 30, // Rounded like HomeScreen buttons
+    borderRadius: 30,
     alignItems: 'center',
     marginTop: 15,
   },
+  logoutButton: {
+    borderColor: '#FF3B30', // Matches HomeScreen logout button
+  },
   disabledButton: {
-    opacity: 0.7, // Same as original
+    opacity: 0.7,
   },
   saveButtonText: {
-    color: '#fff', // White text like HomeScreen buttonText
-    fontWeight: '600', // Bold like HomeScreen
-    fontSize: 18, // Slightly larger like HomeScreen
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 18,
   },
 });
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: '#f5f5f5',
-//   },
-//   contentContainer: {
-//     paddingBottom: 30,
-//   },
-//   loadingContainer: {
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//   },
-//   profileSection: {
-//     alignItems: 'center',
-//     padding: 20,
-//     backgroundColor: '#fff',
-//     marginBottom: 15,
-//     borderRadius: 10,
-//     marginHorizontal: 15,
-//     marginTop: 15,
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 2 },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 6,
-//     elevation: 3,
-//   },
-//   profileImageContainer: {
-//     position: 'relative',
-//     marginBottom: 15,
-//   },
-//   profileImage: {
-//     width: 120,
-//     height: 120,
-//     borderRadius: 60,
-//     borderWidth: 3,
-//     borderColor: '#fff',
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 2 },
-//     shadowOpacity: 0.2,
-//     shadowRadius: 4,
-//   },
-//   editImageOverlay: {
-//     position: 'absolute',
-//     bottom: 0,
-//     right: 0,
-//     backgroundColor: '#007AFF',
-//     width: 40,
-//     height: 40,
-//     borderRadius: 20,
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     borderWidth: 2,
-//     borderColor: '#fff',
-//   },
-//   fullName: {
-//     fontSize: 22,
-//     fontWeight: '600',
-//     marginBottom: 15,
-//     color: '#333',
-//   },
-//   editProfileButton: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     backgroundColor: '#007AFF',
-//     paddingVertical: 10,
-//     paddingHorizontal: 20,
-//     borderRadius: 25,
-//     marginBottom: 10,
-//   },
-//   buttonIcon: {
-//     marginRight: 8,
-//   },
-//   editProfileText: {
-//     color: '#fff',
-//     fontWeight: '600',
-//     fontSize: 16,
-//   },
-//   editPanel: {
-//     width: '100%',
-//     marginTop: 10,
-//   },
-//   sectionTitle: {
-//     fontSize: 18,
-//     fontWeight: '600',
-//     color: '#333',
-//     marginBottom: 20,
-//     textAlign: 'center',
-//   },
-//   inputContainer: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     backgroundColor: '#f0f0f0',
-//     borderRadius: 10,
-//     paddingHorizontal: 15,
-//     marginBottom: 20,
-//     height: 50,
-//   },
-//   inputIcon: {
-//     marginRight: 10,
-//   },
-//   input: {
-//     flex: 1,
-//     height: '100%',
-//     fontSize: 16,
-//     color: '#333',
-//   },
-//   uploadLabel: {
-//     fontSize: 16,
-//     color: '#666',
-//     marginBottom: 10,
-//   },
-//   uploadButton: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//     backgroundColor: '#007AFF',
-//     paddingVertical: 12,
-//     borderRadius: 8,
-//     marginBottom: 20,
-//   },
-//   uploadButtonText: {
-//     color: '#fff',
-//     fontWeight: '600',
-//     fontSize: 16,
-//   },
-//   progressContainer: {
-//     marginBottom: 20,
-//   },
-//   progressText: {
-//     fontSize: 14,
-//     color: '#666',
-//     marginBottom: 5,
-//   },
-//   progressBar: {
-//     height: 6,
-//     backgroundColor: '#e0e0e0',
-//     borderRadius: 3,
-//     overflow: 'hidden',
-//   },
-//   progressFill: {
-//     height: '100%',
-//     backgroundColor: '#007AFF',
-//   },
-//   buttonGroup: {
-//     flexDirection: 'row',
-//     justifyContent: 'space-between',
-//     marginTop: 10,
-//   },
-//   actionButton: {
-//     flex: 1,
-//     paddingVertical: 12,
-//     borderRadius: 8,
-//     alignItems: 'center',
-//     justifyContent: 'center',
-//   },
-//   saveButton: {
-//     backgroundColor: '#007AFF',
-//     marginLeft: 10,
-//   },
-//   cancelButton: {
-//     backgroundColor: '#e0e0e0',
-//     marginRight: 10,
-//   },
-//   actionButtonText: {
-//     color: '#fff',
-//     fontWeight: '600',
-//     fontSize: 16,
-//   },
-//   settingsSection: {
-//     backgroundColor: '#fff',
-//     borderRadius: 10,
-//     marginHorizontal: 15,
-//     paddingVertical: 10,
-//     shadowColor: '#000',
-//     shadowOffset: { width: 0, height: 2 },
-//     shadowOpacity: 0.1,
-//     shadowRadius: 6,
-//     elevation: 3,
-//   },
-//   settingsTitle: {
-//     fontSize: 14,
-//     fontWeight: '600',
-//     color: '#999',
-//     paddingHorizontal: 20,
-//     paddingVertical: 10,
-//     textTransform: 'uppercase',
-//   },
-//   settingButton: {
-//     flexDirection: 'row',
-//     alignItems: 'center',
-//     paddingVertical: 15,
-//     paddingHorizontal: 20,
-//     borderBottomWidth: 1,
-//     borderBottomColor: '#f0f0f0',
-//   },
-//   settingIcon: {
-//     width: 30,
-//     height: 30,
-//     borderRadius: 15,
-//     backgroundColor: '#007AFF',
-//     justifyContent: 'center',
-//     alignItems: 'center',
-//     marginRight: 15,
-//   },
-//   settingText: {
-//     flex: 1,
-//     fontSize: 16,
-//     color: '#333',
-//   },
-// });
