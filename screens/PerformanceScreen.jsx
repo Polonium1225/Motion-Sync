@@ -56,16 +56,24 @@ export default function PerformanceScreen() {
 
     try {
       const pastUrl = await uploadVideo(pastVideoUri);
+      console.log('Past video URL:', pastUrl);
+      
       setLoadingMessage('Uploading New Video...');
       const newUrl = await uploadVideo(videoUri);
+      console.log('New video URL:', newUrl);
 
       // Call /compare endpoint
       setLoadingMessage('Analyzing performance...');
+      
+      // Try using URL parameters instead if multipart/form-data is causing issues
+      const compareUrl = `${API_CONFIG.BASE_URL}/compare`;
+      console.log('Making compare request to:', compareUrl);
+      
       const formDataCompare = new FormData();
       formDataCompare.append("past_video_url", pastUrl);
       formDataCompare.append("new_video_url", newUrl);
 
-      const compareResponse = await fetch(`${API_CONFIG.BASE_URL}/compare`, {
+      const compareResponse = await fetch(compareUrl, {
         method: 'POST',
         body: formDataCompare,
         headers: {
@@ -73,9 +81,23 @@ export default function PerformanceScreen() {
         },
       });
 
-      const compareResult = await compareResponse.json();
+      if (!compareResponse.ok) {
+        const errorText = await compareResponse.text();
+        console.error('Compare API error response:', errorText);
+        throw new Error(errorText || 'Comparison failed');
+      }
 
-      if (!compareResponse.ok) throw new Error(compareResult.detail || 'Comparison failed');
+      const responseText = await compareResponse.text();
+      console.log('Compare API response:', responseText);
+      
+      let compareResult;
+      try {
+        // Try to parse the response as JSON
+        compareResult = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse compare response:', parseError);
+        throw new Error('Invalid response from comparison API');
+      }
 
       // Navigate with both video URLs + metrics
       navigation.navigate('PerformanceComparisonScreen', {
@@ -88,12 +110,11 @@ export default function PerformanceScreen() {
       });
 
     } catch (error) {
-      Alert.alert('Error', 'Failed to upload or compare videos. Please try again.');
-      console.error(error);
+      Alert.alert('Error', `Failed to upload or compare videos: ${error.message}`);
+      console.error('Compare error:', error);
     } finally {
       setLoading(false);
     }
-
   }, [pastVideoUri, videoUri]);
 
   const pickVideo = async (setVideoFunction) => {
@@ -107,7 +128,7 @@ export default function PerformanceScreen() {
     }
   };
 
-  // Upload single video to backend
+  // Upload single video to backend - Fixed implementation
   const uploadVideo = async (uri) => {
     const filename = uri.split('/').pop();
     const match = /\.(\w+)$/.exec(filename);
@@ -121,6 +142,8 @@ export default function PerformanceScreen() {
     });
 
     try {
+      console.log(`Uploading to ${API_CONFIG.BASE_URL}/uploads`);
+      
       const response = await fetch(`${API_CONFIG.BASE_URL}/uploads`, {
         method: 'POST',
         body: formData,
@@ -129,8 +152,53 @@ export default function PerformanceScreen() {
         },
       });
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || 'Upload failed');
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload API error response:', errorText);
+        throw new Error(errorText || 'Upload failed');
+      }
+      
+      // Get the response as text first so we can debug it
+      const responseText = await response.text();
+      console.log('Upload API response:', responseText);
+      
+      let result;
+      try {
+        // Try to parse the response as JSON
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse JSON:', parseError);
+        
+        // Fallback: if the response is a direct URL (starts with http)
+        if (responseText.trim().startsWith('http')) {
+          return responseText.trim();
+        }
+        
+        // Try to extract JSON from text (if response has JSON embedded)
+        if (responseText.includes('{') && responseText.includes('}')) {
+          try {
+            const jsonStart = responseText.indexOf('{');
+            const jsonEnd = responseText.lastIndexOf('}') + 1;
+            const jsonPart = responseText.substring(jsonStart, jsonEnd);
+            const extractedResult = JSON.parse(jsonPart);
+            
+            if (extractedResult.url) {
+              return extractedResult.url;
+            }
+          } catch (extractError) {
+            console.error('Failed to extract JSON:', extractError);
+          }
+        }
+        
+        throw new Error('Invalid response format from server');
+      }
+      
+      if (!result.url) {
+        console.error('Missing URL in response:', result);
+        throw new Error('Server response missing URL');
+      }
+      
       return result.url;
     } catch (error) {
       console.error('Upload error:', error);
