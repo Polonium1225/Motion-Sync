@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Text, StyleSheet, Image, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, TextInput, TouchableOpacity, Text, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost , getUserId, uploadPostImage} from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
+import Colors from '../constants/color';
+import Fonts from '../constants/fonts';
 
 const CreatePostScreen = () => {
   const [content, setContent] = useState('');
@@ -35,19 +37,19 @@ const CreatePostScreen = () => {
       Alert.alert('Empty post', 'Please add some text or an image');
       return;
     }
-  
+
     try {
       setUploading(true);
       const userId = await getUserId();
       let imageFileId = null;
-      
+
       if (imageObj) {
         imageFileId = await uploadPostImage(imageObj);
       }
-  
+
       // Create just the post (without like/comment counts)
       const postId = await createPost(userId, content, imageFileId);
-      
+
       navigation.goBack();
       Alert.alert('Success', 'Post created successfully!');
     } catch (error) {
@@ -72,8 +74,8 @@ const CreatePostScreen = () => {
         quality: 0.8,
       });
 
-      if (!result.canceled) {
-        setImageUri(result.assets[0].uri);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImageObj(result.assets[0]);
       }
     };
   return (
@@ -81,6 +83,7 @@ const CreatePostScreen = () => {
       <TextInput
         style={styles.input}
         placeholder="What's on your mind?"
+        placeholderTextColor={Colors.textSecondary}
         multiline
         numberOfLines={4}
         value={content}
@@ -89,34 +92,44 @@ const CreatePostScreen = () => {
 
       <View style={styles.imageButtonsContainer}>
         <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-          <Ionicons name="image" size={24} color="#05907A" />
+          <Ionicons name="image" size={24} color={Colors.primary} />
           <Text style={styles.buttonText}>Add Photo</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-          <Ionicons name="camera" size={24} color="#05907A" />
+          <Ionicons name="camera" size={24} color={Colors.primary} />
           <Text style={styles.buttonText}>Take Photo</Text>
         </TouchableOpacity>
       </View>
 
       {imageObj && (
         <View style={styles.imagePreviewContainer}>
-        <Image 
-          source={{ uri: imageObj.uri }} 
-          style={styles.imagePreview} 
+        <Image
+          source={{ uri: imageObj.uri }}
+          style={styles.imagePreview}
         />
-          <TouchableOpacity 
-            style={styles.removeImageButton} 
-            onPress={() => setImageUri(null)}
+          <TouchableOpacity
+            style={styles.removeImageButton}
+            onPress={() => setImageObj(null)}
           >
-            <Ionicons name="close" size={20} color="white" />
+            <Ionicons name="close" size={20} color={Colors.textPrimary} />
           </TouchableOpacity>
         </View>
       )}
 
-      <TouchableOpacity style={styles.postButton} onPress={handlePost}>
-        <Ionicons name="send" size={24} color="white" />
-        <Text style={styles.buttonText}>Post</Text>
+      <TouchableOpacity
+        style={[styles.postButton, uploading && {opacity: 0.7}]}
+        onPress={handlePost}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator color={Colors.textPrimary} size="small" />
+        ) : (
+          <>
+            <Ionicons name="send" size={24} color={Colors.textPrimary} />
+            <Text style={styles.postButtonText}>Post</Text>
+          </>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -126,15 +139,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
   },
   input: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.surfaceDark,
     borderRadius: 12,
     padding: 16,
-    fontSize: 16,
+    ...Fonts.getFont('medium', 'regular'),
+    color: Colors.textPrimary,
     minHeight: 150,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   imageButtonsContainer: {
     flexDirection: 'row',
@@ -148,17 +164,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'white',
+    backgroundColor: Colors.surfaceDark,
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#05907A',
+    borderColor: Colors.primary,
   },
   imagePreviewContainer: {
     marginBottom: 20,
     borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   imagePreview: {
     width: '100%',
@@ -175,7 +193,7 @@ const styles = StyleSheet.create({
   },
   postButton: {
     flexDirection: 'row',
-    backgroundColor: '#05907A',
+    backgroundColor: Colors.primary,
     borderRadius: 25,
     padding: 15,
     alignItems: 'center',
@@ -183,14 +201,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   buttonText: {
-    color: '#05907A',
-    fontSize: 14,
-    fontWeight: '600',
+    ...Fonts.getFont('small', 'bold'),
+    color: Colors.primary,
   },
   postButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    ...Fonts.getFont('medium', 'bold'),
+    color: Colors.textPrimary,
   },
 });
 

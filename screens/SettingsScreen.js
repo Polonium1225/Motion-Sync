@@ -33,7 +33,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
           COLLECTIONS.USER_PROFILES,
           [Query.equal('userId', user.$id)]
         );
-        
+
         if (profiles.documents.length > 0) {
           const profile = profiles.documents[0];
           setProfileDoc(profile);
@@ -55,14 +55,14 @@ export default function SettingsScreen({ setIsLoggedIn }) {
         setLoading(false);
       }
     };
-    
+
     loadUser();
   }, []);
 
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert('Permission required', 'Please allow access to your photos');
         return;
@@ -99,7 +99,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
         type: imageObject.mimeType || 'image/jpeg',
         name: imageObject.fileName || 'upload.jpg'
       });
-      
+
       console.log('FormData prepared with file:', {
         uri: imageObject.uri,
         type: imageObject.mimeType || 'image/jpeg',
@@ -107,7 +107,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
       });
       
       const response = await fetch(
-        `https://cloud.appwrite.io/v1/storage/buckets/profile_images/files`, 
+        `https://cloud.appwrite.io/v1/storage/buckets/profile_images/files`,
         {
           method: 'POST',
           headers: {
@@ -116,10 +116,10 @@ export default function SettingsScreen({ setIsLoggedIn }) {
           body: formData,
         }
       );
-      
+
       const result = await response.json();
       console.log('Upload response:', result);
-      
+
       if (response.ok) {
         return result.$id;
       } else {
@@ -136,7 +136,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
       Alert.alert('Error', 'User not logged in');
       return;
     }
-    
+
     try {
       setLoading(true);
       
@@ -154,7 +154,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
         userId,
         status: profileDoc?.status || 'online',
       };
-      
+
       if (avatarId) {
         updateData.avatar = avatarId;
       }
@@ -176,7 +176,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
           updateData
         );
       }
-      
+
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Save profile error:', error);
@@ -228,16 +228,17 @@ export default function SettingsScreen({ setIsLoggedIn }) {
         value={name}
         onChangeText={setName}
         placeholder="Your Name"
+        placeholderTextColor={Colors.textSecondary}
         style={styles.input}
       />
 
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={saveProfile}
         disabled={loading}
         style={[styles.saveButton, loading && styles.disabledButton]}
       >
         {loading ? (
-          <ActivityIndicator color="white" />
+          <ActivityIndicator color={Colors.primary} />
         ) : (
           <Text style={styles.saveButtonText}>
             Save Profile
@@ -275,6 +276,7 @@ const styles = StyleSheet.create({
   profileImage: {
     width: 120,
     height: 120,
+    borderRadius: 60,
     borderRadius: 60,
     borderWidth: 2,
     borderColor: '#01CC97',
@@ -315,6 +317,7 @@ const styles = StyleSheet.create({
     borderColor: '#01CC97',
     borderWidth: 2,
     borderRadius: 30,
+    borderRadius: 30,
     alignItems: 'center',
     marginTop: 15,
   },
@@ -322,6 +325,7 @@ const styles = StyleSheet.create({
     borderColor: '#FF3B30', // Matches HomeScreen logout button
   },
   disabledButton: {
+    opacity: 0.7,
     opacity: 0.7,
   },
   saveButtonText: {

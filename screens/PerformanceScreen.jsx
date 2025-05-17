@@ -51,7 +51,7 @@ export default function PerformanceScreen() {
       );
       return;
     }
-    
+
     if (!videoUri) {
       Alert.alert(
         'Missing Video',
@@ -63,21 +63,28 @@ export default function PerformanceScreen() {
       );
       return;
     }
-  
+
     setLoading(true);
     setLoadingMessage('Uploading Past Video...');
-  
+
     try {
       const pastUrl = await uploadVideo(pastVideoUri);
+      console.log('Past video URL:', pastUrl);
+      
       setLoadingMessage('Uploading New Video...');
       const newUrl = await uploadVideo(videoUri);
   
       setLoadingMessage('Analyzing performance...');
+      
+      // Try using URL parameters instead if multipart/form-data is causing issues
+      const compareUrl = `${API_CONFIG.BASE_URL}/compare`;
+      console.log('Making compare request to:', compareUrl);
+      
       const formDataCompare = new FormData();
       formDataCompare.append("past_video_url", pastUrl);
       formDataCompare.append("new_video_url", newUrl);
-  
-      const compareResponse = await fetch(`${API_CONFIG.BASE_URL}/compare`, {
+
+      const compareResponse = await fetch(compareUrl, {
         method: 'POST',
         body: formDataCompare,
         headers: {
@@ -97,7 +104,7 @@ export default function PerformanceScreen() {
         improvements: compareResult.improvements,
         regressions: compareResult.regressions,
       });
-  
+
     } catch (error) {
       Alert.alert(
         'Error',
@@ -109,7 +116,6 @@ export default function PerformanceScreen() {
     } finally {
       setLoading(false);
     }
-  
   }, [pastVideoUri, videoUri]);
 
   const pickVideo = async (setVideoFunction) => {
@@ -144,8 +150,53 @@ export default function PerformanceScreen() {
         },
       });
 
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.detail || 'Upload failed');
+      // Check if response is ok before trying to parse JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload API error response:', errorText);
+        throw new Error(errorText || 'Upload failed');
+      }
+      
+      // Get the response as text first so we can debug it
+      const responseText = await response.text();
+      console.log('Upload API response:', responseText);
+      
+      let result;
+      try {
+        // Try to parse the response as JSON
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse JSON:', parseError);
+        
+        // Fallback: if the response is a direct URL (starts with http)
+        if (responseText.trim().startsWith('http')) {
+          return responseText.trim();
+        }
+        
+        // Try to extract JSON from text (if response has JSON embedded)
+        if (responseText.includes('{') && responseText.includes('}')) {
+          try {
+            const jsonStart = responseText.indexOf('{');
+            const jsonEnd = responseText.lastIndexOf('}') + 1;
+            const jsonPart = responseText.substring(jsonStart, jsonEnd);
+            const extractedResult = JSON.parse(jsonPart);
+            
+            if (extractedResult.url) {
+              return extractedResult.url;
+            }
+          } catch (extractError) {
+            console.error('Failed to extract JSON:', extractError);
+          }
+        }
+        
+        throw new Error('Invalid response format from server');
+      }
+      
+      if (!result.url) {
+        console.error('Missing URL in response:', result);
+        throw new Error('Server response missing URL');
+      }
+      
       return result.url;
     } catch (error) {
       console.error('Upload error:', error);
@@ -208,9 +259,9 @@ export default function PerformanceScreen() {
         {/* Compare Button - Outside Panel */}
         <TouchableOpacity 
           style={[
-            styles.compareButton, 
+            styles.compareButton,
             (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
-          ]} 
+          ]}
           onPress={handleCompare}
         >
           <Text style={styles.compareButtonText}>COMPARE PERFORMANCE</Text>
@@ -334,7 +385,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginHorizontal: 20,
     padding: 25,
-    shadowColor: '#000',
+    shadowColor: Colors.primaryDeep,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -370,7 +421,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
   },
   compareButtonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
@@ -382,12 +433,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
     width: '90%',
     padding: 25,
     borderRadius: 24,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.primaryDeep,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -417,13 +468,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   uploadButtonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
     marginLeft: 10,
   },
   proceedButton: {
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     paddingVertical: 14,
     paddingHorizontal: 30,
     borderRadius: 12,
@@ -432,7 +483,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   proceedButtonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -453,7 +504,7 @@ const styles = StyleSheet.create({
   videoPlaceholder: {
     width: '90%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#111',
+    backgroundColor: Colors.background,
     borderRadius: 12,
     overflow: 'hidden',
     alignItems: 'center',
@@ -464,7 +515,7 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '70%',
     height: '70%',
-    tintColor: '#8D98A3',
+    tintColor: Colors.textSecondary,
   },
   previewVideo: {
     width: '100%',
@@ -473,7 +524,7 @@ const styles = StyleSheet.create({
   placeholderLabel: {
     position: 'absolute',
     bottom: 6,
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 12,
     fontWeight: '600',
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -493,15 +544,17 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   loadingBox: {
-    backgroundColor: '#1F2229',
+    backgroundColor: Colors.surfaceDark,
     padding: 30,
     borderRadius: 16,
     alignItems: 'center',
     width: '70%',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   loadingText: {
     marginTop: 20,
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 16,
     textAlign: 'center',
   },

@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from '@react-navigation/native'; // Import the hook
+import Colors from '../constants/color';
 
 export default function LiveMotionTrackingCard() {
   const navigation = useNavigation(); // Get the navigation object using the hook
-  
+
   const handleNavigate = () => {
     navigation.navigate('CameraScreen');  // Navigate to CameraScreen when the button is pressed
   };
@@ -38,9 +39,11 @@ const styles = StyleSheet.create({
     marginVertical: 15,
     width: '100%',
     alignSelf: 'center',
-    alignItems: 'center', 
+    alignItems: 'center',
     display: 'flex',
     justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardTitle: {
     position:'relative',
@@ -53,7 +56,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins',
     letterSpacing: 1.2,
     lineHeight: 32,
-    
   },
   button: {
     marginTop: 20,
@@ -65,8 +67,6 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     width: '70%',
-  
-
   },
   buttonText: {
     color: '#2D343C',
@@ -83,6 +83,5 @@ const styles = StyleSheet.create({
     width: '50%',
     
     alignItems: 'left',
-
   },
 });

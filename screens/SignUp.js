@@ -15,6 +15,7 @@ import bcrypt from 'react-native-bcrypt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import Colors from '../constants/color';
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -75,14 +76,14 @@ export default function SignUp({ setIsLoggedIn }) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
-  
+
       // Clear sessions
       await account.deleteSessions().catch(() => {});
-  
+
       // Create account
       const userId = ID.unique();
       const user = await account.create(userId, email, password, name);
-  
+
       // Create profile with online status
       await databases.createDocument(
         DATABASE_ID,
@@ -96,31 +97,31 @@ export default function SignUp({ setIsLoggedIn }) {
           lastSeen: new Date()
         }
       ).catch(() => {}); // Silently ignore if fails
-  
+
       // Create session
       await account.createEmailPasswordSession(email, password);
       await AsyncStorage.setItem('profile_name', name);
       setIsLoggedIn(true);
-  
+
     } catch (error) {
       console.error("SignUp Error Details:", {
         message: error.message,
         code: error.code,
         type: error.type
       });
-      
+
       let errorMessage = error.message;
       if (error.code === 409) { // User already exists
         errorMessage = "This email is already registered";
       }
-      
+
       Alert.alert("Sign Up Error", errorMessage);
     }
   };
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#01CC97", "#22272B"]} style={styles.topSection}>
+      <LinearGradient colors={[Colors.primary, Colors.background]} style={styles.topSection}>
         <Text style={styles.welcomeText}>Create Account</Text>
       </LinearGradient>
 
@@ -130,12 +131,12 @@ export default function SignUp({ setIsLoggedIn }) {
         <View>
           <Text style={styles.inputText}>Name</Text>
           <View style={styles.inputWrapper}>
-            <Octicons name="person" size={20} color="#01CC97" />
+            <Octicons name="person" size={20} color={Colors.primary} />
             <TextInput
               style={styles.input}
               placeholder="Enter Your Name"
-              placeholderTextColor="#777"
-              cursorColor={"#000"}
+              placeholderTextColor={Colors.textSecondary}
+              cursorColor={Colors.primary}
               value={name}
               onChangeText={setName}
             />
@@ -145,12 +146,12 @@ export default function SignUp({ setIsLoggedIn }) {
         <View>
           <Text style={styles.inputText}>Email</Text>
           <View style={styles.inputWrapper}>
-            <Octicons name="mail" size={20} color="#01CC97" />
+            <Octicons name="mail" size={20} color={Colors.primary} />
             <TextInput
               style={styles.input}
               placeholder="Enter Your Email"
-              placeholderTextColor="#777"
-              cursorColor={"#000"}
+              placeholderTextColor={Colors.textSecondary}
+              cursorColor={Colors.primary}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -162,12 +163,12 @@ export default function SignUp({ setIsLoggedIn }) {
         <View>
           <Text style={styles.inputText}>Password</Text>
           <View style={styles.inputWrapper}>
-            <Octicons name="lock" size={20} color="#01CC97" />
+            <Octicons name="lock" size={20} color={Colors.primary} />
             <TextInput
               style={[styles.input]}
               placeholder="Enter Your Password"
-              placeholderTextColor="#777"
-              cursorColor={"#000"}
+              placeholderTextColor={Colors.textSecondary}
+              cursorColor={Colors.primary}
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
@@ -179,7 +180,7 @@ export default function SignUp({ setIsLoggedIn }) {
               <Ionicons
                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                 size={20}
-                color="#555"
+                color={Colors.textSecondary}
               />
             </TouchableOpacity>
           </View>
@@ -191,13 +192,13 @@ export default function SignUp({ setIsLoggedIn }) {
           </TouchableOpacity>
         </View>
         <LinearGradient
-          colors={['#01CC97', '#000000']}
+          colors={[Colors.primary, Colors.background]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0.2, y: 1 }}
           style={[styles.loginButton, styles.androidShadow]}
         >
           <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
-            <Ionicons name="arrow-forward" size={28} color="#fff" />
+            <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
           </TouchableOpacity>
         </LinearGradient>
 
@@ -216,13 +217,13 @@ export default function SignUp({ setIsLoggedIn }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#e5e5e5",
+    backgroundColor: Colors.background,
   },
   topSection: {
     height: "50%",
   },
   welcomeText: {
-    color: "#fff",
+    color: Colors.textPrimary,
     fontSize: 40,
     fontWeight: "bold",
     marginTop: "40%",
@@ -230,7 +231,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flex: 1,
-    backgroundColor: "#1F2229",
+    backgroundColor: Colors.surfaceDark,
     marginTop: -80,
     alignItems: "center",
     borderTopLeftRadius: 30,
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   signUpText: {
-    color: "#01CC97",
+    color: Colors.primary,
     fontSize: 24,
     fontWeight: "bold",
     marginTop: 35,
@@ -249,8 +250,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "90%",
-    backgroundColor: "#1F2229",
-    borderColor: "#01CC97",
+    backgroundColor: Colors.surfaceDark,
+    borderColor: Colors.primary,
     borderWidth: 2,
     borderRadius: 30,
     paddingLeft: 10,
@@ -260,10 +261,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     fontSize: 16,
-    color: "#fff",
+    color: Colors.textPrimary,
   },
   inputText: {
-    color: "white",
+    color: Colors.textPrimary,
     fontSize: 16,
     marginBottom: 10,
   },
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -30,
     right: 40,
-    backgroundColor: "#333",
+    backgroundColor: Colors.primaryDeep,
     padding: 16,
     borderRadius: 50,
     justifyContent: "center",
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonText: {
-    color: "#fff",
+    color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -290,11 +291,11 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   signInText: {
-    color: "#01CC97",
+    color: Colors.primary,
     fontWeight: 'bold',
   },
   googleButton: {
-    backgroundColor: '#4285F4', // Google Blue
+    backgroundColor: Colors.accentBlue,
     padding: 15,
     borderRadius: 30,
     alignItems: 'center',
@@ -302,7 +303,7 @@ const styles = StyleSheet.create({
     width: '90%',
   },
   googleButtonText: {
-    color: '#fff',
+    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: 'bold',
   },

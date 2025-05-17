@@ -202,6 +202,8 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 40,
     marginRight: 15,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   button: {
     backgroundColor: 'transparent',
@@ -219,7 +221,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   logoutButton: {
-    borderColor: '#FF3B30',
+    borderColor: Colors.primary,
   },
   buttonText: {
     color: '#fff',
@@ -230,11 +232,11 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.textPrimary,
   },
   name: {
     fontSize: 18,
-    color: '#ddd',
+    color: Colors.textSecondary,
     marginTop: 5,
   },
   buttonContainer: {

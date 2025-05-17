@@ -37,7 +37,7 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   background: {
     flex: 1,
-    resizeMode: 'cover', // Ensures the background image covers the entire screen
+    resizeMode: 'cover',
   },
   container: {
     flex: 1,
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   buttonText: {
-    color: "white",
+    color: Colors.textPrimary,
     fontSize: 18,
   },
   title: {
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 16,
     marginBottom: 20,
-    color: '#ddd', // Lightened text for better visibility
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
 });

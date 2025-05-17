@@ -1,16 +1,18 @@
-import React from 'react';
+// React is used implicitly for JSX
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
+import Colors from '../constants/color';
+import Fonts from '../constants/fonts';
 
 // Import all your screens
 import HomeScreen from '../screens/HomeScreen';
 import test from '../screens/test';
 import CommunityScreen from '../screens/CommunityScreen';
 import ProgressScreen from '../screens/ProgressScreen';
-import PostsScreen from '../screens/PostsScreen'; 
-import PostDetailScreen from '../screens/PostDetailScreen'; 
-import CreatePostScreen from '../screens/CreatePostScreen'; 
+import PostsScreen from '../screens/PostsScreen';
+import PostDetailScreen from '../screens/PostDetailScreen';
+import CreatePostScreen from '../screens/CreatePostScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
@@ -31,8 +33,14 @@ function MainTabs({ setIsLoggedIn }) {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1A1F23',
+          backgroundColor: Colors.background,
           borderTopWidth: 0,
+          elevation: 0, // Remove shadow on Android
+          shadowOpacity: 0, // Remove shadow on iOS
+          borderTopColor: 'transparent',
+          height: 60,
+          paddingBottom: 5, // Add padding to avoid conflict with phone navigation
+          marginBottom: 5, // Add margin to avoid conflict with phone navigation
         },
         tabBarActiveTintColor: '#ff4c48',
         tabBarInactiveTintColor: '#888',
@@ -68,73 +76,77 @@ function MainTabs({ setIsLoggedIn }) {
 
 export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
   return (
-    <Stack.Navigator>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: Colors.background },
+        // Explicitly set header styles to avoid font issues
+        headerTitleStyle: {
+          ...Fonts.getFont('large', 'bold'),
+          color: Colors.textPrimary,
+        },
+        headerBackTitleStyle: {
+          ...Fonts.getFont('medium', 'regular'),
+          color: Colors.textPrimary,
+        }
+      }}
+    >
       {isLoggedIn ? (
         <>
-          <Stack.Screen name="MainTabs" options={{ headerShown: false }}>
+          <Stack.Screen name="MainTabs">
             {(props) => <MainTabs {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
-          
+
           {/* Add new post-related screens */}
-          <Stack.Screen 
-            name="PostDetail" 
-            component={PostDetailScreen} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="PostDetail"
+            component={PostDetailScreen}
           />
-          <Stack.Screen 
-            name="CreatePost" 
-            component={CreatePostScreen} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="CreatePost"
+            component={CreatePostScreen}
           />
 
           {/* Existing screens */}
-          <Stack.Screen 
-            name="FindFriend" 
-            component={FindFriendScreen} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="FindFriend"
+            component={FindFriendScreen}
           />
-          <Stack.Screen 
-            name="test" 
-            component={test} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="test"
+            component={test}
           />
-          <Stack.Screen 
-            name="Chat" 
-            component={ChatScreen} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="Chat"
+            component={ChatScreen}
           />
-          <Stack.Screen 
-            name="SearchFriends" 
-            component={SearchFriendsScreen} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="SearchFriends"
+            component={SearchFriendsScreen}
           />
-          <Stack.Screen 
-            name="NoConversation" 
-            component={NoConversationScreen} 
-            options={{ headerShown: false }}
+          <Stack.Screen
+            name="NoConversation"
+            component={NoConversationScreen}
           />
           <Stack.Screen
             name="CameraScreen"
             component={CameraScreen}
-            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="Performance"
             component={PerformanceScreen}
-            options={{ headerShown: false }}
           />
           <Stack.Screen
             name="PerformanceComparisonScreen"
             component={PerformanceComparisonScreen}
-            options={{ headerShown: false }}
           />
         </>
       ) : (
         <>
-          <Stack.Screen name="SignIn" options={{ headerShown: false }}>
+          <Stack.Screen name="SignIn">
             {(props) => <SignIn {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
-          <Stack.Screen name="SignUp" options={{ headerShown: false }}>
+          <Stack.Screen name="SignUp">
             {(props) => <SignUp {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
         </>

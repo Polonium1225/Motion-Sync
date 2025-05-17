@@ -65,7 +65,7 @@ export default function SignIn({ setIsLoggedIn }) {
   };
 
   const handleNavigateToSignUp = () => {
-    navigation.navigate("SignUp"); 
+    navigation.navigate("SignUp");
   };
 
   return (
@@ -85,7 +85,7 @@ export default function SignIn({ setIsLoggedIn }) {
 
         <View style={styles.formContainer}>
           <Text style={styles.signInText}>Sign In</Text>
-          
+
           {/* Email Input */}
           <View>
             <Text style={styles.inputText}>Email</Text>
@@ -94,8 +94,8 @@ export default function SignIn({ setIsLoggedIn }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
-                placeholderTextColor="#777"
-                cursorColor={"#000"}
+                placeholderTextColor={Colors.textSecondary}
+                cursorColor={Colors.primary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -113,8 +113,8 @@ export default function SignIn({ setIsLoggedIn }) {
               <TextInput
                 style={styles.input}
                 placeholder="Enter Your Password"
-                placeholderTextColor="#777"
-                cursorColor={"#000"}
+                placeholderTextColor={Colors.textSecondary}
+                cursorColor={Colors.primary}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -124,7 +124,7 @@ export default function SignIn({ setIsLoggedIn }) {
                 <Ionicons
                   name={showPassword ? "eye-off-outline" : "eye-outline"}
                   size={20}
-                  color="#555"
+                  color={Colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
@@ -149,11 +149,11 @@ export default function SignIn({ setIsLoggedIn }) {
             style={[styles.loginButton, styles.androidShadow]}
             pointerEvents="box-none"
           >
-            <TouchableOpacity 
-              style={styles.buttonInner} 
+            <TouchableOpacity
+              style={styles.buttonInner}
               onPress={handleLogin}
             >
-              <Ionicons name="arrow-forward" size={28} color="#fff" />
+              <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
     height: "50%",
   },
   welcomeText: {
-    color: "#fff",
+    color: Colors.textPrimary,
     fontSize: 40,
     fontWeight: "bold",
     marginTop: "40%",
@@ -209,15 +209,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     fontSize: 16,
-    color: "#fff",
+    color: Colors.textPrimary,
   },
   inputText: {
-    color: "white",
+    color: Colors.textPrimary,
     fontSize: 16,
     marginBottom: 10,
   },
   forgotPassword: {
-    color: "#fff",
+    color: Colors.textPrimary,
     alignSelf: "flex-start",
     marginBottom: 20,
   },
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -30,
     right: 40,
-    backgroundColor: "#333",
+    backgroundColor: Colors.primaryDeep,
     padding: 16,
     borderRadius: 50,
     justifyContent: "center",
