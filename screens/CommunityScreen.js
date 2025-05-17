@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { useNavigation } from '@react-navigation/native';
 import { account, getUserConversations } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
+import Colors from '../constants/color';
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
@@ -14,7 +15,7 @@ export default function CommunityScreen() {
     try {
       const user = await account.get();
       const conversations = await getUserConversations(user.$id);
-      
+
       if (conversations.length > 0) {
         navigation.navigate('FindFriend');
       } else {
@@ -31,14 +32,14 @@ export default function CommunityScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Community</Text>
-      
+
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#01CC97" />
+          <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Checking your conversations...</Text>
         </View>
       ) : (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.button}
           onPress={handleChatPress}
         >
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     alignItems: 'center',
     padding: 20,
   },
@@ -61,17 +62,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 40,
-    color: '#fff'
+    color: Colors.textPrimary
   },
   button: {
-    backgroundColor: '#01CC97',
+    backgroundColor: Colors.primary,
     padding: 15,
     borderRadius: 10,
     width: '80%',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontWeight: 'bold',
     fontSize: 18,
   },
@@ -80,6 +81,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 20,
-    color: '#666',
+    color: Colors.textSecondary,
   }
 });

@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { account, userProfiles } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Colors from '../constants/color';
 
 export default function SignIn({ setIsLoggedIn }) {
   const [email, setEmail] = useState("");
@@ -61,32 +62,32 @@ export default function SignIn({ setIsLoggedIn }) {
   };
 
   const handleNavigateToSignUp = () => {
-    navigation.navigate("SignUp"); 
+    navigation.navigate("SignUp");
   };
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"} // Prevents keyboard dismissal
       style={{ flex: 1 }}
     >
       <View style={styles.container}>
-        <LinearGradient colors={["#01CC97", "#22272B"]} style={styles.topSection}>
+        <LinearGradient colors={[Colors.primary, Colors.background]} style={styles.topSection}>
           <Text style={styles.welcomeText}>Welcome Back</Text>
         </LinearGradient>
 
         <View style={styles.formContainer}>
           <Text style={styles.signInText}>Sign In</Text>
-          
+
           {/* Email Input */}
           <View>
             <Text style={styles.inputText}>Email</Text>
             <View style={styles.inputWrapper}>
-              <Octicons name="person" size={20} color="#01CC97" />
+              <Octicons name="person" size={20} color={Colors.primary} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter your email"
-                placeholderTextColor="#777"
-                cursorColor={"#000"}
+                placeholderTextColor={Colors.textSecondary}
+                cursorColor={Colors.primary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -100,12 +101,12 @@ export default function SignIn({ setIsLoggedIn }) {
           <View>
             <Text style={styles.inputText}>Password</Text>
             <View style={styles.inputWrapper}>
-              <Octicons name="lock" size={20} color="#01CC97" />
+              <Octicons name="lock" size={20} color={Colors.primary} />
               <TextInput
                 style={styles.input}
                 placeholder="Enter Your Password"
-                placeholderTextColor="#777"
-                cursorColor={"#000"}
+                placeholderTextColor={Colors.textSecondary}
+                cursorColor={Colors.primary}
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
@@ -115,7 +116,7 @@ export default function SignIn({ setIsLoggedIn }) {
                 <Ionicons
                   name={showPassword ? "eye-off-outline" : "eye-outline"}
                   size={20}
-                  color="#555"
+                  color={Colors.textSecondary}
                 />
               </TouchableOpacity>
             </View>
@@ -134,17 +135,17 @@ export default function SignIn({ setIsLoggedIn }) {
 
           {/* Fixed Login Button with pointerEvents */}
           <LinearGradient
-            colors={['#01CC97', '#000000']}
+            colors={[Colors.primary, Colors.background]}
             start={{ x: 0, y: 0 }}
             end={{ x: 0.2, y: 1 }}
             style={[styles.loginButton, styles.androidShadow]}
             pointerEvents="box-none" // 👈 Allow touches to pass through
           >
-            <TouchableOpacity 
-              style={styles.buttonInner} 
+            <TouchableOpacity
+              style={styles.buttonInner}
               onPress={handleLogin}
             >
-              <Ionicons name="arrow-forward" size={28} color="#fff" />
+              <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -156,13 +157,13 @@ export default function SignIn({ setIsLoggedIn }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#e5e5e5",
+    backgroundColor: Colors.background,
   },
   topSection: {
     height: "50%",
   },
   welcomeText: {
-    color: "#fff",
+    color: Colors.textPrimary,
     fontSize: 40,
     fontWeight: "bold",
     marginTop: "40%",
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     flex: 1,
-    backgroundColor: "#1F2229",
+    backgroundColor: Colors.surfaceDark,
     marginTop: -80,
     alignItems: 'center',
     borderTopLeftRadius: 30,
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   signInText: {
-    color: "#01CC97",
+    color: Colors.primary,
     fontSize: 24,
     fontWeight: "bold",
     marginTop: 35,
@@ -189,8 +190,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     width: "90%",
-    backgroundColor: "#1F2229",
-    borderColor: "#01CC97",
+    backgroundColor: Colors.surfaceDark,
+    borderColor: Colors.primary,
     borderWidth: 2,
     borderRadius: 30,
     paddingLeft: 10,
@@ -200,15 +201,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     fontSize: 16,
-    color: "#fff",
+    color: Colors.textPrimary,
   },
   inputText: {
-    color: "white",
+    color: Colors.textPrimary,
     fontSize: 16,
     marginBottom: 10,
   },
   forgotPassword: {
-    color: "#fff",
+    color: Colors.textPrimary,
     alignSelf: "flex-start",
     marginBottom: 20,
   },
@@ -216,14 +217,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -30,
     right: 40,
-    backgroundColor: "#333",
+    backgroundColor: Colors.primaryDeep,
     padding: 16,
     borderRadius: 50,
     justifyContent: "center",
     alignItems: "center",
   },
   signUpText: {
-    color: "#01CC97",
+    color: Colors.primary,
     fontWeight: 'bold',
   },
   boxShadow: {

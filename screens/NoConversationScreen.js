@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import Colors from '../constants/color';
 
 export default function NoConversationScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>No conversations yet</Text>
       <Text style={styles.subtitle}>Start chatting with someone!</Text>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate('SearchFriends')}
       >
@@ -19,7 +20,7 @@ export default function NoConversationScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -28,22 +29,22 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 10,
-    color: '#333'
+    color: Colors.textPrimary
   },
   subtitle: {
     fontSize: 16,
     marginBottom: 30,
-    color: '#666'
+    color: Colors.textSecondary
   },
   button: {
-    backgroundColor: '#01CC97',
+    backgroundColor: Colors.primary,
     padding: 15,
     borderRadius: 10,
     width: '80%',
     alignItems: 'center',
   },
   buttonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontWeight: 'bold',
     fontSize: 18,
   },

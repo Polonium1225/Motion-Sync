@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native'; // Import the hook
+import Colors from '../constants/color';
 
 export default function LiveMotionTrackingCard() {
   const navigation = useNavigation(); // Get the navigation object using the hook
-  
+
   const handleNavigate = () => {
     navigation.navigate('CameraScreen');  // Navigate to CameraScreen when the button is pressed
   };
@@ -33,34 +34,36 @@ export default function LiveMotionTrackingCard() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
     borderRadius: 10,
     paddingVertical: 30,
     paddingHorizontal: 10,
     marginVertical: 15,
     width: '100%',
     alignSelf: 'center',
-    alignItems: 'center', 
+    alignItems: 'center',
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardTitle: {
     fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#01C594',
-    fontFamily: 'Poppins',
+    color: Colors.primary,
     letterSpacing: 1.2,
     lineHeight: 32,
-    
   },
   imageContainer: {
-    backgroundColor: '#ddd',
+    backgroundColor: Colors.background,
     width: '50%',
     height: 120,
     borderRadius: 10,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   image: {
     width: '100%',
@@ -68,27 +71,23 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 20,
-    backgroundColor: '#01C594',
+    backgroundColor: Colors.primary,
     paddingVertical: 8,
     paddingHorizontal: 5,
     borderRadius: 30,
     alignItems: 'center',
     width: '70%',
-  
-
   },
   buttonText: {
-    color: '#2D343C',
+    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 2,
     lineHeight: 22,
-    fontFamily: 'Poppins',
   },
   TextContainer: {
     width: '50%',
     alignItems: 'left',
-
   },
 });

@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } fr
 import * as DocumentPicker from 'expo-document-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { API_CONFIG } from 'config'; // Import centralized config
+import { API_CONFIG } from './config'; // Import centralized config
+import Colors from '../constants/color';
 
 const SERVER_URL = `${API_CONFIG.BASE_URL}/uploads`; // Use config for base URL
 
@@ -103,13 +104,13 @@ export default function VideoUploadScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#1F2229', '#2D343C']} style={styles.gradient}>
+      <LinearGradient colors={Colors.gradientCard} style={styles.gradient}>
         <Text style={styles.title}>Upload Videos for Comparison</Text>
 
         <View style={styles.uploadContainer}>
           <Text style={styles.label}>Past Performance Video</Text>
           <TouchableOpacity style={styles.uploadButton} onPress={() => pickVideo('past')}>
-            <Ionicons name="cloud-upload-outline" size={24} color="#fff" />
+            <Ionicons name="cloud-upload-outline" size={24} color={Colors.textPrimary} />
             <Text style={styles.uploadText}>
               {pastVideo ? pastVideo.name : 'Select Past Video'}
             </Text>
@@ -119,7 +120,7 @@ export default function VideoUploadScreen({ navigation }) {
         <View style={styles.uploadContainer}>
           <Text style={styles.label}>Current Performance Video</Text>
           <TouchableOpacity style={styles.uploadButton} onPress={() => pickVideo('new')}>
-            <Ionicons name="cloud-upload-outline" size={24} color="#fff" />
+            <Ionicons name="cloud-upload-outline" size={24} color={Colors.textPrimary} />
             <Text style={styles.uploadText}>
               {newVideo ? newVideo.name : 'Select Current Video'}
             </Text>
@@ -132,7 +133,7 @@ export default function VideoUploadScreen({ navigation }) {
           disabled={uploading}
         >
           {uploading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={Colors.textPrimary} />
           ) : (
             <Text style={styles.compareText}>Compare Videos</Text>
           )}
@@ -154,7 +155,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#fff',
+    color: Colors.textPrimary,
     textAlign: 'center',
     marginBottom: 30,
   },
@@ -164,32 +165,34 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#8D98A3',
+    color: Colors.textSecondary,
     marginBottom: 10,
   },
   uploadButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3A424A',
+    backgroundColor: Colors.surfaceDark,
     padding: 15,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   uploadText: {
-    color: '#fff',
+    color: Colors.textPrimary,
     marginLeft: 10,
     fontSize: 16,
   },
   compareButton: {
-    backgroundColor: '#01CC97',
+    backgroundColor: Colors.primary,
     padding: 15,
     borderRadius: 30,
     alignItems: 'center',
   },
   disabledButton: {
-    backgroundColor: '#666',
+    backgroundColor: Colors.surfaceDark,
   },
   compareText: {
-    color: '#fff',
+    color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: '600',
   },

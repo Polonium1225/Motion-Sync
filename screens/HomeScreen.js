@@ -4,6 +4,7 @@ import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
+import Colors from '../constants/color';
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const [profileData, setProfileData] = React.useState({
@@ -183,7 +184,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     padding: 20,
   },
   profileImageContainer: {
@@ -196,12 +197,14 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 40,
     marginRight: 15,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   button: {
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.surfaceDark,
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: '#01CC97',
+    borderColor: Colors.primary,
     borderWidth: 2,
     borderRadius: 30,
     marginTop: 15,
@@ -212,21 +215,21 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   logoutButton: {
-    borderColor: '#FF3B30',
+    borderColor: Colors.primary,
   },
   buttonText: {
-    color: '#fff',
+    color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: '600',
   },
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: Colors.textPrimary,
   },
   name: {
     fontSize: 18,
-    color: '#ddd',
+    color: Colors.textSecondary,
     marginTop: 5,
   },
   buttonContainer: {

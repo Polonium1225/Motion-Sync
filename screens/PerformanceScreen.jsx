@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import { saveHistory, getUserId } from '../lib/AppwriteService';
 import { API_CONFIG } from './config'; // Import centralized config
+import Colors from '../constants/color';
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
@@ -44,26 +45,26 @@ export default function PerformanceScreen() {
       Alert.alert('Missing Video', 'Please select a past performance video');
       return;
     }
-    
+
     if (!videoUri) {
       Alert.alert('Missing Video', 'Please select a new performance video');
       return;
     }
-  
+
     setLoading(true);
     setLoadingMessage('Uploading Past Video...');
-  
+
     try {
       const pastUrl = await uploadVideo(pastVideoUri);
       setLoadingMessage('Uploading New Video...');
       const newUrl = await uploadVideo(videoUri);
-  
+
       // Call /compare endpoint
       setLoadingMessage('Analyzing performance...');
       const formDataCompare = new FormData();
       formDataCompare.append("past_video_url", pastUrl);
       formDataCompare.append("new_video_url", newUrl);
-  
+
       const compareResponse = await fetch(`${API_CONFIG.BASE_URL}/compare`, {
         method: 'POST',
         body: formDataCompare,
@@ -71,11 +72,11 @@ export default function PerformanceScreen() {
           'Content-Type': 'multipart/form-data',
         },
       });
-  
+
       const compareResult = await compareResponse.json();
-  
+
       if (!compareResponse.ok) throw new Error(compareResult.detail || 'Comparison failed');
-  
+
       // Navigate with both video URLs + metrics
       navigation.navigate('PerformanceComparisonScreen', {
         videoUri: newUrl,
@@ -85,14 +86,14 @@ export default function PerformanceScreen() {
         improvements: compareResult.improvements,
         regressions: compareResult.regressions,
       });
-  
+
     } catch (error) {
       Alert.alert('Error', 'Failed to upload or compare videos. Please try again.');
       console.error(error);
     } finally {
       setLoading(false);
     }
-  
+
   }, [pastVideoUri, videoUri]);
 
   const pickVideo = async (setVideoFunction) => {
@@ -186,11 +187,11 @@ export default function PerformanceScreen() {
         <Text style={styles.compareText}>Compare Past vs. Present Movements</Text>
 
         {/* Single Compare Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.compareButton, 
+            styles.compareButton,
             (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
-          ]} 
+          ]}
           onPress={handleCompare}
         >
           <Text style={styles.compareButtonText}>COMPARE PERFORMANCE</Text>
@@ -271,7 +272,7 @@ export default function PerformanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#22272B' },
+  container: { flex: 1, backgroundColor: Colors.background },
   flexModel: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -283,31 +284,31 @@ const styles = StyleSheet.create({
     paddingTop: 45,
     paddingBottom: 15,
     paddingHorizontal: 20,
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
     borderBottomWidth: 1,
-    borderBottomColor: '#3A424A'
+    borderBottomColor: Colors.border
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
     marginLeft: 15,
-    color: 'white',
+    color: Colors.textPrimary,
     letterSpacing: 0.5
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '800',
     marginVertical: 20,
-    color: '#00ffc0',
+    color: Colors.accentBlue,
     paddingHorizontal: 20,
     alignSelf: 'flex-start'
   },
   improvementContainer: {
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
     borderRadius: 20,
     margin: 20,
     padding: 25,
-    shadowColor: '#000',
+    shadowColor: Colors.primaryDeep,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -318,28 +319,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginVertical: 15,
-    color: 'white',
+    color: Colors.textPrimary,
     lineHeight: 24
   },
   compareButton: {
-    backgroundColor: '#07A07C',
+    backgroundColor: Colors.primary,
     paddingVertical: 16,
     paddingHorizontal: 30,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#07A07C',
+    shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     marginTop: 20
   },
   compareButtonDisabled: {
-    backgroundColor: '#4A5058',
-    shadowColor: '#000',
+    backgroundColor: Colors.surfaceDark,
+    shadowColor: Colors.background,
   },
   compareButtonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5
@@ -351,12 +352,12 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   modalContainer: {
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
     width: '90%',
     padding: 25,
     borderRadius: 24,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.primaryDeep,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 20,
-    color: 'white',
+    color: Colors.textPrimary,
     textAlign: 'center'
   },
   videoPreview: {
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
     marginVertical: 15
   },
   uploadButton: {
-    backgroundColor: '#07A07C',
+    backgroundColor: Colors.primary,
     paddingVertical: 14,
     paddingHorizontal: 30,
     borderRadius: 12,
@@ -386,13 +387,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   uploadButtonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
     marginLeft: 10
   },
   proceedButton: {
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     paddingVertical: 14,
     paddingHorizontal: 30,
     borderRadius: 12,
@@ -401,7 +402,7 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   proceedButtonText: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 15,
     fontWeight: '700'
   },
@@ -410,7 +411,7 @@ const styles = StyleSheet.create({
     height: 120,
     resizeMode: 'contain',
     marginVertical: 20,
-    tintColor: '#8D98A3'
+    tintColor: Colors.textSecondary
   },
   closeButton: {
     padding: 5,
@@ -425,17 +426,19 @@ const styles = StyleSheet.create({
   videoPlaceholder: {
     width: '40%',
     aspectRatio: 16 / 9,
-    backgroundColor: '#111',
+    backgroundColor: Colors.background,
     borderRadius: 12,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 5,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   previewImage: {
     width: '70%',
     height: '70%',
-    tintColor: '#8D98A3',
+    tintColor: Colors.textSecondary,
   },
   previewVideo: {
     width: '100%',
@@ -444,7 +447,7 @@ const styles = StyleSheet.create({
   placeholderLabel: {
     position: 'absolute',
     bottom: 6,
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 12,
     fontWeight: '600',
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -466,15 +469,17 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   loadingBox: {
-    backgroundColor: '#1F2229',
+    backgroundColor: Colors.surfaceDark,
     padding: 30,
     borderRadius: 16,
     alignItems: 'center',
     width: '70%',
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   loadingText: {
     marginTop: 20,
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 16,
     textAlign: 'center',
   },
