@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator, Alert, SafeAreaView, StatusBar } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import { 
@@ -10,6 +10,8 @@ import {
   getLikeCount,
   getUserId
 } from '../lib/AppwriteService';
+import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
+import backgroundImage from '../assets/sfgsdh.png';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
 
@@ -120,76 +122,88 @@ const PostDetailScreen = ({ route }) => {
 
   if (loading || !post) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
       </View>
     );
   }
-
   return (
-    <View style={styles.container}>
-      <View style={styles.postContainer}>
-      <View style={styles.header}>
-        <Image 
-          source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
-          style={styles.avatar}
-          defaultSource={DEFAULT_AVATAR}
-        />
-        <Text style={styles.username}>{post.user?.name}</Text>
-      </View>
-        
-        <Text style={styles.content}>{post.content}</Text>
-        
-        {post.imageUrl && (
-          <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
-        )}
-        
-        <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-            <Ionicons 
-              name={isLiked ? "heart" : "heart-outline"} 
-              size={24} 
-              color={isLiked ? "#ff0000" : "#000"} 
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
+          <View style={styles.postContainer}>
+          <View style={styles.header}>
+            <Image 
+              source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
+              style={styles.avatar}
+              defaultSource={DEFAULT_AVATAR}
             />
-            <Text style={styles.actionText}>{likeCount}</Text>
-          </TouchableOpacity>
+            <Text style={styles.username}>{post.user?.name}</Text>
+          </View>
+            
+            <Text style={styles.content}>{post.content}</Text>
+            
+            {post.imageUrl && (
+              <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+            )}
+            
+            <View style={styles.actions}>
+              <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+                <Ionicons 
+                  name={isLiked ? "heart" : "heart-outline"} 
+                  size={24} 
+                  color={isLiked ? "#ff0000" : "#000"} 
+                />
+                <Text style={styles.actionText}>{likeCount}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          <FlatList
+            data={post.comments}
+            renderItem={renderComment}
+            keyExtractor={item => item.$id}
+            style={styles.commentsList}
+          />
+          
+          <View style={styles.commentInputContainer}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Write a comment..."
+              value={comment}
+              onChangeText={setComment}
+            />
+            <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
+              {commentLoading ? (
+                <ActivityIndicator size="small" color="#007AFF" />
+              ) : (
+                <Ionicons name="send" size={24} color="#007AFF" />
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-      
-      <FlatList
-        data={post.comments}
-        renderItem={renderComment}
-        keyExtractor={item => item.$id}
-        style={styles.commentsList}
-      />
-      
-      <View style={styles.commentInputContainer}>
-        <TextInput
-          style={styles.commentInput}
-          placeholder="Write a comment..."
-          value={comment}
-          onChangeText={setComment}
-        />
-        <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
-          {commentLoading ? (
-            <ActivityIndicator size="small" color="#007AFF" />
-          ) : (
-            <Ionicons name="send" size={24} color="#007AFF" />
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
+        
+      </SafeAreaView>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.background,
     padding: 15,
   },
   postContainer: {
     marginBottom: 20,
+    backgroundColor: Colors.surfaceDark,
+    borderRadius: 12,
+    padding: 12,
   },
   header: {
     flexDirection: 'row',
@@ -201,14 +215,18 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 10,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   username: {
     fontWeight: 'bold',
     fontSize: 16,
+    color: Colors.textPrimary,
   },
   content: {
     marginBottom: 10,
     fontSize: 15,
+    color: Colors.textPrimary,
   },
   postImage: {
     width: '100%',
@@ -220,7 +238,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: Colors.border,
   },
   actionButton: {
     flexDirection: 'row',
@@ -230,12 +248,13 @@ const styles = StyleSheet.create({
   actionText: {
     marginLeft: 5,
     fontSize: 14,
+    color: Colors.textPrimary,
   },
   commentContainer: {
     flexDirection: 'row',
     marginBottom: 16,
     padding: 12,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: Colors.surfaceDark,
     borderRadius: 12,
   },
   commentAvatar: {
@@ -243,6 +262,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   commentContent: {
     flex: 1,
@@ -255,15 +276,15 @@ const styles = StyleSheet.create({
   commentAuthor: {
     fontWeight: 'bold',
     fontSize: 14,
-    color: '#333',
+    color: Colors.textPrimary,
   },
   commentDate: {
     fontSize: 12,
-    color: '#888',
+    color: Colors.textSecondary,
   },
   commentText: {
     fontSize: 14,
-    color: '#333',
+    color: Colors.textPrimary,
     lineHeight: 20,
   },
   commentsList: {
@@ -273,16 +294,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#eee',
+    borderTopColor: Colors.border,
     paddingTop: 10,
   },
   commentInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: Colors.primary,
     borderRadius: 20,
     padding: 10,
     marginRight: 10,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.surfaceDark,
   },
 });
 

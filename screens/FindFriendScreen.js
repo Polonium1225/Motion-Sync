@@ -9,7 +9,10 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   BackHandler,
-  Image
+  Image,
+  ImageBackground,
+  StatusBar,
+  SafeAreaView
 } from 'react-native';
 import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
@@ -18,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 const DEFAULT_AVATAR = require('../assets/avatar.png');
 const PROJECT_ID = '67d0bb27002cfc0b22d2'; 
 const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
+const backgroundImage = require('../assets/sfgsdh.png');
 
 export default function FindFriendScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
@@ -218,65 +222,74 @@ const renderConversationItem = ({ item }) => {
   const filteredConversations = getFilteredConversations();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.navigate('MainTabs', { screen: 'Community' })}
-        >
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Your Conversations</Text>
-        <TouchableOpacity 
-          style={styles.newChatButton}
-          onPress={() => navigation.navigate('SearchFriends')}
-        >
-          <Text style={styles.newChatButtonText}>New Chat</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Search conversations..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
-      
-      {filteredConversations.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {searchQuery ? "No conversations match your search" : "No conversations found"}
-          </Text>
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Community' })}
+            >
+              <Ionicons name="arrow-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <Text style={styles.title}>Your Conversations</Text>
+            <TouchableOpacity 
+              style={styles.newChatButton}
+              onPress={() => navigation.navigate('SearchFriends')}
+            >
+              <Text style={styles.newChatButtonText}>New Chat</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <TextInput
+            style={styles.searchBar}
+            placeholder="Search conversations..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          
+          {filteredConversations.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {searchQuery ? "No conversations match your search" : "No conversations found"}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredConversations}
+              keyExtractor={(item) => item.$id}
+              renderItem={renderConversationItem}
+            />
+          )}
         </View>
-      ) : (
-        <FlatList
-          data={filteredConversations}
-          keyExtractor={(item) => item.$id}
-          renderItem={renderConversationItem}
-        />
-      )}
-    </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    color:'#fff',
+    color: Colors.textPrimary,
     borderBottomWidth: 1,
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
   },
   backButton: {
     marginRight: 10,
   },
   title: {
-    color:'#fff',
+    color: Colors.textPrimary,
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
@@ -285,7 +298,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   newChatButtonText: {
-    color: '#01CC97',
+    color: Colors.accentBlue,
     fontWeight: 'bold',
   },
   searchBar: {
@@ -293,21 +306,17 @@ const styles = StyleSheet.create({
     margin: 15,
     borderRadius: 10,
     fontSize: 16,
-    backgroundColor: '#33383D', // Dark input background
+    backgroundColor: Colors.surfaceDark,
     borderWidth: 1,
-    borderColor: '#01CC97', // Vibrant border like HomeScreen buttons
-    borderRadius: 8,
-    marginVertical: 15,
-    fontSize: 16,
-    color: '#fff', // White text for readability
-    
+    borderColor: Colors.primary,
+    color: Colors.textPrimary,
   },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
     borderBottomWidth: 1,
-    backgroundColor: '#2D343C',
+    backgroundColor: Colors.surfaceDark,
   },
   avatarContainer: {
     position: 'relative',
@@ -318,8 +327,6 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     resizeMode: 'cover',
-    
-
   },
   statusIndicator: {
     position: 'absolute',
@@ -327,7 +334,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: Colors.background,
     bottom: 0,
     right: 0,
   },
@@ -337,18 +344,19 @@ const styles = StyleSheet.create({
   friendName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color:'#fff',
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   lastMessage: {
     fontSize: 14,
-    color: '#777',
+    color: Colors.textSecondary,
   },
   statusTextContainer: {
     marginLeft: 10,
   },
   statusText: {
     fontSize: 12,
+    color: Colors.textSecondary,
   },
   emptyContainer: {
     flex: 1,
@@ -357,7 +365,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#888',
+    color: Colors.textSecondary,
   },
   centerContainer: {
     flex: 1,
@@ -366,19 +374,19 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 10,
-    color: '#01CC97',
+    color: Colors.accentBlue,
   },
   errorText: {
-    color: '#ff0000',
+    color: Colors.primary,
     marginBottom: 20,
   },
   retryButton: {
-    backgroundColor: '#01CC97',
+    backgroundColor: Colors.primary,
     padding: 10,
     borderRadius: 5,
   },
   retryButtonText: {
-    color: '#fff',
+    color: Colors.textPrimary,
     fontWeight: 'bold',
   },
 });

@@ -15,7 +15,9 @@ import {
   Image,
   AppState
 } from 'react-native';
+import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import Colors from '../constants/Colors';
+import backgroundImage from '../assets/sfgsdh.png';
 import { 
   databases, 
   account, 
@@ -496,65 +498,72 @@ export default function ChatScreen({ route, navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1A1F23" />
-      
-      {renderHeader()}
-      
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
-        behavior={Platform.OS === 'ios' ? 'padding' : null}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <FlatList
-          ref={flatListRef}
-          data={[
-            ...Object.values(messages.pending).map(msg => ({ ...msg, isPending: true })),
-            ...messages.confirmed
-              .filter(msg => !Object.values(messages.pending).some(
-                pendingMsg => pendingMsg.messageId === msg.messageId
-              ))
-              .map(msg => ({ ...msg, isPending: false }))
-          ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
-          renderItem={renderMessageItem}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.messagesList}
-          inverted
-        />
-        
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="Type a message..."
-            placeholderTextColor="#666"
-            multiline
-          />
-          <TouchableOpacity 
-            style={[
-              styles.sendButton,
-              (!newMessage.trim() || isSending) && styles.sendButtonDisabled
-            ]}
-            onPress={sendMessage}
-            disabled={!newMessage.trim() || isSending}
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
+          {renderHeader()}
+          
+          <KeyboardAvoidingView
+            style={styles.keyboardAvoidingView}
+            behavior={Platform.OS === 'ios' ? 'padding' : null}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
           >
-            <Ionicons 
-              name="send" 
-              size={20} 
-              color={newMessage.trim() && !isSending ? "#fff" : "#888"} 
+            <FlatList
+              ref={flatListRef}
+              data={[
+                ...Object.values(messages.pending).map(msg => ({ ...msg, isPending: true })),
+                ...messages.confirmed
+                  .filter(msg => !Object.values(messages.pending).some(
+                    pendingMsg => pendingMsg.messageId === msg.messageId
+                  ))
+                  .map(msg => ({ ...msg, isPending: false }))
+              ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
+              renderItem={renderMessageItem}
+              keyExtractor={keyExtractor}
+              contentContainerStyle={styles.messagesList}
+              inverted
             />
-          </TouchableOpacity>
+            
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={styles.input}
+                value={newMessage}
+                onChangeText={setNewMessage}
+                placeholder="Type a message..."
+                placeholderTextColor="#666"
+                multiline
+              />
+              <TouchableOpacity 
+                style={[
+                  styles.sendButton,
+                  (!newMessage.trim() || isSending) && styles.sendButtonDisabled
+                ]}
+                onPress={sendMessage}
+                disabled={!newMessage.trim() || isSending}
+              >
+                <Ionicons 
+                  name="send" 
+                  size={20} 
+                  color={newMessage.trim() && !isSending ? "#fff" : "#888"} 
+                />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1A1F23',
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -628,85 +637,85 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 8
+    marginBottom: 8,
   },
   currentUserMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#05907A',
-    borderBottomRightRadius: 2
+    backgroundColor: Colors.primary,
+    borderBottomRightRadius: 2,
   },
   otherUserMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#2D3439',
-    borderBottomLeftRadius: 2
+    backgroundColor: Colors.surfaceDark,
+    borderBottomLeftRadius: 2,
   },
   pendingMessage: {
-    opacity: 0.7
+    opacity: 0.7,
   },
   failedMessage: {
     borderWidth: 1,
-    borderColor: '#ff4444'
+    borderColor: Colors.textAccent,
   },
   messageText: {
-    fontSize: 16
+    fontSize: 16,
   },
   currentUserMessageText: {
-    color: 'white'
+    color: Colors.textPrimary,
   },
   otherUserMessageText: {
-    color: '#E0E0E0'
+    color: Colors.textPrimary,
   },
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4
+    marginTop: 4,
   },
   messageTime: {
-    fontSize: 12
+    fontSize: 12,
   },
   currentUserMessageTime: {
-    color: 'rgba(255,255,255,0.7)'
+    color: Colors.textSecondary,
   },
   otherUserMessageTime: {
-    color: 'rgba(255,255,255,0.5)'
+    color: Colors.textSecondary,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 15,
     paddingVertical: 10,
-    backgroundColor: '#2D3439',
+    backgroundColor: Colors.surfaceDark,
     borderTopWidth: 1,
-    borderTopColor: '#3A4249'
+    borderTopColor: Colors.border,
   },
   input: {
     flex: 1,
-    backgroundColor: '#3A4249',
-    color: 'white',
+    backgroundColor: Colors.surfaceDark,
+    color: Colors.textPrimary,
     borderRadius: 20,
     paddingHorizontal: 15,
     paddingVertical: 10,
     maxHeight: 100,
-    marginRight: 10
+    marginRight: 10,
   },
   sendButton: {
-    backgroundColor: '#05907A',
+    backgroundColor: Colors.primary,
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#3A4249'
+    backgroundColor: Colors.surfaceDark,
   },
   errorBanner: {
-    backgroundColor: '#ff4444',
+    backgroundColor: Colors.primary,
     padding: 10,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   errorText: {
-    color: 'white',
-    fontSize: 14
+    color: Colors.textPrimary,
+    fontSize: 14,
   },
 });

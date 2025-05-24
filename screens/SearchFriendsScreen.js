@@ -6,6 +6,8 @@ import {
 import { account, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
+import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
+import backgroundImage from '../assets/sfgsdh.png';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
 const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
@@ -232,39 +234,47 @@ export default function SearchFriendsScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}>
 
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Find Friends</Text>
-      </View>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Find Friends</Text>
+          </View>
 
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Search by name..."
-        placeholderTextColor={Colors.textSecondary}
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-      />
+          <TextInput
+            style={styles.searchBar}
+            placeholder="Search by name..."
+            placeholderTextColor={Colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
 
-      {filteredUsers.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No users found</Text>
+          {filteredUsers.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No users found</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredUsers}
+              renderItem={renderUserItem}
+              keyExtractor={item => item.$id}
+            />
+          )}
         </View>
-      ) : (
-        <FlatList
-          data={filteredUsers}
-          renderItem={renderUserItem}
-          keyExtractor={item => item.$id}
-        />
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -385,14 +395,17 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     marginBottom: 20,
+    color: Colors.textPrimary,
   },
   retryButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
+    backgroundColor: Colors.primary,
   },
   retryButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
+    color: Colors.textPrimary,
   },
 });
