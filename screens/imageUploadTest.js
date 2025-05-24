@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Ale
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { ID } from '../lib/AppwriteService';
+import Colors from '../constants/Colors';
 
 export default function AppwriteFileUploader() {
   const [selectedImage, setSelectedImage] = useState(null);

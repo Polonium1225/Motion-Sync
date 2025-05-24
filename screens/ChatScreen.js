@@ -15,6 +15,7 @@ import {
   Image,
   AppState
 } from 'react-native';
+import Colors from '../constants/Colors';
 import { 
   databases, 
   account, 

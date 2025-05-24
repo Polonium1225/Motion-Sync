@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { account, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
 import { Ionicons } from '@expo/vector-icons';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
 const API_ENDPOINT = 'https://cloud.appwrite.io/v1';

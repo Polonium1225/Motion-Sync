@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS, userProfiles } from '../lib/AppwriteService';
 import { Client } from 'appwrite';
 import { useNavigation } from '@react-navigation/native';
+import Colors from '../constants/Colors';
 
 export default function SettingsScreen({ setIsLoggedIn }) {
   const [name, setName] = useState('');

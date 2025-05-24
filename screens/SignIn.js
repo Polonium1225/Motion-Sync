@@ -15,6 +15,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { account, userProfiles } from "../lib/AppwriteService";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Colors from '../constants/Colors';
 
 // 👈 Import the background image
 import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image

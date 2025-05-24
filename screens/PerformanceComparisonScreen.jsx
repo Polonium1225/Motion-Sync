@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import Colors from '../constants/Colors';
 import {
   View,
   Text,

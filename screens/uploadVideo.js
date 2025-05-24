@@ -4,7 +4,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { API_CONFIG } from './config'; // Import centralized config
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 const SERVER_URL = `${API_CONFIG.BASE_URL}/uploads`; // Use config for base URL
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet,ImageBackground } from 'react-native';
 import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
 import { useNavigation } from '@react-navigation/native';
-
+import Colors from '../constants/Colors';
 
 import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image
 

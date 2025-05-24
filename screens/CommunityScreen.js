@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { useNavigation } from '@react-navigation/native';
 import { account, getUserConversations } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 export default function CommunityScreen() {
   const navigation = useNavigation();

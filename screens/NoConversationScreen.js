@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 export default function NoConversationScreen({ navigation }) {
   return (

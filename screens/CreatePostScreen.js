@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost , getUserId, uploadPostImage} from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 
 const CreatePostScreen = () => {

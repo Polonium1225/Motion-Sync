@@ -4,6 +4,7 @@ import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
+import Colors from '../constants/Colors';
 
 
 import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image

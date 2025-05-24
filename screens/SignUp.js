@@ -15,7 +15,7 @@ import bcrypt from 'react-native-bcrypt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");

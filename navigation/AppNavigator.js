@@ -2,7 +2,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 
 // Import all your screens

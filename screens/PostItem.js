@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId } from '../lib/AppwriteService';
 import { DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
 import DEFAULT_AVATAR from '../assets/avatar.png';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 
 // Add your Appwrite project ID and endpoint (should match AppwriteService.js)

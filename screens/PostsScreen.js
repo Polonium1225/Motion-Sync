@@ -6,7 +6,7 @@ import { getPostsWithUsers } from '../lib/AppwriteService';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost, getUserId, uploadPostImage } from '../lib/AppwriteService';
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 
 const PostsScreen = ({ navigation }) => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome'; // You can use FontAwesome icons
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 export default function BadgesMilestoneCard() {
   return (

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import AppNavigator from './navigation/AppNavigator';
-import Colors from './constants/color';
+import Colors from './constants/Colors';
 import Fonts from './constants/fonts';
 
 const MyTheme = {

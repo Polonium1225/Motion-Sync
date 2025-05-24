@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from '@react-navigation/native'; // Import the hook
-import Colors from '../constants/color';
+import Colors from '../constants/Colors';
 
 export default function LiveMotionTrackingCard() {
   const navigation = useNavigation(); // Get the navigation object using the hook

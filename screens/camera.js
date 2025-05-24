@@ -11,7 +11,7 @@ import {
 import WebView from 'react-native-webview';
 import { Camera, useCameraPermissions } from 'expo-camera';
 import { API_CONFIG } from './config'; // Correct for config.js // Import centralized config
-
+import Colors from '../constants/Colors';
 // Construct the API URL using config
 const POSETRACKER_API = `${API_CONFIG.BASE_URL}/pose_tracker/tracking`;
 
