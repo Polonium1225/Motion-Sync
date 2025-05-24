@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    padding: 10,
+    padding: 20,
   },
   listContent: {
     paddingBottom: 20,
@@ -265,14 +265,13 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.surfaceDark,
-    borderRadius: 12,
-    padding: 16,
-    ...Fonts.getFont('medium', 'regular'),
-    color: Colors.textPrimary,
-    minHeight: 150,
-    marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.primary,
+    borderRadius: 8,
+    padding: 15,
+    marginVertical: 15,
+    fontSize: 16,
+    color: Colors.textPrimary,
   },
   imageButtonsContainer: {
     flexDirection: 'row',
@@ -313,9 +312,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 5,
   },
+  button: {
+    backgroundColor: Colors.background,
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderColor: Colors.primary,
+    borderWidth: 2,
+    borderRadius: 30,
+    alignItems: 'center',
+    marginTop: 15,
+  },
   buttonText: {
-    color: Colors.primary,
-    ...Fonts.getFont('small', 'bold'),
+    color: Colors.textPrimary,
+    fontWeight: '600',
+    fontSize: 18,
   },
 });
 

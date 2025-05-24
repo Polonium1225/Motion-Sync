@@ -6,6 +6,8 @@ import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS, userP
 import { Client } from 'appwrite';
 import { useNavigation } from '@react-navigation/native';
 import Colors from '../constants/Colors';
+import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
+import backgroundImage from '../assets/sfgsdh.png';
 
 export default function SettingsScreen({ setIsLoggedIn }) {
   const [name, setName] = useState('');
@@ -210,64 +212,70 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
-        {image ? (
-          <Image
-            source={{ uri: image }}
-            style={styles.profileImage}
-          />
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Text style={styles.placeholderText}>{name.charAt(0) || 'U'}</Text>
-          </View>
-        )}
-        <Text style={styles.changePhotoText}>Change Photo</Text>
-      </TouchableOpacity>
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <View style={styles.container}>
+        <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
+          {image ? (
+            <Image
+              source={{ uri: image }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={styles.placeholderImage}>
+              <Text style={styles.placeholderText}>{name.charAt(0) || 'U'}</Text>
+            </View>
+          )}
+          <Text style={styles.changePhotoText}>Change Photo</Text>
+        </TouchableOpacity>
 
-      <TextInput
-        value={name}
-        onChangeText={setName}
-        placeholder="Your Name"
-        placeholderTextColor={Colors.textSecondary}
-        style={styles.input}
-      />
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="Your Name"
+          placeholderTextColor={Colors.textSecondary}
+          style={styles.input}
+        />
 
-      <TouchableOpacity
-        onPress={saveProfile}
-        disabled={loading}
-        style={[styles.saveButton, loading && styles.disabledButton]}
-      >
-        {loading ? (
-          <ActivityIndicator color={Colors.primary} />
-        ) : (
-          <Text style={styles.saveButtonText}>
-            Save Profile
-          </Text>
-        )}
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={saveProfile}
+          disabled={loading}
+          style={[styles.saveButton, loading && styles.disabledButton]}
+        >
+          {loading ? (
+            <ActivityIndicator color={Colors.primary} />
+          ) : (
+            <Text style={styles.saveButtonText}>
+              Save Profile
+            </Text>
+          )}
+        </TouchableOpacity>
 
-      <TouchableOpacity 
-        onPress={handleLogout}
-        disabled={loading}
-        style={[styles.saveButton, styles.logoutButton, loading && styles.disabledButton]}
-      >
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.saveButtonText}>
-            Logout
-          </Text>
-        )}
-      </TouchableOpacity>
-    </View>
+        <TouchableOpacity 
+          onPress={handleLogout}
+          disabled={loading}
+          style={[styles.saveButton, styles.logoutButton, loading && styles.disabledButton]}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.saveButtonText}>
+              Logout
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     padding: 20,
   },
   imageContainer: {
@@ -278,59 +286,56 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    borderRadius: 60,
     borderWidth: 2,
-    borderColor: '#01CC97',
+    borderColor: Colors.primary,
   },
   placeholderImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#33383D',
+    backgroundColor: Colors.surfaceDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
   placeholderText: {
     fontSize: 40,
-    color: '#ddd',
+    color: Colors.textPrimary,
     fontWeight: '600',
   },
   changePhotoText: {
     marginTop: 10,
-    color: '#01CC97',
+    color: Colors.accentBlue,
     fontWeight: '600',
     fontSize: 16,
   },
   input: {
-    backgroundColor: '#33383D',
+    backgroundColor: Colors.surfaceDark,
     borderWidth: 1,
-    borderColor: '#01CC97',
+    borderColor: Colors.primary,
     borderRadius: 8,
     padding: 15,
     marginVertical: 15,
     fontSize: 16,
-    color: '#fff',
+    color: Colors.textPrimary,
   },
   saveButton: {
-    backgroundColor: '#22272B',
+    backgroundColor: Colors.background,
     paddingVertical: 12,
     paddingHorizontal: 25,
-    borderColor: '#01CC97',
+    borderColor: Colors.primary,
     borderWidth: 2,
-    borderRadius: 30,
     borderRadius: 30,
     alignItems: 'center',
     marginTop: 15,
   },
   logoutButton: {
-    borderColor: '#FF3B30', // Matches HomeScreen logout button
+    borderColor: '#FF3B30',
   },
   disabledButton: {
     opacity: 0.7,
-    opacity: 0.7,
   },
   saveButtonText: {
-    color: '#fff',
+    color: Colors.textPrimary,
     fontWeight: '600',
     fontSize: 18,
   },

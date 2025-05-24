@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Import all your screens
 import HomeScreen from '../screens/HomeScreen';
@@ -28,6 +29,7 @@ const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 function MainTabs({ setIsLoggedIn }) {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -38,12 +40,19 @@ function MainTabs({ setIsLoggedIn }) {
           elevation: 0, // Remove shadow on Android
           shadowOpacity: 0, // Remove shadow on iOS
           borderTopColor: 'transparent',
-          height: 60,
-          paddingBottom: 5, // Add padding to avoid conflict with phone navigation
-          marginBottom: 5, // Add margin to avoid conflict with phone navigation
+          height: 60 + insets.bottom, // Add safe area to height
+          paddingBottom: 5 + insets.bottom, // Add safe area to padding
+          marginBottom: 0, // Remove manual margin, handled by insets
         },
-        tabBarActiveTintColor: '#ff4c48',
-        tabBarInactiveTintColor: '#888',
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarLabelStyle: {
+          ...Fonts.getFont('small', 'regular'),
+        },
+        // Explicitly set label position to avoid layout issues
+        tabBarLabelPosition: 'below-icon',
+        // Add safe area insets to avoid conflicts with phone navigation
+        safeAreaInsets: { bottom: insets.bottom },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 

@@ -53,9 +53,7 @@ export default function CommunityScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
     backgroundColor: Colors.background,
-    alignItems: 'center',
     padding: 20,
   },
   title: {
@@ -64,16 +62,29 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     color: Colors.textPrimary
   },
-  button: {
-    backgroundColor: Colors.primary,
+  input: {
+    backgroundColor: Colors.surfaceDark,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    borderRadius: 8,
     padding: 15,
-    borderRadius: 10,
-    width: '80%',
+    marginVertical: 15,
+    fontSize: 16,
+    color: Colors.textPrimary,
+  },
+  button: {
+    backgroundColor: Colors.background,
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderColor: Colors.primary,
+    borderWidth: 2,
+    borderRadius: 30,
     alignItems: 'center',
+    marginTop: 15,
   },
   buttonText: {
     color: Colors.textPrimary,
-    fontWeight: 'bold',
+    fontWeight: '600',
     fontSize: 18,
   },
   loadingContainer: {
