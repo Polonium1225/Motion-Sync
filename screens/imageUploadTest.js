@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Alert, ImageBackground, SafeAreaView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { ID } from '../lib/AppwriteService';
 import Colors from '../constants/Colors';
+import backgroundImage from '../assets/sfgsdh.png';
 
 export default function AppwriteFileUploader() {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -100,51 +101,55 @@ export default function AppwriteFileUploader() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Direct File Upload Test</Text>
-      
-      <TouchableOpacity 
-        style={styles.imagePicker} 
-        onPress={pickImage}
-        disabled={uploading}
-      >
-        {selectedImage ? (
-          <Image 
-            source={{ uri: selectedImage.uri }} 
-            style={styles.previewImage} 
-          />
-        ) : (
-          <Text style={styles.pickerText}>Tap to select an image</Text>
-        )}
-      </TouchableOpacity>
-      
-      {selectedImage && (
-        <View style={styles.imageInfo}>
-          <Text>Size: {Math.round(selectedImage.fileSize / 1024)} KB</Text>
-          <Text>Type: {selectedImage.mimeType || 'image/jpeg'}</Text>
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Direct File Upload Test</Text>
+          <TouchableOpacity 
+            style={styles.imagePicker} 
+            onPress={pickImage}
+            disabled={uploading}
+          >
+            {selectedImage ? (
+              <Image 
+                source={{ uri: selectedImage.uri }} 
+                style={styles.previewImage} 
+              />
+            ) : (
+              <Text style={styles.pickerText}>Tap to select an image</Text>
+            )}
+          </TouchableOpacity>
+          {selectedImage && (
+            <View style={styles.imageInfo}>
+              <Text>Size: {Math.round(selectedImage.fileSize / 1024)} KB</Text>
+              <Text>Type: {selectedImage.mimeType || 'image/jpeg'}</Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={[styles.uploadButton, (!selectedImage || uploading) && styles.disabledButton]}
+            onPress={uploadImage}
+            disabled={!selectedImage || uploading}
+          >
+            {uploading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>Upload to Appwrite</Text>
+            )}
+          </TouchableOpacity>
+          {uploadedFileId && (
+            <View style={styles.successContainer}>
+              <Text style={styles.successText}>
+                Upload successful! File ID: {uploadedFileId}
+              </Text>
+            </View>
+          )}
         </View>
-      )}
-      
-      <TouchableOpacity
-        style={[styles.uploadButton, (!selectedImage || uploading) && styles.disabledButton]}
-        onPress={uploadImage}
-        disabled={!selectedImage || uploading}
-      >
-        {uploading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.buttonText}>Upload to Appwrite</Text>
-        )}
-      </TouchableOpacity>
-      
-      {uploadedFileId && (
-        <View style={styles.successContainer}>
-          <Text style={styles.successText}>
-            Upload successful! File ID: {uploadedFileId}
-          </Text>
-        </View>
-      )}
-    </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -152,7 +157,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
-    backgroundColor: '#fff',
+    backgroundColor: 'transparent',
     alignItems: 'center',
   },
   title: {

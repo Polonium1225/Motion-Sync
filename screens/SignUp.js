@@ -6,6 +6,8 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ImageBackground,
+  SafeAreaView
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -16,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import Colors from '../constants/Colors';
+import backgroundImage from '../assets/sfgsdh.png';
 
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
@@ -120,104 +123,111 @@ export default function SignUp({ setIsLoggedIn }) {
   };
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={[Colors.primary, Colors.background]} style={styles.topSection}>
-        <Text style={styles.welcomeText}>Create Account</Text>
-      </LinearGradient>
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.container}>
+          <LinearGradient colors={[Colors.primary, Colors.background]} style={styles.topSection}>
+            <Text style={styles.welcomeText}>Create Account</Text>
+          </LinearGradient>
 
-      <View style={styles.formContainer}>
-        <Text style={styles.signUpText}>Sign Up</Text>
+          <View style={styles.formContainer}>
+            <Text style={styles.signUpText}>Sign Up</Text>
 
-        <View>
-          <Text style={styles.inputText}>Name</Text>
-          <View style={styles.inputWrapper}>
-            <Octicons name="person" size={20} color={Colors.primary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter Your Name"
-              placeholderTextColor={Colors.textSecondary}
-              cursorColor={Colors.primary}
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
-        </View>
+            <View>
+              <Text style={styles.inputText}>Name</Text>
+              <View style={styles.inputWrapper}>
+                <Octicons name="person" size={20} color={Colors.primary} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter Your Name"
+                  placeholderTextColor={Colors.textSecondary}
+                  cursorColor={Colors.primary}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+            </View>
 
-        <View>
-          <Text style={styles.inputText}>Email</Text>
-          <View style={styles.inputWrapper}>
-            <Octicons name="mail" size={20} color={Colors.primary} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter Your Email"
-              placeholderTextColor={Colors.textSecondary}
-              cursorColor={Colors.primary}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-        </View>
+            <View>
+              <Text style={styles.inputText}>Email</Text>
+              <View style={styles.inputWrapper}>
+                <Octicons name="mail" size={20} color={Colors.primary} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter Your Email"
+                  placeholderTextColor={Colors.textSecondary}
+                  cursorColor={Colors.primary}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </View>
+            </View>
 
-        <View>
-          <Text style={styles.inputText}>Password</Text>
-          <View style={styles.inputWrapper}>
-            <Octicons name="lock" size={20} color={Colors.primary} />
-            <TextInput
-              style={[styles.input]}
-              placeholder="Enter Your Password"
-              placeholderTextColor={Colors.textSecondary}
-              cursorColor={Colors.primary}
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <TouchableOpacity
-              style={{ padding: 10 }}
-              onPress={() => setShowPassword(!showPassword)}
+            <View>
+              <Text style={styles.inputText}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <Octicons name="lock" size={20} color={Colors.primary} />
+                <TextInput
+                  style={[styles.input]}
+                  placeholder="Enter Your Password"
+                  placeholderTextColor={Colors.textSecondary}
+                  cursorColor={Colors.primary}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity
+                  style={{ padding: 10 }}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={Colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.buttonWrapper}>
+              <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
+                <Text style={[styles.signInText]}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+            <LinearGradient
+              colors={[Colors.primary, Colors.background]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0.2, y: 1 }}
+              style={[styles.loginButton, styles.androidShadow]}
             >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={Colors.textSecondary}
-              />
+              <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
+                <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
+              </TouchableOpacity>
+            </LinearGradient>
+
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={() => promptAsync()}
+            >
+              <Text style={styles.googleButtonText}>Sign in with Google</Text>
             </TouchableOpacity>
           </View>
         </View>
-
-        <View style={styles.buttonWrapper}>
-          <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
-            <Text style={[styles.signInText]}>Sign In</Text>
-          </TouchableOpacity>
-        </View>
-        <LinearGradient
-          colors={[Colors.primary, Colors.background]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.2, y: 1 }}
-          style={[styles.loginButton, styles.androidShadow]}
-        >
-          <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
-            <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
-          </TouchableOpacity>
-        </LinearGradient>
-
-        {/* Add Google Sign-In Button */}
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={() => promptAsync()}
-        >
-          <Text style={styles.googleButtonText}>Sign in with Google</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'transparent',
   },
   topSection: {
     height: "50%",

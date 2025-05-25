@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { account, getUserConversations } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
 import Colors from '../constants/Colors';
+import backgroundImage from '../assets/sfgsdh.png';
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
@@ -30,30 +31,40 @@ export default function CommunityScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Community</Text>
+    <ImageBackground
+      source={backgroundImage}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <View style={styles.container}>
+        <Text style={styles.title}>Community</Text>
 
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Checking your conversations...</Text>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={styles.button}
-          onPress={handleChatPress}
-        >
-          <Text style={styles.buttonText}>Chat</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Checking your conversations...</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleChatPress}
+          >
+            <Text style={styles.buttonText}>Chat</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    resizeMode: 'cover',
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'transparent',
     padding: 20,
   },
   title: {

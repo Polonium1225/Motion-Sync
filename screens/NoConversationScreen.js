@@ -1,26 +1,35 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, SafeAreaView } from 'react-native';
 import Colors from '../constants/Colors';
+import backgroundImage from '../assets/sfgsdh.png';
 
 export default function NoConversationScreen({ navigation }) {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>No conversations yet</Text>
-      <Text style={styles.subtitle}>Start chatting with someone!</Text>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate('SearchFriends')}
-      >
-        <Text style={styles.buttonText}>Find Friends</Text>
-      </TouchableOpacity>
-    </View>
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.container}>
+          <Text style={styles.title}>No conversations yet</Text>
+          <Text style={styles.subtitle}>Start chatting with someone!</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('SearchFriends')}
+          >
+            <Text style={styles.buttonText}>Find Friends</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,

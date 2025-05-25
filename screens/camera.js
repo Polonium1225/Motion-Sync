@@ -6,12 +6,16 @@ import {
   Dimensions, 
   ActivityIndicator, 
   Alert,
-  TouchableOpacity
+  TouchableOpacity,
+  ImageBackground,
+  SafeAreaView
 } from 'react-native';
 import WebView from 'react-native-webview';
 import { Camera, useCameraPermissions } from 'expo-camera';
 import { API_CONFIG } from './config'; // Correct for config.js // Import centralized config
 import Colors from '../constants/Colors';
+import backgroundImage from '../assets/sfgsdh.png';
+
 // Construct the API URL using config
 const POSETRACKER_API = `${API_CONFIG.BASE_URL}/pose_tracker/tracking`;
 
@@ -148,85 +152,93 @@ export default function App() {
   };
 
   return (
-    <View style={styles.container}>
-      {webViewError ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Connection Error</Text>
-          <Text style={styles.errorText}>{webViewError}</Text>
-          <TouchableOpacity style={styles.button} onPress={handleReload}>
-            <Text style={styles.buttonText}>Retry Connection</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <WebView
-            key={webViewKey}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            allowsInlineMediaPlayback={true}
-            mediaPlaybackRequiresUserAction={false}
-            androidHardwareAccelerationDisabled={true}
-            onShouldStartLoadWithRequest={() => true}
-            setSupportMultipleWindows={false}
-            trustAllCerts={true}
-            style={styles.webView}
-            source={{ uri: posetracker_url }}
-            originWhitelist={['*']}
-            injectedJavaScript={jsBridge}
-            onMessage={onMessage}
-            debuggingEnabled={true}
-            mixedContentMode="compatibility"
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.warn('WebView error:', nativeEvent);
-              setWebViewError(`Failed to load pose tracker: ${nativeEvent.description || 'Unknown error'}`);
-            }}
-            onLoadingError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.warn('WebView loading error:', nativeEvent);
-              setWebViewError(`Could not connect to server: ${nativeEvent.description || 'Connection failed'}`);
-            }}
-            onLoadStart={() => setIsLoading(true)}
-            onLoad={() => {
-              console.log('WebView loaded');
-              setIsLoading(false);
-            }}
-            renderLoading={() => (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#0000ff" />
-                <Text style={styles.loadingText}>Loading pose tracker...</Text>
-              </View>
-            )}
-            startInLoadingState={true}
-          />
-          
-          <View style={styles.infoContainer}>
-            {isLoading ? (
-              <Text>Initializing camera and tracking...</Text>
-            ) : (
-              <>
-                <Text style={styles.statusLabel}>Status: {!poseTrackerInfos ? "Loading AI..." : "AI Running"}</Text>
-                <Text style={styles.infoLabel}>Info type: {!poseTrackerInfos ? "Loading..." : poseTrackerInfos.type}</Text>
-                <Text style={styles.counterLabel}>Squats: {repsCounter}</Text>
-                {poseTrackerInfos?.ready === false ? (
-                  <View style={styles.placementContainer}>
-                    <Text style={styles.readyLabel}>Not ready</Text>
-                    <Text style={styles.directionLabel}>
-                      Please move {poseTrackerInfos?.postureDirection}
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.placementContainer}>
-                    <Text style={styles.readyLabel}>Ready!</Text>
-                    <Text style={styles.directionLabel}>You can start doing squats 🏋️</Text>
+    <ImageBackground
+      source={backgroundImage}
+      style={{ flex: 1 }}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={styles.container}>
+          {webViewError ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorTitle}>Connection Error</Text>
+              <Text style={styles.errorText}>{webViewError}</Text>
+              <TouchableOpacity style={styles.button} onPress={handleReload}>
+                <Text style={styles.buttonText}>Retry Connection</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <WebView
+                key={webViewKey}
+                javaScriptEnabled={true}
+                domStorageEnabled={true}
+                allowsInlineMediaPlayback={true}
+                mediaPlaybackRequiresUserAction={false}
+                androidHardwareAccelerationDisabled={true}
+                onShouldStartLoadWithRequest={() => true}
+                setSupportMultipleWindows={false}
+                trustAllCerts={true}
+                style={styles.webView}
+                source={{ uri: posetracker_url }}
+                originWhitelist={['*']}
+                injectedJavaScript={jsBridge}
+                onMessage={onMessage}
+                debuggingEnabled={true}
+                mixedContentMode="compatibility"
+                onError={(syntheticEvent) => {
+                  const { nativeEvent } = syntheticEvent;
+                  console.warn('WebView error:', nativeEvent);
+                  setWebViewError(`Failed to load pose tracker: ${nativeEvent.description || 'Unknown error'}`);
+                }}
+                onLoadingError={(syntheticEvent) => {
+                  const { nativeEvent } = syntheticEvent;
+                  console.warn('WebView loading error:', nativeEvent);
+                  setWebViewError(`Could not connect to server: ${nativeEvent.description || 'Connection failed'}`);
+                }}
+                onLoadStart={() => setIsLoading(true)}
+                onLoad={() => {
+                  console.log('WebView loaded');
+                  setIsLoading(false);
+                }}
+                renderLoading={() => (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#0000ff" />
+                    <Text style={styles.loadingText}>Loading pose tracker...</Text>
                   </View>
                 )}
-              </>
-            )}
-          </View>
-        </>
-      )}
-    </View>
+                startInLoadingState={true}
+              />
+              
+              <View style={styles.infoContainer}>
+                {isLoading ? (
+                  <Text>Initializing camera and tracking...</Text>
+                ) : (
+                  <>
+                    <Text style={styles.statusLabel}>Status: {!poseTrackerInfos ? "Loading AI..." : "AI Running"}</Text>
+                    <Text style={styles.infoLabel}>Info type: {!poseTrackerInfos ? "Loading..." : poseTrackerInfos.type}</Text>
+                    <Text style={styles.counterLabel}>Squats: {repsCounter}</Text>
+                    {poseTrackerInfos?.ready === false ? (
+                      <View style={styles.placementContainer}>
+                        <Text style={styles.readyLabel}>Not ready</Text>
+                        <Text style={styles.directionLabel}>
+                          Please move {poseTrackerInfos?.postureDirection}
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.placementContainer}>
+                        <Text style={styles.readyLabel}>Ready!</Text>
+                        <Text style={styles.directionLabel}>You can start doing squats 🏋️</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -234,6 +246,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'column',
+    backgroundColor: 'transparent',
   },
   webView: {
     width: '100%',

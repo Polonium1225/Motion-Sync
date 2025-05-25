@@ -229,13 +229,13 @@ const renderConversationItem = ({ item }) => {
     >
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
+        <View style={[styles.container, { backgroundColor: 'transparent', paddingTop: 0, paddingBottom: 0 }]}> 
           <View style={styles.header}>
             <TouchableOpacity 
               style={styles.backButton}
               onPress={() => navigation.navigate('MainTabs', { screen: 'Community' })}
             >
-              <Ionicons name="arrow-back" size={24} color="#000" />
+              <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.title}>Your Conversations</Text>
             <TouchableOpacity 
@@ -275,7 +275,8 @@ const renderConversationItem = ({ item }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'transparent',
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
@@ -317,6 +318,7 @@ const styles = StyleSheet.create({
     padding: 15,
     borderBottomWidth: 1,
     backgroundColor: Colors.surfaceDark,
+    borderBottomColor: Colors.primaryDeep,
   },
   avatarContainer: {
     position: 'relative',
@@ -327,6 +329,9 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 25,
     resizeMode: 'cover',
+    backgroundColor: Colors.background,
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   statusIndicator: {
     position: 'absolute',
