@@ -5,12 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
-    "@config-plugins/react-native-webrtc": "^10.0.0",
     "@expo/metro-runtime": "~5.0.4",
     "@expo/vector-icons": "^14.0.4",
     "@mediapipe/pose": "^0.5.1675469404",
@@ -41,8 +40,7 @@
     "expo-camera": "~16.1.6",
     "expo-file-system": "~18.1.10",
     "expo-font": "~13.3.1",
-    "expo-gl": "~15.1.5",
-    "expo-gl-cpp": "^11.4.0",
+
     "expo-image-manipulator": "~13.1.7",
     "expo-image-picker": "~16.1.4",
     "expo-linear-gradient": "~14.1.4",
@@ -57,7 +55,6 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
     "react-native-bcrypt": "^2.4.0",
-    "react-native-camera": "^4.2.1",
     "react-native-chart-kit": "^6.12.0",
     "react-native-fbsdk-next": "^13.4.1",
     "react-native-fs": "^2.20.0",

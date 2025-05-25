@@ -16,20 +16,18 @@
       "supportsTablet": true
     },
     "android": {
-      "android": {
-        "permissions": [
-          "CAMERA",
-          "WRITE_EXTERNAL_STORAGE",
-          "READ_EXTERNAL_STORAGE"
-        ]
-      },
       "permissions": [
-        "READ_EXTERNAL_STORAGE"
+        "CAMERA",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anonymous.MotionSync"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -42,6 +40,11 @@
         }
       ],
       "expo-build-properties"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f0e72b88-0c15-4be0-b5ff-19fad550891a"
+      }
+    }
   }
 }
