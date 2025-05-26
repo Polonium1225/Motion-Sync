@@ -247,6 +247,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 20,
+    marginBottom: 30, // Add margin at the bottom to avoid conflict with device buttons
   },
   signUpText: {
     color: Colors.primary,

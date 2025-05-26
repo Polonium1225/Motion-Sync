@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, FlatList, ActivityIndicator, TouchableOpacity, Text, StyleSheet, Modal, TextInput, Image, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, FlatList, ActivityIndicator, TouchableOpacity, Text, StyleSheet, Modal, TextInput, Image, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PostItem from '../screens/PostItem';
 import { getPostsWithUsers } from '../lib/AppwriteService';
@@ -16,6 +16,25 @@ const PostsScreen = ({ navigation }) => {
   const [content, setContent] = useState('');
   const [imageObj, setImageObj] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
 
   // Move all hooks to the top, before any conditional returns
   useEffect(() => {
@@ -138,86 +157,88 @@ const PostsScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Create Post Button */}
-      <TouchableOpacity
-        style={styles.createPostButton}
-        onPress={() => setShowCreateModal(true)}
-      >
-        <Ionicons name="create-outline" size={24} color={Colors.textPrimary} />
-        <Text style={styles.createPostButtonText}>Create Post</Text>
-      </TouchableOpacity>
+    <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <View style={styles.container}>
+        {/* Create Post Button */}
+        <TouchableOpacity
+          style={styles.createPostButton}
+          onPress={() => setShowCreateModal(true)}
+        >
+          <Ionicons name="create-outline" size={24} color={Colors.textPrimary} />
+          <Text style={styles.createPostButtonText}>Create Post</Text>
+        </TouchableOpacity>
 
-      {/* Posts List */}
-      <FlatList
-        data={posts}
-        renderItem={({ item }) => <PostItem post={item} navigation={navigation} />}
-        keyExtractor={item => item.$id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-      />
+        {/* Posts List */}
+        <FlatList
+          data={posts}
+          renderItem={({ item }) => <PostItem post={item} navigation={navigation} />}
+          keyExtractor={item => item.$id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContent}
+        />
 
-      {/* Create Post Modal */}
-      <Modal
-        visible={showCreateModal}
-        animationType="slide"
-        onRequestClose={() => setShowCreateModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Ionicons name="close" size={24} color={Colors.textPrimary} />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Create Post</Text>
-            <TouchableOpacity onPress={handlePost} disabled={uploading}>
-              {uploading ? (
-                <ActivityIndicator size="small" color={Colors.primary} />
-              ) : (
-                <Text style={styles.postButtonText}>Post</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <TextInput
-            style={styles.input}
-            placeholder="What's on your mind?"
-            placeholderTextColor={Colors.textSecondary}
-            multiline
-            numberOfLines={4}
-            value={content}
-            onChangeText={setContent}
-          />
-
-          <View style={styles.imageButtonsContainer}>
-            <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-              <Ionicons name="image" size={24} color={Colors.primary} />
-              <Text style={styles.buttonText}>Add Photo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-              <Ionicons name="camera" size={24} color={Colors.primary} />
-              <Text style={styles.buttonText}>Take Photo</Text>
-            </TouchableOpacity>
-          </View>
-
-          {imageObj && (
-            <View style={styles.imagePreviewContainer}>
-              <Image
-                source={{ uri: imageObj.uri }}
-                style={styles.imagePreview}
-                onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
-              />
-              <TouchableOpacity
-                style={styles.removeImageButton}
-                onPress={() => setImageObj(null)}
-              >
-                <Ionicons name="close" size={20} color={Colors.textPrimary} />
+        {/* Create Post Modal */}
+        <Modal
+          visible={showCreateModal}
+          animationType="slide"
+          onRequestClose={() => setShowCreateModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.textPrimary} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Create Post</Text>
+              <TouchableOpacity onPress={handlePost} disabled={uploading}>
+                {uploading ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <Text style={styles.postButtonText}>Post</Text>
+                )}
               </TouchableOpacity>
             </View>
-          )}
-        </View>
-      </Modal>
-    </View>
+
+            <TextInput
+              style={styles.input}
+              placeholder="What's on your mind?"
+              placeholderTextColor={Colors.textSecondary}
+              multiline
+              numberOfLines={4}
+              value={content}
+              onChangeText={setContent}
+            />
+
+            <View style={styles.imageButtonsContainer}>
+              <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
+                <Ionicons name="image" size={24} color={Colors.primary} />
+                <Text style={styles.buttonText}>Add Photo</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
+                <Ionicons name="camera" size={24} color={Colors.primary} />
+                <Text style={styles.buttonText}>Take Photo</Text>
+              </TouchableOpacity>
+            </View>
+
+            {imageObj && (
+              <View style={styles.imagePreviewContainer}>
+                <Image
+                  source={{ uri: imageObj.uri }}
+                  style={styles.imagePreview}
+                  onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
+                />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={() => setImageObj(null)}
+                >
+                  <Ionicons name="close" size={20} color={Colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </Modal>
+      </View>
+    </Animated.View>
   );
 };
 

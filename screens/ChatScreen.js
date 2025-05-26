@@ -490,8 +490,8 @@ export default function ChatScreen({ route, navigation }) {
   if (isLoading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#1A1F23" />
-        <ActivityIndicator size="large" color="#05907A" />
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <ActivityIndicator size="large" color={Colors.primary} />
         <Text style={styles.loadingText}>Loading conversation...</Text>
       </SafeAreaView>
     );
@@ -569,10 +569,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#1A1F23'
+    backgroundColor: Colors.background, // Use theme background color
   },
   loadingText: {
-    color: 'white',
+    color: Colors.textPrimary, // Use theme text color
     marginTop: 10,
     fontSize: 16
   },

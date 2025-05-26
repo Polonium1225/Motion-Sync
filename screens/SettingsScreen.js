@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, ActivityIndicator, Alert, StyleSheet, Animated } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS, userProfiles } from '../lib/AppwriteService';
@@ -21,6 +21,9 @@ export default function SettingsScreen({ setIsLoggedIn }) {
 
   const PROJECT_ID = '67d0bb27002cfc0b22d2';
   const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
 
   // Load current user data
   useEffect(() => {
@@ -60,6 +63,22 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     };
 
     loadUser();
+  }, []);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
   }, []);
 
   const pickImage = async () => {
@@ -212,62 +231,60 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   };
 
   return (
-    <ImageBackground
-      source={backgroundImage}
-      style={{ flex: 1 }}
-      resizeMode="cover"
-    >
-      <View style={styles.container}>
-        <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
-          {image ? (
-            <Image
-              source={{ uri: image }}
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.placeholderImage}>
-              <Text style={styles.placeholderText}>{name.charAt(0) || 'U'}</Text>
-            </View>
-          )}
-          <Text style={styles.changePhotoText}>Change Photo</Text>
-        </TouchableOpacity>
+    <ImageBackground source={backgroundImage} style={{ flex: 1 }} resizeMode="cover">
+      <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+        <View style={styles.container}>
+          <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
+            {image ? (
+              <Image
+                source={{ uri: image }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.placeholderImage}>
+                <Text style={styles.placeholderText}>{name.charAt(0) || 'U'}</Text>
+              </View>
+            )}
+            <Text style={styles.changePhotoText}>Change Photo</Text>
+          </TouchableOpacity>
 
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          placeholder="Your Name"
-          placeholderTextColor={Colors.textSecondary}
-          style={styles.input}
-        />
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Your Name"
+            placeholderTextColor={Colors.textSecondary}
+            style={styles.input}
+          />
 
-        <TouchableOpacity
-          onPress={saveProfile}
-          disabled={loading}
-          style={[styles.saveButton, loading && styles.disabledButton]}
-        >
-          {loading ? (
-            <ActivityIndicator color={Colors.primary} />
-          ) : (
-            <Text style={styles.saveButtonText}>
-              Save Profile
-            </Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={saveProfile}
+            disabled={loading}
+            style={[styles.saveButton, loading && styles.disabledButton]}
+          >
+            {loading ? (
+              <ActivityIndicator color={Colors.primary} />
+            ) : (
+              <Text style={styles.saveButtonText}>
+                Save Profile
+              </Text>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          onPress={handleLogout}
-          disabled={loading}
-          style={[styles.saveButton, styles.logoutButton, loading && styles.disabledButton]}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.saveButtonText}>
-              Logout
-            </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity 
+            onPress={handleLogout}
+            disabled={loading}
+            style={[styles.saveButton, styles.logoutButton, loading && styles.disabledButton]}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.saveButtonText}>
+                Logout
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
     </ImageBackground>
   );
 }

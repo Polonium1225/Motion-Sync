@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert,ImageBackground } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ImageBackground, Animated } from 'react-native';
 import LiveMotionTracking from '../components/LiveMotionTracking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
@@ -22,6 +22,11 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
 
   const PROJECT_ID = '67d0bb27002cfc0b22d2';
   const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
 
   // Load profile data when component mounts
   React.useEffect(() => {
@@ -132,44 +137,70 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     }
   };
 
+  // Start animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(buttonScale, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(buttonScale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
     <ImageBackground
-        source={backgroundImage} // 👈 Set the background image
-        style={styles.container}
-        resizeMode="cover" // 👈 Ensure the image covers the screen
-      >
-    <View style={styles.container}>
-      {/* Profile Image in the top-right */}
-      <View style={styles.header}>
-        <View style={styles.contentContainer}>
-          <Text style={styles.greeting}>Hello, Welcome 👋</Text>
-          <Text style={styles.name}>{profileData.fullName}</Text>
+      source={backgroundImage}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+        {/* Profile Image in the top-right */}
+        <View style={styles.header}>
+          <View style={styles.contentContainer}>
+            <Text style={styles.greeting}>Hello, Welcome 👋</Text>
+            <Text style={styles.name}>{profileData.fullName}</Text>
+          </View>
+          <Image source={profileData.profileImage} style={styles.profileImage} />
         </View>
-
-        <Image
-          source={profileData.profileImage}
-          style={styles.profileImage}
-        />
-      </View>
-
-      {/* Live Motion Tracking Component */}
-      <View style={styles.card}>
-        <LiveMotionTracking />
-      </View>
-
-      {/* Buttons Section */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={handleNavigate}>
-          <Text style={styles.buttonText}>Error Detection & Feedback</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Compare with Professional Model</Text>
-        </TouchableOpacity>
-
-        
-      </View>
-    </View>
+        {/* Live Motion Tracking Component */}
+        <View style={styles.card}>
+          <LiveMotionTracking />
+        </View>
+        {/* Buttons Section */}
+        <View style={styles.buttonContainer}>
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <TouchableOpacity style={styles.button} onPress={handleNavigate} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+              <Text style={styles.buttonText}>Error Detection & Feedback</Text>
+            </TouchableOpacity>
+          </Animated.View>
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <TouchableOpacity style={styles.button} onPressIn={handlePressIn} onPressOut={handlePressOut}>
+              <Text style={styles.buttonText}>Compare with Professional Model</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Animated.View>
     </ImageBackground>
   );
 }

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator, Alert, SafeAreaView, StatusBar } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, ActivityIndicator, Alert, SafeAreaView, StatusBar, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import { 
@@ -23,6 +23,9 @@ const PostDetailScreen = ({ route }) => {
   const [likeCount, setLikeCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [commentLoading, setCommentLoading] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
     return () => {
@@ -49,6 +52,22 @@ const PostDetailScreen = ({ route }) => {
     };
     loadPost();
   }, [postId]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
 
   const renderComment = ({ item }) => {
     const formatDate = (dateString) => {
@@ -120,74 +139,74 @@ const PostDetailScreen = ({ route }) => {
     }
   };
 
-  if (loading || !post) {
+  if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
         <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
+        <Text style={styles.loadingText}>Loading post...</Text>
+      </SafeAreaView>
     );
   }
+
   return (
-    <ImageBackground
-      source={backgroundImage}
-      style={{ flex: 1 }}
-      resizeMode="cover"
-    >
+    <ImageBackground source={backgroundImage} style={{ flex: 1 }} resizeMode="cover">
       <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
-          <View style={styles.postContainer}>
-          <View style={styles.header}>
-            <Image 
-              source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
-              style={styles.avatar}
-              defaultSource={DEFAULT_AVATAR}
+        <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
+            <View style={styles.postContainer}>
+            <View style={styles.header}>
+              <Image 
+                source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
+                style={styles.avatar}
+                defaultSource={DEFAULT_AVATAR}
+              />
+              <Text style={styles.username}>{post.user?.name}</Text>
+            </View>
+              
+              <Text style={styles.content}>{post.content}</Text>
+              
+              {post.imageUrl && (
+                <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+              )}
+              
+              <View style={styles.actions}>
+                <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
+                  <Ionicons 
+                    name={isLiked ? "heart" : "heart-outline"} 
+                    size={24} 
+                    color={isLiked ? "#ff0000" : "#000"} 
+                  />
+                  <Text style={styles.actionText}>{likeCount}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            
+            <FlatList
+              data={post.comments}
+              renderItem={renderComment}
+              keyExtractor={item => item.$id}
+              style={styles.commentsList}
             />
-            <Text style={styles.username}>{post.user?.name}</Text>
-          </View>
             
-            <Text style={styles.content}>{post.content}</Text>
-            
-            {post.imageUrl && (
-              <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
-            )}
-            
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                <Ionicons 
-                  name={isLiked ? "heart" : "heart-outline"} 
-                  size={24} 
-                  color={isLiked ? "#ff0000" : "#000"} 
-                />
-                <Text style={styles.actionText}>{likeCount}</Text>
+            <View style={styles.commentInputContainer}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Write a comment..."
+                value={comment}
+                onChangeText={setComment}
+              />
+              <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
+                {commentLoading ? (
+                  <ActivityIndicator size="small" color="#007AFF" />
+                ) : (
+                  <Ionicons name="send" size={24} color="#007AFF" />
+                )}
               </TouchableOpacity>
             </View>
           </View>
           
-          <FlatList
-            data={post.comments}
-            renderItem={renderComment}
-            keyExtractor={item => item.$id}
-            style={styles.commentsList}
-          />
-          
-          <View style={styles.commentInputContainer}>
-            <TextInput
-              style={styles.commentInput}
-              placeholder="Write a comment..."
-              value={comment}
-              onChangeText={setComment}
-            />
-            <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
-              {commentLoading ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <Ionicons name="send" size={24} color="#007AFF" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-        
+        </Animated.View>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -306,6 +325,17 @@ const styles = StyleSheet.create({
     marginRight: 10,
     color: Colors.textPrimary,
     backgroundColor: Colors.surfaceDark,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: Colors.textPrimary,
   },
 });
 

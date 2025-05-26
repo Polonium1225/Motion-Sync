@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ImageBackground, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { account, getUserConversations } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
@@ -10,6 +10,41 @@ export default function CommunityScreen() {
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(false);
   const isFocused = useIsFocused();
+
+  // Animation states
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const handlePressIn = () => {
+    Animated.spring(buttonScale, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(buttonScale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const handleChatPress = async () => {
     setIsLoading(true);
@@ -36,23 +71,29 @@ export default function CommunityScreen() {
       style={styles.background}
       resizeMode="cover"
     >
-      <View style={styles.container}>
-        <Text style={styles.title}>Community</Text>
+      <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+        <View style={styles.container}>
+          <Text style={styles.title}>Community</Text>
 
-        {isLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Checking your conversations...</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.button}
-            onPress={handleChatPress}
-          >
-            <Text style={styles.buttonText}>Chat</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Checking your conversations...</Text>
+            </View>
+          ) : (
+            <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleChatPress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+              >
+                <Text style={styles.buttonText}>Chat</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+        </View>
+      </Animated.View>
     </ImageBackground>
   );
 }
@@ -66,6 +107,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
     padding: 20,
+    paddingTop: 50, // Add top padding for better spacing
   },
   title: {
     fontSize: 24,
