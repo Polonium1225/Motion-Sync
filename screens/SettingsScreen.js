@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import Colors from '../constants/Colors';
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import backgroundImage from '../assets/sfgsdh.png';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen({ setIsLoggedIn }) {
   const [name, setName] = useState('');
@@ -222,11 +223,11 @@ export default function SettingsScreen({ setIsLoggedIn }) {
       await account.deleteSessions();
 
       setIsLoggedIn(false);
-      navigation.navigate('Login');
+      // navigation.navigate('SignIn'); // No need to navigate manually
     } catch (error) {
       console.error('Logout error:', error);
       setIsLoggedIn(false);
-      navigation.navigate('Login');
+      // navigation.navigate('SignIn'); // No need to navigate manually
     }
   };
 

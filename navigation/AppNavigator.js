@@ -75,10 +75,18 @@ function MainTabs({ setIsLoggedIn }) {
       <Tab.Screen name="Analyze">
         {(props) => <HomeScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
       </Tab.Screen>
-      <Tab.Screen name="Progress" component={ProgressScreen} />
-      <Tab.Screen name="Community" component={CommunityScreen} />
-      <Tab.Screen name="Feed" component={PostsScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="Progress">
+        {(props) => <ProgressScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
+      </Tab.Screen>
+      <Tab.Screen name="Community">
+        {(props) => <CommunityScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
+      </Tab.Screen>
+      <Tab.Screen name="Feed">
+        {(props) => <PostsScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
+      </Tab.Screen>
+      <Tab.Screen name="Settings">
+        {(props) => <SettingsScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }

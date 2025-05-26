@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   ImageBackground,
-  SafeAreaView
+  SafeAreaView,
+  ScrollView
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -129,7 +130,11 @@ export default function SignUp({ setIsLoggedIn }) {
       resizeMode="cover"
     >
       <SafeAreaView style={{ flex: 1 }}>
-        <View style={styles.container}>
+        <ScrollView 
+          style={styles.container}
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+        >
           <LinearGradient colors={[Colors.primary, Colors.background]} style={styles.topSection}>
             <Text style={styles.welcomeText}>Create Account</Text>
           </LinearGradient>
@@ -137,7 +142,7 @@ export default function SignUp({ setIsLoggedIn }) {
           <View style={styles.formContainer}>
             <Text style={styles.signUpText}>Sign Up</Text>
 
-            <View>
+            <View style={styles.inputContainer}>
               <Text style={styles.inputText}>Name</Text>
               <View style={styles.inputWrapper}>
                 <Octicons name="person" size={20} color={Colors.primary} />
@@ -152,7 +157,7 @@ export default function SignUp({ setIsLoggedIn }) {
               </View>
             </View>
 
-            <View>
+            <View style={styles.inputContainer}>
               <Text style={styles.inputText}>Email</Text>
               <View style={styles.inputWrapper}>
                 <Octicons name="mail" size={20} color={Colors.primary} />
@@ -169,7 +174,7 @@ export default function SignUp({ setIsLoggedIn }) {
               </View>
             </View>
 
-            <View>
+            <View style={styles.inputContainer}>
               <Text style={styles.inputText}>Password</Text>
               <View style={styles.inputWrapper}>
                 <Octicons name="lock" size={20} color={Colors.primary} />
@@ -200,6 +205,7 @@ export default function SignUp({ setIsLoggedIn }) {
                 <Text style={[styles.signInText]}>Sign In</Text>
               </TouchableOpacity>
             </View>
+
             <LinearGradient
               colors={[Colors.primary, Colors.background]}
               start={{ x: 0, y: 0 }}
@@ -218,7 +224,7 @@ export default function SignUp({ setIsLoggedIn }) {
               <Text style={styles.googleButtonText}>Sign in with Google</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -230,14 +236,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   topSection: {
-    height: "50%",
+    height: 300, // Fixed height instead of percentage
+    justifyContent: 'center',
   },
   welcomeText: {
     color: Colors.textPrimary,
     fontSize: 40,
     fontWeight: "bold",
-    marginTop: "40%",
     textAlign: "center",
+    marginTop: 60,
   },
   formContainer: {
     flex: 1,
@@ -247,7 +254,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 20,
-    marginBottom: 30, // Add margin at the bottom to avoid conflict with device buttons
+    paddingBottom: 40, // Extra padding at bottom
+    minHeight: 500, // Minimum height to ensure all content fits
   },
   signUpText: {
     color: Colors.primary,
@@ -255,18 +263,23 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginTop: 35,
     marginBottom: 20,
-    marginLeft: -210
+    alignSelf: 'flex-start',
+    marginLeft: 20,
+  },
+  inputContainer: {
+    width: '100%',
+    marginBottom: 15,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    width: "90%",
+    width: "100%",
     backgroundColor: Colors.surfaceDark,
     borderColor: Colors.primary,
     borderWidth: 2,
     borderRadius: 30,
     paddingLeft: 10,
-    marginBottom: 20,
+    marginBottom: 5,
   },
   input: {
     flex: 1,
@@ -278,6 +291,13 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 16,
     marginBottom: 10,
+    marginLeft: 10,
+  },
+  buttonWrapper: {
+    width: '100%',
+    alignItems: 'flex-end',
+    paddingRight: 20,
+    marginBottom: 20, // Reduced space since arrow button is back to top position
   },
   loginButton: {
     position: "absolute",
@@ -304,6 +324,7 @@ const styles = StyleSheet.create({
   signInText: {
     color: Colors.primary,
     fontWeight: 'bold',
+    fontSize: 16,
   },
   googleButton: {
     backgroundColor: Colors.accentBlue,
@@ -311,7 +332,8 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     alignItems: 'center',
     marginTop: 20,
-    width: '90%',
+    width: '100%',
+    marginBottom: 20, // Extra margin at bottom
   },
   googleButtonText: {
     color: Colors.textPrimary,

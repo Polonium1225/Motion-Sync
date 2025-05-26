@@ -175,7 +175,7 @@ const PostDetailScreen = ({ route }) => {
                   <Ionicons 
                     name={isLiked ? "heart" : "heart-outline"} 
                     size={24} 
-                    color={isLiked ? "#ff0000" : "#000"} 
+                    color={isLiked ? "#ff0000" : "#fff"} // Outline is now white
                   />
                   <Text style={styles.actionText}>{likeCount}</Text>
                 </TouchableOpacity>
@@ -193,6 +193,7 @@ const PostDetailScreen = ({ route }) => {
               <TextInput
                 style={styles.commentInput}
                 placeholder="Write a comment..."
+                placeholderTextColor="#fff"
                 value={comment}
                 onChangeText={setComment}
               />

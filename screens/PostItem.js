@@ -81,11 +81,16 @@ const PostItem = ({ post, navigation }) => {
       <Text style={styles.content}>{post.content}</Text>
 
       {post.imageUrl && (
-        <Image
-          source={{ uri: post.imageUrl }}
-          style={styles.postImage}
-          resizeMode="cover"
-        />
+        <TouchableOpacity onPress={() => navigation.navigate('PostDetail', {
+          postId: post.$id,
+          onGoBack: loadData
+        })}>
+          <Image
+            source={{ uri: post.imageUrl }}
+            style={styles.postImage}
+            resizeMode="cover"
+          />
+        </TouchableOpacity>
       )}
 
       <View style={styles.footer}>
