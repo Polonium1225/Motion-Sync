@@ -83,8 +83,8 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
       <style>
         body {
-          background-color: #2D343C;
-          color: #fff;
+          background-color: ${Colors.surfaceDark};
+          color: ${Colors.textPrimary};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
           margin: 0;
           padding: 10px;
@@ -97,12 +97,12 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
         .title {
           font-size: 16px;
           font-weight: 600;
-          color: #8D98A3;
+          color: ${Colors.textSecondary};
           margin-bottom: 10px;
           text-align: center;
         }
         .error {
-          color: #FF4D4D;
+          color: ${Colors.primary};
           text-align: center;
         }
       </style>
@@ -136,8 +136,8 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 datasets: [{
                   label: 'Metrics (%)',
                   data: [data.similarity, data.smoothness, data.speed, data.cohesion, data.accuracy],
-                  backgroundColor: '#01CC97',
-                  borderColor: '#3A424A',
+                  backgroundColor: '${Colors.primary}',
+                  borderColor: '${Colors.border}',
                   borderWidth: 1
                 }]
               },
@@ -146,11 +146,11 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                   y: {
                     beginAtZero: true,
                     max: 100,
-                    ticks: { color: '#fff', callback: value => value + '%' },
-                    grid: { color: '#3A424A' }
+                    ticks: { color: '${Colors.textPrimary}', callback: value => value + '%' },
+                    grid: { color: '${Colors.border}' }
                   },
                   x: {
-                    ticks: { color: '#fff' },
+                    ticks: { color: '${Colors.textPrimary}' },
                     grid: { display: false }
                   }
                 },
@@ -178,8 +178,8 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
       <style>
         body {
-          background-color: #2D343C;
-          color: #fff;
+          background-color: ${Colors.surfaceDark};
+          color: ${Colors.textPrimary};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
           margin: 0;
           padding: 10px;
@@ -192,12 +192,12 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
         .title {
           font-size: 16px;
           font-weight: 600;
-          color: #8D98A3;
+          color: ${Colors.textSecondary};
           margin-bottom: 10px;
           text-align: center;
         }
         .error {
-          color: #FF4D4D;
+          color: ${Colors.primary};
           text-align: center;
         }
       </style>
@@ -231,10 +231,10 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 datasets: [{
                   label: 'Metrics',
                   data: [data.similarity, data.smoothness, data.smoothness, data.cohesion, data.accuracy],
-                  backgroundColor: 'rgba(1, 204, 151, 0.2)',
-                  borderColor: '#01CC97',
+                  backgroundColor: 'rgba(255, 0, 62, 0.2)',
+                  borderColor: '${Colors.primary}',
                   borderWidth: 2,
-                  pointBackgroundColor: '#01CC97'
+                  pointBackgroundColor: '${Colors.primary}'
                 }]
               },
               options: {
@@ -242,10 +242,10 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                   r: {
                     beginAtZero: true,
                     max: 100,
-                    ticks: { color: '#fff', callback: value => value + '%' },
-                    grid: { color: '#3A424A' },
-                    angleLines: { color: '#3A424A' },
-                    pointLabels: { color: '#fff' }
+                    ticks: { color: '${Colors.textPrimary}', callback: value => value + '%' },
+                    grid: { color: '${Colors.border}' },
+                    angleLines: { color: '${Colors.border}' },
+                    pointLabels: { color: '${Colors.textPrimary}' }
                   }
                 },
                 plugins: { legend: { display: false } },
@@ -272,8 +272,8 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
       <style>
         body {
-          background-color: #2D343C;
-          color: #fff;
+          background-color: ${Colors.surfaceDark};
+          color: ${Colors.textPrimary};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
           margin: 0;
           padding: 10px;
@@ -286,12 +286,12 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
         .title {
           font-size: 16px;
           font-weight: 600;
-          color: #8D98A3;
+          color: ${Colors.textSecondary};
           margin-bottom: 10px;
           text-align: center;
         }
         .error {
-          color: #FF4D4D;
+          color: ${Colors.primary};
           text-align: center;
         }
       </style>
@@ -324,15 +324,15 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 labels: ['Similarity', 'Smoothness', 'Speed', 'Cohesion', 'Accuracy'],
                 datasets: [{
                   data: [data.similarity, data.smoothness, data.speed, data.cohesion, data.accuracy],
-                  backgroundColor: ['#01CC97', '#00A07C', '#33CCAA', '#66E6C2', '#99FFDB'],
-                  borderColor: '#2D343C',
+                  backgroundColor: ['${Colors.primary}', '#B3002D', '#CC3366', '#E64D88', '#FF66AA'],
+                  borderColor: '${Colors.surfaceDark}',
                   borderWidth: 1
                 }]
               },
               options: {
                 plugins: {
                   legend: {
-                    labels: { color: '#fff', font: { size: 14 } },
+                    labels: { color: '${Colors.textPrimary}', font: { size: 14 } },
                     position: 'bottom'
                   }
                 },
@@ -352,15 +352,15 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
 
   // HTML for Pie Chart
   const pieChartHtml = `
-    <!DOFCTYPE html>
+    <!DOCTYPE html>
     <html>
     <head>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
       <style>
         body {
-          background-color: #2D343C;
-          color: #fff;
+          background-color: ${Colors.surfaceDark};
+          color: ${Colors.textPrimary};
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
           margin: 0;
           padding: 10px;
@@ -373,12 +373,12 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
         .title {
           font-size: 16px;
           font-weight: 600;
-          color: #8D98A3;
+          color: ${Colors.textSecondary};
           margin-bottom: 10px;
           text-align: center;
         }
         .error {
-          color: #FF4D4D;
+          color: ${Colors.primary};
           text-align: center;
         }
       </style>
@@ -408,15 +408,15 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 labels: ['Improvements', 'Regressions'],
                 datasets: [{
                   data: [data.improvements, data.regressions],
-                  backgroundColor: ['#01CC97', '#FF4D4D'],
-                  borderColor: '#2D343C',
+                  backgroundColor: ['${Colors.primary}', '${Colors.accentBlue}'],
+                  borderColor: '${Colors.surfaceDark}',
                   borderWidth: 1
                 }]
               },
               options: {
                 plugins: {
                   legend: {
-                    labels: { color: '#fff', font: { size: 14 } },
+                    labels: { color: '${Colors.textPrimary}', font: { size: 14 } },
                     position: 'bottom'
                   }
                 },
@@ -435,18 +435,18 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
   `;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {backgroundColor: Colors.background}]}>
       {/* Header */}
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={() => navigation.goBack()}
       >
         <LinearGradient
-          colors={['rgba(31,34,41,0.9)', 'rgba(31,34,41,0.6)']}
+          colors={[Colors.surfaceDark, 'rgba(31,34,41,0.6)']}
           style={styles.header}
         >
-          <Ionicons name="arrow-back" size={24} color="white" style={styles.backIcon} />
-          <Text style={styles.title}>Performance Analysis</Text>
+          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} style={styles.backIcon} />
+          <Text style={[styles.title, {color: Colors.textPrimary}]}>Performance Analysis</Text>
         </LinearGradient>
       </TouchableOpacity>
 
@@ -471,7 +471,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
               colors={['rgba(0,0,0,0.6)', 'transparent']}
               style={styles.videoLabel}
             >
-              <Text style={styles.videoLabelText}>PAST PERFORMANCE</Text>
+              <Text style={[styles.videoLabelText, {color: Colors.textPrimary}]}>PAST PERFORMANCE</Text>
             </LinearGradient>
           </View>
 
@@ -492,55 +492,55 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
               colors={['rgba(0,0,0,0.6)', 'transparent']}
               style={styles.videoLabel}
             >
-              <Text style={styles.videoLabelText}>CURRENT PERFORMANCE</Text>
+              <Text style={[styles.videoLabelText, {color: Colors.textPrimary}]}>CURRENT PERFORMANCE</Text>
             </LinearGradient>
           </View>
         </View>
 
         {/* Analysis Section */}
-        <View style={styles.statsContainer}>
+        <View style={[styles.statsContainer, {backgroundColor: Colors.surfaceDark}]}>
           {/* Pose Similarity */}
           <View style={styles.metricContainer}>
-            <Text style={styles.metricTitle}>Pose Similarity</Text>
+            <Text style={[styles.metricTitle, {color: Colors.textSecondary}]}>Pose Similarity</Text>
             <View style={styles.progressWrapper}>
-              <View style={[styles.progressBar, { width: `${sanitizedSimilarity}%` }]} />
-              <Text style={styles.metricValue}>{sanitizedSimilarity}%</Text>
+              <View style={[styles.progressBar, { width: `${sanitizedSimilarity}%`, backgroundColor: Colors.primary }]} />
+              <Text style={[styles.metricValue, {color: Colors.textPrimary}]}>{sanitizedSimilarity}%</Text>
             </View>
           </View>
 
           {/* Motion Smoothness */}
           <View style={styles.metricContainer}>
-            <Text style={styles.metricTitle}>Motion Smoothness</Text>
+            <Text style={[styles.metricTitle, {color: Colors.textSecondary}]}>Motion Smoothness</Text>
             <View style={styles.progressWrapper}>
-              <View style={[styles.progressBar, { width: `${sanitizedSmoothness}%` }]} />
-              <Text style={styles.metricValue}>{sanitizedSmoothness}%</Text>
+              <View style={[styles.progressBar, { width: `${sanitizedSmoothness}%`, backgroundColor: Colors.primary }]} />
+              <Text style={[styles.metricValue, {color: Colors.textPrimary}]}>{sanitizedSmoothness}%</Text>
             </View>
           </View>
 
           {/* Speed */}
           <View style={styles.metricContainer}>
-            <Text style={styles.metricTitle}>Movement Speed</Text>
+            <Text style={[styles.metricTitle, {color: Colors.textSecondary}]}>Movement Speed</Text>
             <View style={styles.progressWrapper}>
-              <View style={[styles.progressBar, { width: `${sanitizedSpeed}%` }]} />
-              <Text style={styles.metricValue}>{sanitizedSpeed}%</Text>
+              <View style={[styles.progressBar, { width: `${sanitizedSpeed}%`, backgroundColor: Colors.primary }]} />
+              <Text style={[styles.metricValue, {color: Colors.textPrimary}]}>{sanitizedSpeed}%</Text>
             </View>
           </View>
 
           {/* Cohesion */}
           <View style={styles.metricContainer}>
-            <Text style={styles.metricTitle}>Movement Cohesion</Text>
+            <Text style={[styles.metricTitle, {color: Colors.textSecondary}]}>Movement Cohesion</Text>
             <View style={styles.progressWrapper}>
-              <View style={[styles.progressBar, { width: `${sanitizedCohesion}%` }]} />
-              <Text style={styles.metricValue}>{sanitizedCohesion}%</Text>
+              <View style={[styles.progressBar, { width: `${sanitizedCohesion}%`, backgroundColor: Colors.primary }]} />
+              <Text style={[styles.metricValue, {color: Colors.textPrimary}]}>{sanitizedCohesion}%</Text>
             </View>
           </View>
 
           {/* Accuracy */}
           <View style={styles.metricContainer}>
-            <Text style={styles.metricTitle}>Movement Accuracy</Text>
+            <Text style={[styles.metricTitle, {color: Colors.textSecondary}]}>Movement Accuracy</Text>
             <View style={styles.progressWrapper}>
-              <View style={[styles.progressBar, { width: `${sanitizedAccuracy}%` }]} />
-              <Text style={styles.metricValue}>{sanitizedAccuracy}%</Text>
+              <View style={[styles.progressBar, { width: `${sanitizedAccuracy}%`, backgroundColor: Colors.primary }]} />
+              <Text style={[styles.metricValue, {color: Colors.textPrimary}]}>{sanitizedAccuracy}%</Text>
             </View>
           </View>
 
@@ -549,7 +549,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
             <WebView
               originWhitelist={['*']}
               source={{ html: barChartHtml }}
-              style={[styles.webView, { height: barChartHeight }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
+              style={[styles.webView, { height: barChartHeight, backgroundColor: Colors.surfaceDark }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
               scrollEnabled={false}
               scalesPageToFit={true}
               automaticallyAdjustContentInsets={false}
@@ -583,7 +583,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
             <WebView
               originWhitelist={['*']}
               source={{ html: radarChartHtml }}
-              style={[styles.webView, { height: radarChartHeight }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
+              style={[styles.webView, { height: radarChartHeight, backgroundColor: Colors.surfaceDark }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
               scrollEnabled={false}
               scalesPageToFit={true}
               automaticallyAdjustContentInsets={false}
@@ -617,7 +617,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
             <WebView
               originWhitelist={['*']}
               source={{ html: doughnutChartHtml }}
-              style={[styles.webView, { height: doughnutChartHeight }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
+              style={[styles.webView, { height: doughnutChartHeight, backgroundColor: Colors.surfaceDark }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
               scrollEnabled={false}
               scalesPageToFit={true}
               automaticallyAdjustContentInsets={false}
@@ -651,7 +651,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
             <WebView
               originWhitelist={['*']}
               source={{ html: pieChartHtml }}
-              style={[styles.webView, { height: pieChartHeight }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
+              style={[styles.webView, { height: pieChartHeight, backgroundColor: Colors.surfaceDark }, Platform.OS === 'ios' ? { opacity: 0.99 } : {}]}
               scrollEnabled={false}
               scalesPageToFit={true}
               automaticallyAdjustContentInsets={false}
@@ -682,27 +682,27 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
 
           {/* Improvement/Regression Stats */}
           <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Ionicons name="checkmark-circle" size={24} color="#01CC97" />
-              <Text style={styles.statText}>{sanitizedImprovements} Improvements</Text>
+            <View style={[styles.statItem, {backgroundColor: Colors.primaryDeep}]}>
+              <Ionicons name="checkmark-circle" size={24} color={Colors.primary} />
+              <Text style={[styles.statText, {color: Colors.textPrimary}]}>{sanitizedImprovements} Improvements</Text>
             </View>
-            <View style={styles.statItem}>
-              <Ionicons name="close-circle" size={24} color="#FF4D4D" />
-              <Text style={styles.statText}>{sanitizedRegressions} Regressions</Text>
+            <View style={[styles.statItem, {backgroundColor: Colors.primaryDeep}]}>
+              <Ionicons name="close-circle" size={24} color={Colors.accentBlue} />
+              <Text style={[styles.statText, {color: Colors.textPrimary}]}>{sanitizedRegressions} Regressions</Text>
             </View>
           </View>
         </View>
       </ScrollView>
 
       {/* Fixed Bottom Controls */}
-      <View style={styles.controlsContainer}>
-        <TouchableOpacity style={styles.restartButton} onPress={handleRestart}>
-          <Ionicons name="refresh" size={24} color="#fff" />
-          <Text style={styles.buttonText}>Restart</Text>
+      <View style={[styles.controlsContainer, {backgroundColor: Colors.surfaceDark}]}>
+        <TouchableOpacity style={[styles.restartButton, {backgroundColor: Colors.primaryDeep}]} onPress={handleRestart}>
+          <Ionicons name="refresh" size={24} color={Colors.textPrimary} />
+          <Text style={[styles.buttonText, {color: Colors.textPrimary}]}>Restart</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.playButton} onPress={togglePlayback}>
-          <Ionicons name={isPlaying ? "pause" : "play"} size={32} color="white" />
+        <TouchableOpacity style={[styles.playButton, {backgroundColor: Colors.primary}]} onPress={togglePlayback}>
+          <Ionicons name={isPlaying ? "pause" : "play"} size={32} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
     </View>
@@ -712,7 +712,6 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1F2229',
   },
   scrollContent: {
     paddingBottom: height * 0.14
@@ -731,7 +730,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '800',
-    color: 'white',
     letterSpacing: 0.5
   },
   videoContainer: {
@@ -760,14 +758,12 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   videoLabelText: {
-    color: '#fff',
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 0.8,
   },
   statsContainer: {
     padding: 20,
-    backgroundColor: '#2D343C',
     borderRadius: 24,
     marginHorizontal: 16,
     marginTop: 20,
@@ -779,14 +775,12 @@ const styles = StyleSheet.create({
   },
   webView: {
     width: width - 72,
-    backgroundColor: '#2D343C',
     borderRadius: 16,
   },
   metricContainer: {
     marginBottom: 20,
   },
   metricTitle: {
-    color: '#8D98A3',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
@@ -797,12 +791,10 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#01CC97',
     borderRadius: 4,
     marginRight: 12,
   },
   metricValue: {
-    color: '#fff',
     fontSize: 14,
     fontWeight: '700',
   },
@@ -814,14 +806,12 @@ const styles = StyleSheet.create({
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3A424A',
     padding: 16,
     borderRadius: 12,
     flex: 1,
     marginHorizontal: 4,
   },
   statText: {
-    color: '#fff',
     marginLeft: 8,
     fontWeight: '500',
   },
@@ -835,7 +825,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: 'rgba(45,52,60,0.95)',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     zIndex: 3,
@@ -843,19 +832,16 @@ const styles = StyleSheet.create({
   restartButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#3A424A',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 30,
   },
   playButton: {
-    backgroundColor: '#01CC97',
     padding: 16,
     borderRadius: 40,
     elevation: 8,
   },
   buttonText: {
-    color: '#fff',
     marginLeft: 8,
     fontWeight: '600',
   },

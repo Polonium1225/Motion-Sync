@@ -24,6 +24,8 @@ import ChatScreen from '../screens/ChatScreen';
 import SearchFriendsScreen from '../screens/SearchFriendsScreen';
 import NoConversationScreen from '../screens/NoConversationScreen';
 import FindFriendScreen from '../screens/FindFriendScreen';
+import image_analyser3d from '../screens/image_analyser3d';
+import aichatscreen from '../screens/aichatscreen.js'
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -56,10 +58,10 @@ function MainTabs({ setIsLoggedIn }) {
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
-          if (route.name === 'Analyze') {
+          if (route.name === 'home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'analysis') {
             iconName = focused ? 'analytics' : 'analytics-outline';
-          } else if (route.name === 'Progress') {
-            iconName = focused ? 'bar-chart' : 'bar-chart-outline';
           } else if (route.name === 'Community') {
             iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'Feed') {
@@ -72,10 +74,10 @@ function MainTabs({ setIsLoggedIn }) {
         },
       })}
     >
-      <Tab.Screen name="Analyze">
+      <Tab.Screen name="home">
         {(props) => <HomeScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
       </Tab.Screen>
-      <Tab.Screen name="Progress">
+      <Tab.Screen name="analysis">
         {(props) => <ProgressScreen {...props} setIsLoggedIn={setIsLoggedIn} />}
       </Tab.Screen>
       <Tab.Screen name="Community">
@@ -113,11 +115,16 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen name="MainTabs">
             {(props) => <MainTabs {...props} setIsLoggedIn={setIsLoggedIn} />}
           </Stack.Screen>
+          
 
           {/* Add new post-related screens */}
           <Stack.Screen
             name="PostDetail"
             component={PostDetailScreen}
+          />
+          <Stack.Screen
+            name="aichatscreen"
+            component={aichatscreen}
           />
           <Stack.Screen
             name="CreatePost"
@@ -128,6 +135,10 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen
             name="FindFriend"
             component={FindFriendScreen}
+          />
+          <Stack.Screen
+            name="image_analyser3d"
+            component={image_analyser3d}
           />
           <Stack.Screen
             name="test"

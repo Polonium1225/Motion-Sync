@@ -143,7 +143,7 @@ export default function PerformanceScreen() {
     });
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/Uploads`, {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/uploads`, {
         method: 'POST',
         body: formData,
         headers: {
