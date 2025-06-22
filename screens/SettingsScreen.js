@@ -1,3 +1,4 @@
+// screens/SettingsScreen.js
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
@@ -224,6 +225,41 @@ export default function SettingsScreen({ setIsLoggedIn }) {
       console.error('Upload image error:', error);
       throw new Error(`Failed to upload image: ${error.message}`);
     }
+  };
+
+  // Navigation helper with error handling
+  const navigateToScreen = (screenName, params = {}) => {
+    try {
+      navigation.navigate(screenName, params);
+    } catch (error) {
+      console.error(`Navigation error to ${screenName}:`, error);
+      Alert.alert(
+        'Navigation Error', 
+        `Unable to navigate to ${screenName}. Please ensure the screen is properly configured.`,
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
+  };
+
+  // Quick navigation functions
+  const goToAchievements = () => {
+    navigateToScreen('BadgesAndMilestonesScreen');
+  };
+
+  const goToAIAssistant = () => {
+    navigateToScreen('aichatscreen');
+  };
+
+  const goToHome = () => {
+    navigateToScreen('home');
+  };
+
+  const goToMotionAnalysis = () => {
+    navigateToScreen('image_analyser3d');
+  };
+
+  const goToGymFinder = () => {
+    navigateToScreen('GymFinder');
   };
 
   const saveProfile = async () => {
@@ -479,14 +515,14 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                 <View style={styles.quickActions}>
                   <TouchableOpacity 
                     style={styles.quickActionButton}
-                    onPress={() => navigation.navigate('BadgesAndMilestones')}
+                    onPress={goToAchievements}
                   >
                     <Ionicons name="trophy" size={24} color="#ff4c48" />
                     <Text style={styles.quickActionText}>Achievements</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.quickActionButton}
-                    onPress={() => navigation.navigate('ChatScreen')}
+                    onPress={goToAIAssistant}
                   >
                     <Ionicons name="chatbubbles" size={24} color="#ff4c48" />
                     <Text style={styles.quickActionText}>AI Assistant</Text>
