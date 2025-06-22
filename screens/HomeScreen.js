@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ImageBackground, Animated, ScrollView } from 'react-native';
-import LiveMotionTracking from '../components/LiveMotionTracking';
+import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
@@ -25,7 +25,13 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     hasNewContent: false
   });
 
+  // Scroll indicator state
+  const [showScrollIndicator, setShowScrollIndicator] = useState(true);
+  const [scrollY, setScrollY] = useState(0);
+
   const navigation1 = useNavigation();
+  const scrollViewRef = useRef(null);
+
   const handleNavigate = () => {
     navigation1.navigate('image_analyser3d'); // Replace with your actual route (e.g., CameraScreen)
   };
@@ -51,6 +57,10 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const slideAnim = useRef(new Animated.Value(40)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const notificationPulse = useRef(new Animated.Value(1)).current;
+  
+  // Scroll indicator animations
+  const scrollIndicatorOpacity = useRef(new Animated.Value(1)).current;
+  const scrollIndicatorBounce = useRef(new Animated.Value(0)).current;
 
   // Load profile data and notifications when component mounts
   React.useEffect(() => {
@@ -194,6 +204,51 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
         }),
       ])
     ).start();
+  };
+
+  // Scroll indicator bounce animation
+  const startScrollIndicatorBounce = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scrollIndicatorBounce, {
+          toValue: 5,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scrollIndicatorBounce, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  };
+
+  // Handle scroll events
+  const handleScroll = (event) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    const currentScrollY = contentOffset.y;
+    setScrollY(currentScrollY);
+
+    // Hide scroll indicator when near bottom (within 100px of bottom)
+    const isNearBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - 100;
+    
+    if (isNearBottom && showScrollIndicator) {
+      setShowScrollIndicator(false);
+      Animated.timing(scrollIndicatorOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else if (!isNearBottom && !showScrollIndicator && currentScrollY < 200) {
+      setShowScrollIndicator(true);
+      Animated.timing(scrollIndicatorOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+      startScrollIndicatorBounce();
+    }
   };
 
   // Handle level change
@@ -351,6 +406,11 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
         useNativeDriver: true,
       })
     ]).start();
+
+    // Start scroll indicator bounce animation after a longer delay
+    setTimeout(() => {
+      startScrollIndicatorBounce();
+    }, 3000);
   }, []);
 
   const handlePressIn = () => {
@@ -380,7 +440,12 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
       style={styles.container}
       resizeMode="cover"
     >
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
         <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {/* Profile Image in the top-right */}
           <View style={styles.header}>
@@ -440,7 +505,7 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
 
           {/* Live Motion Tracking Component */}
           <View style={styles.card}>
-            <LiveMotionTracking />
+            <BadgesMilestoneCard />
           </View>
 
           {/* Action Cards Section */}
@@ -497,6 +562,21 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Floating Scroll Indicator */}
+      <Animated.View 
+        style={[
+          styles.scrollIndicator,
+          {
+            opacity: scrollIndicatorOpacity,
+            transform: [{ translateY: scrollIndicatorBounce }]
+          }
+        ]}
+      >
+        <View style={styles.scrollIndicatorContainer}>
+          <Text style={styles.scrollIndicatorArrow}>↓</Text>
+        </View>
+      </Animated.View>
     </ImageBackground>
   );
 }
@@ -542,6 +622,35 @@ const styles = StyleSheet.create({
   notificationText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: 'bold',
+  },
+  // Scroll Indicator Styles
+  scrollIndicator: {
+    position: 'absolute',
+    bottom: 20,
+    left: '50%',
+    transform: [{ translateX: -20 }], // Better centering method
+    zIndex: 1000,
+  },
+  scrollIndicatorContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  scrollIndicatorArrow: {
+    color: Colors.primary, // Using vibrant primary color
+    fontSize: 24,
     fontWeight: 'bold',
   },
   // Level Slider Styles

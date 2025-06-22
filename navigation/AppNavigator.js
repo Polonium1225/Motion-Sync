@@ -26,6 +26,7 @@ import NoConversationScreen from '../screens/NoConversationScreen';
 import FindFriendScreen from '../screens/FindFriendScreen';
 import image_analyser3d from '../screens/image_analyser3d';
 import aichatscreen from '../screens/aichatscreen.js'
+import BadgesAndMilestonesScreen from '../screens/BadgesAndMilestonesScreen.js'
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -121,6 +122,10 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen
             name="PostDetail"
             component={PostDetailScreen}
+          />
+          <Stack.Screen
+            name="BadgesAndMilestonesScreen"
+            component={BadgesAndMilestonesScreen}
           />
           <Stack.Screen
             name="aichatscreen"

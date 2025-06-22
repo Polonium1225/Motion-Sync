@@ -2,31 +2,38 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome'; // You can use FontAwesome icons
 import Colors from '../constants/Colors';
+import { useNavigation } from '@react-navigation/native';
 
-export default function BadgesMilestoneCard() {
+export default function BadgesMilestoneCard({ navigation }) {
+  const navigation3 = useNavigation();
+  // Handle navigation to Badges and Milestones screen
+  const handleNavigateToBadges = () => {
+    navigation3.navigate('BadgesAndMilestonesScreen'); // Make sure this matches your route name
+  };
+
   return (
     <View style={styles.card}>
       <Text style={styles.cardTitle}>Badges & Milestone</Text>
 
       {/* List Items */}
-      <View style={styles.listItem}>
-        <Icon name="lock" size={20} color={Colors.primary} />
+      <TouchableOpacity style={styles.listItem} onPress={handleNavigateToBadges}>
+        <Icon name="trophy" size={20} color={Colors.primary} />
         <Text style={styles.listText}>Badges & Milestones</Text>
-      </View>
+      </TouchableOpacity>
 
-      <View style={styles.listItem}>
-        <Icon name="check-square" size={20} color={Colors.primary} />
+      <TouchableOpacity style={styles.listItem} onPress={handleNavigateToBadges}>
+        <Icon name="star" size={20} color={Colors.primary} />
         <Text style={styles.listText}>XP & Levels</Text>
-      </View>
+      </TouchableOpacity>
 
-      <View style={styles.listItem}>
+      <TouchableOpacity style={styles.listItem} onPress={handleNavigateToBadges}>
         <Icon name="bullseye" size={20} color={Colors.primary} />
         <Text style={styles.listText}>Daily & Weekly Goals</Text>
-      </View>
+      </TouchableOpacity>
 
       {/* See Button */}
-      <TouchableOpacity style={styles.button}>
-        <Text style={styles.buttonText}>see</Text>
+      <TouchableOpacity style={styles.button} onPress={handleNavigateToBadges}>
+        <Text style={styles.buttonText}>View Achievements</Text>
       </TouchableOpacity>
     </View>
   );
@@ -53,6 +60,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 5,
+    borderRadius: 8,
   },
   listText: {
     marginLeft: 10,
@@ -64,7 +74,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 25,
     borderColor: "#ff4c48",  // Correct property
-    width:200,
+    width: 200,
     borderWidth: 2,          // Required for the border to appear
     borderRadius: 30,
     marginTop: 15,
