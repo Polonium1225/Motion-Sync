@@ -9,7 +9,9 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
-  ImageBackground
+  ImageBackground,
+  Animated,
+  Dimensions
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +19,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import { saveHistory, getUserId } from '../lib/AppwriteService';
 import { API_CONFIG } from './config';
+
+const { width, height } = Dimensions.get('window');
 
 export default function PerformanceScreen() {
   const navigation = useNavigation();
@@ -27,6 +31,13 @@ export default function PerformanceScreen() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  
+  // Animation values
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(40)).current;
+  const buttonScale = React.useRef(new Animated.Value(1)).current;
+  const pulseAnimation = React.useRef(new Animated.Value(1)).current;
+  const rotateAnimation = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const fetchUserId = async () => {
@@ -38,6 +49,53 @@ export default function PerformanceScreen() {
       }
     };
     fetchUserId();
+
+    // Start animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 900,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 7,
+        useNativeDriver: true,
+      })
+    ]).start();
+
+    // Pulse animation for compare button
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnimation, {
+          toValue: 1.05,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnimation, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulseLoop.start();
+
+    // Rotation animation for loading
+    const rotateLoop = Animated.loop(
+      Animated.timing(rotateAnimation, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    );
+    rotateLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      rotateLoop.stop();
+    };
   }, []);
 
   const handleCompare = useCallback(async () => {
@@ -65,6 +123,18 @@ export default function PerformanceScreen() {
       return;
     }
 
+    // Button press animation
+    Animated.sequence([
+      Animated.spring(buttonScale, {
+        toValue: 0.95,
+        useNativeDriver: true,
+      }),
+      Animated.spring(buttonScale, {
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     setLoading(true);
     setLoadingMessage('Uploading Past Video...');
 
@@ -77,7 +147,6 @@ export default function PerformanceScreen() {
   
       setLoadingMessage('Analyzing performance...');
       
-      // Try using URL parameters instead if multipart/form-data is causing issues
       const compareUrl = `${API_CONFIG.BASE_URL}/compare`;
       console.log('Making compare request to:', compareUrl);
       
@@ -117,7 +186,7 @@ export default function PerformanceScreen() {
     } finally {
       setLoading(false);
     }
-  }, [pastVideoUri, videoUri]);
+  }, [pastVideoUri, videoUri, buttonScale]);
 
   const pickVideo = async (setVideoFunction) => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -151,30 +220,25 @@ export default function PerformanceScreen() {
         },
       });
 
-      // Check if response is ok before trying to parse JSON
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Upload API error response:', errorText);
         throw new Error(errorText || 'Upload failed');
       }
       
-      // Get the response as text first so we can debug it
       const responseText = await response.text();
       console.log('Upload API response:', responseText);
       
       let result;
       try {
-        // Try to parse the response as JSON
         result = JSON.parse(responseText);
       } catch (parseError) {
         console.error('Failed to parse JSON:', parseError);
         
-        // Fallback: if the response is a direct URL (starts with http)
         if (responseText.trim().startsWith('http')) {
           return responseText.trim();
         }
         
-        // Try to extract JSON from text (if response has JSON embedded)
         if (responseText.includes('{') && responseText.includes('}')) {
           try {
             const jsonStart = responseText.indexOf('{');
@@ -205,95 +269,188 @@ export default function PerformanceScreen() {
     }
   };
 
+  const handlePressIn = () => {
+    Animated.spring(buttonScale, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(buttonScale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
     <ImageBackground
       source={require('../assets/backalso2.png')}
       style={styles.container}
       resizeMode="cover"
     >
-      <View style={styles.overlay}>
+      <Animated.View 
+        style={[
+          styles.content,
+          { 
+            opacity: fadeAnim, 
+            transform: [{ translateY: slideAnim }] 
+          }
+        ]}
+      >
         {/* Header */}
-        <TouchableOpacity style={styles.header} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="white" />
-          <Text style={styles.headerTitle}>Performance</Text>
-        </TouchableOpacity>
-
-        {/* Compare Section */}
-        <Text style={styles.sectionTitle}>Compare</Text>
-        <View style={styles.improvementContainer}>
-          {/* Video Previews - Stacked Vertically */}
-          <View style={styles.videoPlaceholderContainer}>
-            {/* Past Video Preview */}
-            <TouchableOpacity style={styles.videoPlaceholder} onPress={() => setPastModalVisible(true)}>
-              {pastVideoUri ? (
-                <Video
-                  source={{ uri: pastVideoUri }}
-                  style={styles.previewVideo}
-                  useNativeControls={false}
-                  resizeMode="contain"
-                  isLooping
-                />
-              ) : (
-                <Image source={require('../assets/video.png')} style={styles.previewImage} />
-              )}
-              <Text style={styles.placeholderLabel}>PAST VIDEO</Text>
-            </TouchableOpacity>
-
-            {/* New Video Preview */}
-            <TouchableOpacity style={styles.videoPlaceholder} onPress={() => setModalVisible(true)}>
-              {videoUri ? (
-                <Video
-                  source={{ uri: videoUri }}
-                  style={styles.previewVideo}
-                  useNativeControls={false}
-                  resizeMode="contain"
-                  isLooping
-                />
-              ) : (
-                <Image source={require('../assets/video.png')} style={styles.previewImage} />
-              )}
-              <Text style={styles.placeholderLabel}>NEW VIDEO</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton} 
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="white" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Performance Analysis</Text>
+          <View style={styles.headerSpacer} />
         </View>
 
-        {/* Compare Button - Outside Panel */}
-        <TouchableOpacity 
+        {/* Title Section */}
+        <View style={styles.titleSection}>
+          <Text style={styles.sectionTitle}>Compare Performance</Text>
+          <Text style={styles.sectionSubtitle}>
+            Upload two videos to analyze your improvement
+          </Text>
+        </View>
+
+        {/* Video Selection Section */}
+        <View style={styles.videoContainer}>
+          {/* Past Video Card */}
+          <TouchableOpacity 
+            style={styles.videoCard}
+            onPress={() => setPastModalVisible(true)}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardIconContainer}>
+                <Text style={styles.cardIcon}>📹</Text>
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardTitle}>Past Performance</Text>
+                <Text style={styles.cardSubtitle}>
+                  {pastVideoUri ? 'Video selected ✓' : 'Tap to select video'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.cardArrow}>
+              <Text style={styles.arrowText}>→</Text>
+            </View>
+            {pastVideoUri && (
+              <View style={styles.checkmark}>
+                <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* VS Indicator */}
+          <View style={styles.vsContainer}>
+            <View style={styles.vsCircle}>
+              <Text style={styles.vsText}>VS</Text>
+            </View>
+          </View>
+
+          {/* New Video Card */}
+          <TouchableOpacity 
+            style={styles.videoCard}
+            onPress={() => setModalVisible(true)}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardIconContainer}>
+                <Text style={styles.cardIcon}>🎬</Text>
+              </View>
+              <View style={styles.cardTextContainer}>
+                <Text style={styles.cardTitle}>New Performance</Text>
+                <Text style={styles.cardSubtitle}>
+                  {videoUri ? 'Video selected ✓' : 'Tap to select video'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.cardArrow}>
+              <Text style={styles.arrowText}>→</Text>
+            </View>
+            {videoUri && (
+              <View style={styles.checkmark}>
+                <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Compare Button */}
+        <Animated.View 
           style={[
-            styles.compareButton,
-            (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
+            { transform: [{ scale: pulseAnimation }] }
           ]}
-          onPress={handleCompare}
         >
-          <Text style={styles.compareButtonText}>COMPARE PERFORMANCE</Text>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={[
+              styles.compareButton,
+              (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
+            ]}
+            onPress={handleCompare}
+            disabled={!pastVideoUri || !videoUri}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+          >
+            <View style={styles.compareButtonContent}>
+              <Ionicons name="analytics-outline" size={24} color="white" />
+              <Text style={styles.compareButtonText}>ANALYZE PERFORMANCE</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
 
         {/* Modal for NEW Video Upload */}
         <Modal animationType="fade" transparent={true} visible={modalVisible}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
-              <View style={styles.flexModel}>
-                <Text style={styles.modalTitle}>Upload a new video</Text>
-                <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Upload New Performance</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton} 
+                  onPress={() => setModalVisible(false)}
+                >
                   <Ionicons name="close" size={24} color="white" />
                 </TouchableOpacity>
               </View>
-              {videoUri ? (
-                <Video
-                  source={{ uri: videoUri }}
-                  style={styles.videoPreview}
-                  useNativeControls
-                  resizeMode="contain"
-                />
-              ) : (
-                <Image source={require('../assets/video.png')} style={styles.modalImage} />
-              )}
-              <TouchableOpacity style={styles.uploadButton} onPress={() => pickVideo(setVideoUri)}>
-                <Text style={styles.uploadButtonText}>Select Video</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.proceedButton} onPress={() => setModalVisible(false)}>
-                <Text style={styles.proceedButtonText}>Proceed</Text>
-              </TouchableOpacity>
+              
+              <View style={styles.modalBody}>
+                {videoUri ? (
+                  <Video
+                    source={{ uri: videoUri }}
+                    style={styles.modalVideoPreview}
+                    useNativeControls
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.modalPlaceholder}>
+                    <Ionicons name="videocam-outline" size={80} color="rgba(255,255,255,0.5)" />
+                    <Text style={styles.modalPlaceholderText}>No video selected</Text>
+                  </View>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.modalButton}
+                  onPress={() => pickVideo(setVideoUri)}
+                >
+                  <Ionicons name="cloud-upload-outline" size={20} color="white" />
+                  <Text style={styles.modalButtonText}>Select Video</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.modalSecondaryButton}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.modalSecondaryButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
@@ -302,42 +459,78 @@ export default function PerformanceScreen() {
         <Modal animationType="fade" transparent={true} visible={pastModalVisible}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
-              <View style={styles.flexModel}>
-                <Text style={styles.modalTitle}>Upload past video</Text>
-                <TouchableOpacity style={styles.closeButton} onPress={() => setPastModalVisible(false)}>
-                  <Ionicons name="close" size={24} color="ff4c48" />
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Upload Past Performance</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton} 
+                  onPress={() => setPastModalVisible(false)}
+                >
+                  <Ionicons name="close" size={24} color="white" />
                 </TouchableOpacity>
               </View>
-              {pastVideoUri ? (
-                <Video
-                  source={{ uri: pastVideoUri }}
-                  style={styles.videoPreview}
-                  useNativeControls
-                  resizeMode="contain"
-                />
-              ) : (
-                <Image source={require('../assets/video.png')} style={styles.modalImage} />
-              )}
-              <TouchableOpacity style={styles.uploadButton} onPress={() => pickVideo(setPastVideoUri)}>
-                <Text style={styles.uploadButtonText}>Select Video</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.proceedButton} onPress={() => setPastModalVisible(false)}>
-                <Text style={styles.proceedButtonText}>Proceed</Text>
-              </TouchableOpacity>
+              
+              <View style={styles.modalBody}>
+                {pastVideoUri ? (
+                  <Video
+                    source={{ uri: pastVideoUri }}
+                    style={styles.modalVideoPreview}
+                    useNativeControls
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.modalPlaceholder}>
+                    <Ionicons name="videocam-outline" size={80} color="rgba(255,255,255,0.5)" />
+                    <Text style={styles.modalPlaceholderText}>No video selected</Text>
+                  </View>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.modalButton}
+                  onPress={() => pickVideo(setPastVideoUri)}
+                >
+                  <Ionicons name="cloud-upload-outline" size={20} color="white" />
+                  <Text style={styles.modalButtonText}>Select Video</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.modalSecondaryButton}
+                  onPress={() => setPastModalVisible(false)}
+                >
+                  <Text style={styles.modalSecondaryButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>
 
-        {/* Fullscreen Loading Modal */}
-        <Modal animationType="none" transparent={true} visible={loading}>
+        {/* Loading Modal */}
+        <Modal animationType="fade" transparent={true} visible={loading}>
           <View style={styles.loadingOverlay}>
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#01CC97" />
-              <Text style={styles.loadingText}>{loadingMessage}</Text>
+            <View style={styles.loadingContainer}>
+              <Animated.View
+                style={[
+                  styles.loadingIcon,
+                  {
+                    transform: [{
+                      rotate: rotateAnimation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', '360deg']
+                      })
+                    }]
+                  }
+                ]}
+              >
+                <Ionicons name="analytics-outline" size={48} color={Colors.primary} />
+              </Animated.View>
+              <Text style={styles.loadingTitle}>Processing</Text>
+              <Text style={styles.loadingMessage}>{loadingMessage}</Text>
+              <View style={styles.loadingBar}>
+                <View style={styles.loadingBarFill} />
+              </View>
             </View>
           </View>
         </Modal>
-      </View>
+      </Animated.View>
     </ImageBackground>
   );
 }
@@ -346,217 +539,320 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  overlay: {
+  content: {
     flex: 1,
-  },
-  flexModel: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    padding: 20,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 45,
-    paddingBottom: 15,
-    paddingHorizontal: 20,
-    backgroundColor: '#0c1423',
-    borderBottomWidth: 1,
-    borderBottomColor: '#3A424A',
+    marginTop: 20,
+    marginBottom: 30,
+    justifyContent: 'space-between',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginLeft: 15,
-    color: 'white',
-    letterSpacing: 0.5,
-  },
-  sectionTitle: {
-    marginTop: 40,
-    fontSize: 22,
-    fontWeight: '800',
-    marginVertical: 20,
-    color: '#ff4c48',
-    paddingHorizontal: 20,
-    alignSelf: 'center',
-    textAlign: 'center',
-  },
-  improvementContainer: {
-    backgroundColor: 'rgba(60, 45, 45, 0.5)',
+  backButton: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    marginHorizontal: 20,
-    padding: 25,
-    shadowColor: Colors.primaryDeep,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
-    borderColor: '#ff4c48',
-    borderWidth: 2,
-  },
-  compareText: {
-    fontSize: 17,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 20,
-    color: '#ff4c48',
-    lineHeight: 24,
-  },
-  compareButton: {
-    backgroundColor: 'transparent',
-    textAlign: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderColor: '#ff4c48',
-    borderWidth: 2,
-    borderRadius: 30,
-    marginTop: 15,
-    width: '90%',
-    height: 70,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginLeft: 15,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  titleSection: {
+    marginBottom: 30,
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    color: Colors.textPrimary,
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  sectionSubtitle: {
+    color: Colors.textSecondary,
+    fontSize: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  videoContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 30,
+  },
+  videoCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
+    minHeight: 80,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  cardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  cardIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  cardIcon: {
+    fontSize: 24,
+  },
+  cardTextContainer: {
+    flex: 1,
+  },
+  cardTitle: {
+    color: Colors.textPrimary,
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    color: Colors.textSecondary,
+    fontSize: 13,
+    opacity: 0.8,
+  },
+  cardArrow: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  arrowText: {
+    color: Colors.textPrimary,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  checkmark: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 15,
+    padding: 5,
+  },
+  vsContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  vsCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  vsText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  compareButton: {
+    backgroundColor: 'rgba(255, 76, 72, 0.1)',
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    borderRadius: 15,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   compareButtonDisabled: {
-    borderColor: '#4A5058',
-    shadowColor: '#000',
+    opacity: 0.5,
+    borderColor: '#666',
+  },
+  compareButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   compareButtonText: {
     color: Colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)', // Very dark, highly opaque to simulate blur
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   modalContainer: {
-    backgroundColor: Colors.surfaceDark,
-    width: '90%',
-    padding: 25,
-    borderRadius: 24,
+    width: width * 0.9,
+    maxHeight: height * 0.8,
+    backgroundColor: 'rgba(31, 41, 55, 0.95)',
+    borderRadius: 15,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    shadowColor: Colors.primaryDeep,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 20,
-    color: 'white',
-    textAlign: 'center',
-  },
-  videoPreview: {
-    width: '100%',
-    height: 180,
-    borderRadius: 16,
-    marginVertical: 15,
-  },
-  uploadButton: {
-    backgroundColor: '#ff4c48',
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    marginTop: 15,
-    width: '100%',
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  uploadButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: Colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-    marginLeft: 10,
-  },
-  proceedButton: {
-    backgroundColor: Colors.background,
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    marginTop: 15,
-    width: '100%',
-    alignItems: 'center',
-  },
-  proceedButtonText: {
-    color: Colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  modalImage: {
-    width: 120,
-    height: 120,
-    resizeMode: 'contain',
-    marginVertical: 20,
-    tintColor: '#8D98A3',
   },
   closeButton: {
-    padding: 5,
-  },
-  videoPlaceholderContainer: {
-    flexDirection: 'column',
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  videoPlaceholder: {
-    width: '90%',
-    aspectRatio: 16 / 9,
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    overflow: 'hidden',
+  modalBody: {
+    padding: 20,
+  },
+  modalVideoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 15,
+    marginBottom: 20,
+  },
+  modalPlaceholder: {
+    height: 200,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderStyle: 'dashed',
+  },
+  modalPlaceholderText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 10,
+  },
+  modalButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 10,
-    marginVertical: 10,
+    backgroundColor: Colors.primary,
+    paddingVertical: 15,
+    borderRadius: 15,
+    marginBottom: 15,
   },
-  previewImage: {
-    width: '70%',
-    height: '70%',
-    tintColor: Colors.textSecondary,
+  modalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
-  previewVideo: {
-    width: '100%',
-    height: '100%',
+  modalSecondaryButton: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  placeholderLabel: {
-    position: 'absolute',
-    bottom: 6,
+  modalSecondaryButtonText: {
     color: Colors.textPrimary,
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '600',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 6,
-    borderRadius: 4,
   },
   loadingOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 999,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
-  loadingBox: {
-    backgroundColor: Colors.surfaceDark,
-    padding: 30,
-    borderRadius: 16,
+  loadingContainer: {
+    backgroundColor: 'rgba(31, 41, 55, 0.95)',
+    borderRadius: 15,
+    padding: 40,
     alignItems: 'center',
-    width: '70%',
+    minWidth: 280,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  loadingText: {
-    marginTop: 20,
+  loadingIcon: {
+    marginBottom: 20,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
     color: Colors.textPrimary,
+    marginBottom: 10,
+  },
+  loadingMessage: {
     fontSize: 16,
+    color: Colors.textSecondary,
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  loadingBar: {
+    width: 200,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  loadingBarFill: {
+    height: '100%',
+    width: '70%',
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
   },
 });

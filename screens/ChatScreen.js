@@ -13,7 +13,8 @@ import {
   SafeAreaView,
   BackHandler,
   Image,
-  AppState
+  AppState,
+  Animated
 } from 'react-native';
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import Colors from '../constants/Colors';
@@ -61,17 +62,21 @@ export default function ChatScreen({ route, navigation }) {
   const pollingIntervalRef = useRef(null);
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const statusPulse = useRef(new Animated.Value(1)).current;
 
   // Add a ref for unique temporary IDs
   const tempIdCounter = useRef(0);
 
-  const keyExtractor = (item) => {
-    // For pending messages, use their uniqueTempId with a prefix
+  const keyExtractor = (item, index) => {
+    // For pending messages, use their uniqueTempId with a prefix and index
     if (item.$id.startsWith('temp_')) {
-      return `pending_${item.uniqueTempId || Date.now()}`;
+      return `pending_${item.uniqueTempId || item.$id}_${index}`;
     }
-    // For confirmed messages, add a prefix and ensure uniqueness
-    return `confirmed_${item.$id}_${item.$createdAt || Date.now()}`;
+    // For confirmed messages, use $id with index as fallback for uniqueness
+    return `confirmed_${item.$id}_${index}_${item.messageId || ''}`;
   };
 
   // ==================== UTILITY FUNCTIONS ====================
@@ -143,6 +148,45 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   // ==================== LIFECYCLE EFFECTS ====================
+
+  // Initialize animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 6,
+        useNativeDriver: true,
+      })
+    ]).start();
+
+    // Status pulse animation
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(statusPulse, {
+          toValue: 1.2,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(statusPulse, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    
+    if (friendData.status === 'online') {
+      pulseLoop.start();
+    }
+
+    return () => pulseLoop.stop();
+  }, [friendData.status]);
 
   // App state handling
   useEffect(() => {
@@ -408,19 +452,13 @@ export default function ChatScreen({ route, navigation }) {
 
   // ==================== UI COMPONENTS ====================
 
-  {errorMessage ? (
-    <View style={styles.errorBanner}>
-      <Text style={styles.errorText}>{errorMessage}</Text>
-    </View>
-  ) : null}
-
   const renderHeader = () => (
     <View style={styles.header}>
       <TouchableOpacity 
         style={styles.backButton}
-        onPress={() => navigation.navigate('FindFriend')}
+        onPress={() => navigation.navigate('MainTabs', { screen: 'Community' })}
       >
-        <Ionicons name="arrow-back" size={24} color="#fff" />
+        <Ionicons name="arrow-back" size={24} color="white" />
       </TouchableOpacity>
       
       <View style={styles.headerUserInfo}>
@@ -430,10 +468,15 @@ export default function ChatScreen({ route, navigation }) {
             style={styles.avatarImage}
             defaultSource={DEFAULT_AVATAR}
           />
-          <View style={[
-            styles.statusIndicator,
-            { backgroundColor: friendData.status === 'online' ? '#4CAF50' : '#9E9E9E' }
-          ]} />
+          <Animated.View 
+            style={[
+              styles.statusIndicator,
+              { 
+                backgroundColor: friendData.status === 'online' ? '#4CAF50' : '#9E9E9E',
+                transform: friendData.status === 'online' ? [{ scale: statusPulse }] : [{ scale: 1 }]
+              }
+            ]} 
+          />
         </View>
         
         <View style={styles.headerTextContainer}>
@@ -447,7 +490,9 @@ export default function ChatScreen({ route, navigation }) {
         </View>
       </View>
       
-      <View style={styles.headerRight} />
+      <TouchableOpacity style={styles.headerAction}>
+        <Ionicons name="videocam-outline" size={24} color="white" />
+      </TouchableOpacity>
     </View>
   );
 
@@ -458,30 +503,35 @@ export default function ChatScreen({ route, navigation }) {
   
     return (
       <View style={[
-        styles.messageBubble,
-        isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
-        isPending && styles.pendingMessage,
-        isFailed && styles.failedMessage
+        styles.messageContainer,
+        isCurrentUser ? styles.currentUserContainer : styles.otherUserContainer
       ]}>
-        <Text style={[
-          styles.messageText,
-          isCurrentUser ? styles.currentUserMessageText : styles.otherUserMessageText
+        <View style={[
+          styles.messageBubble,
+          isCurrentUser ? styles.currentUserMessage : styles.otherUserMessage,
+          isPending && styles.pendingMessage,
+          isFailed && styles.failedMessage
         ]}>
-          {item.content}
-        </Text>
-        <View style={styles.messageFooter}>
           <Text style={[
-            styles.messageTime,
-            isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
+            styles.messageText,
+            isCurrentUser ? styles.currentUserMessageText : styles.otherUserMessageText
           ]}>
-            {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {item.content}
           </Text>
-          {isPending && (
-            <ActivityIndicator size="small" color="#999" style={styles.statusIndicator} />
-          )}
-          {isFailed && (
-            <Ionicons name="warning" size={16} color="#ff4444" style={styles.statusIndicator} />
-          )}
+          <View style={styles.messageFooter}>
+            <Text style={[
+              styles.messageTime,
+              isCurrentUser ? styles.currentUserMessageTime : styles.otherUserMessageTime
+            ]}>
+              {new Date(item.$createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+            {isPending && (
+              <ActivityIndicator size="small" color="#999" style={styles.messageStatusIcon} />
+            )}
+            {isFailed && (
+              <Ionicons name="warning" size={16} color="#ff4444" style={styles.messageStatusIcon} />
+            )}
+          </View>
         </View>
       </View>
     );
@@ -489,24 +539,47 @@ export default function ChatScreen({ route, navigation }) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading conversation...</Text>
-      </SafeAreaView>
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.loadingContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading conversation...</Text>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     );
   }
 
   return (
     <ImageBackground
       source={backgroundImage}
-      style={{ flex: 1 }}
+      style={styles.container}
       resizeMode="cover"
     >
       <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <Animated.View 
+          style={[
+            styles.chatContainer,
+            { 
+              opacity: fadeAnim, 
+              transform: [{ translateY: slideAnim }] 
+            }
+          ]}
+        >
           {renderHeader()}
+          
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="warning-outline" size={16} color="white" />
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            </View>
+          ) : null}
           
           <KeyboardAvoidingView
             style={styles.keyboardAvoidingView}
@@ -516,45 +589,52 @@ export default function ChatScreen({ route, navigation }) {
             <FlatList
               ref={flatListRef}
               data={[
-                ...Object.values(messages.pending).map(msg => ({ ...msg, isPending: true })),
+                ...Object.values(messages.pending).map((msg, index) => ({ ...msg, isPending: true, listIndex: `p_${index}` })),
                 ...messages.confirmed
                   .filter(msg => !Object.values(messages.pending).some(
                     pendingMsg => pendingMsg.messageId === msg.messageId
                   ))
-                  .map(msg => ({ ...msg, isPending: false }))
+                  .map((msg, index) => ({ ...msg, isPending: false, listIndex: `c_${index}` }))
               ].sort((a, b) => new Date(b.$createdAt) - new Date(a.$createdAt))}
               renderItem={renderMessageItem}
               keyExtractor={keyExtractor}
               contentContainerStyle={styles.messagesList}
               inverted
+              showsVerticalScrollIndicator={false}
             />
             
             <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                value={newMessage}
-                onChangeText={setNewMessage}
-                placeholder="Type a message..."
-                placeholderTextColor="#666"
-                multiline
-              />
-              <TouchableOpacity 
-                style={[
-                  styles.sendButton,
-                  (!newMessage.trim() || isSending) && styles.sendButtonDisabled
-                ]}
-                onPress={sendMessage}
-                disabled={!newMessage.trim() || isSending}
-              >
-                <Ionicons 
-                  name="send" 
-                  size={20} 
-                  color={newMessage.trim() && !isSending ? "#fff" : "#888"} 
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  value={newMessage}
+                  onChangeText={setNewMessage}
+                  placeholder="Type a message..."
+                  placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                  multiline
                 />
-              </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.sendButton,
+                    (!newMessage.trim() || isSending) && styles.sendButtonDisabled
+                  ]}
+                  onPress={sendMessage}
+                  disabled={!newMessage.trim() || isSending}
+                >
+                  {isSending ? (
+                    <ActivityIndicator size="small" color="white" />
+                  ) : (
+                    <Ionicons 
+                      name="send" 
+                      size={20} 
+                      color="white"
+                    />
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </KeyboardAvoidingView>
-        </View>
+        </Animated.View>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -563,104 +643,161 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  chatContainer: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background, // Use theme background color
+  },
+  loadingContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   loadingText: {
-    color: Colors.textPrimary, // Use theme text color
-    marginTop: 10,
-    fontSize: 16
+    color: Colors.textPrimary,
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: '#1A1F23',
+    paddingTop: 15,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderBottomWidth: 1,
-    borderBottomColor: '#2D3439'
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
-    marginRight: 15
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
   },
   headerUserInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1
+    flex: 1,
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: 12
+    marginRight: 12,
   },
   avatarImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   statusIndicator: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 2,
-    borderColor: '#1A1F23'
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerTextContainer: {
-    flex: 1
+    flex: 1,
   },
   headerTitle: {
-    color: 'white',
+    color: Colors.textPrimary,
     fontSize: 18,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   headerStatus: {
     fontSize: 14,
-    marginTop: 2
+    marginTop: 2,
+    fontWeight: '500',
   },
-  headerRight: {
-    width: 24
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(255, 76, 72, 0.9)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  errorText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
   },
   keyboardAvoidingView: {
-    flex: 1
+    flex: 1,
   },
   messagesList: {
-    paddingVertical: 15,
-    paddingHorizontal: 10
+    paddingVertical: 20,
+    paddingHorizontal: 15,
+  },
+  messageContainer: {
+    marginBottom: 12,
+  },
+  currentUserContainer: {
+    alignItems: 'flex-end',
+  },
+  otherUserContainer: {
+    alignItems: 'flex-start',
   },
   messageBubble: {
     maxWidth: '80%',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   currentUserMessage: {
-    alignSelf: 'flex-end',
     backgroundColor: Colors.primary,
-    borderBottomRightRadius: 2,
+    borderBottomRightRadius: 5,
   },
   otherUserMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: Colors.surfaceDark,
-    borderBottomLeftRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderBottomLeftRadius: 5,
   },
   pendingMessage: {
     opacity: 0.7,
   },
   failedMessage: {
     borderWidth: 1,
-    borderColor: Colors.textAccent,
+    borderColor: '#ff4444',
   },
   messageText: {
     fontSize: 16,
+    lineHeight: 22,
   },
   currentUserMessageText: {
-    color: Colors.textPrimary,
+    color: 'white',
   },
   otherUserMessageText: {
     color: Colors.textPrimary,
@@ -668,54 +805,56 @@ const styles = StyleSheet.create({
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 6,
   },
   messageTime: {
     fontSize: 12,
+    fontWeight: '500',
   },
   currentUserMessageTime: {
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   otherUserMessageTime: {
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  messageStatusIcon: {
+    marginLeft: 6,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: Colors.surfaceDark,
+    paddingVertical: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 25,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   input: {
     flex: 1,
-    backgroundColor: Colors.surfaceDark,
     color: Colors.textPrimary,
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    fontSize: 16,
     maxHeight: 100,
-    marginRight: 10,
+    paddingVertical: 8,
+    paddingRight: 10,
   },
   sendButton: {
     backgroundColor: Colors.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 8,
   },
   sendButtonDisabled: {
-    backgroundColor: Colors.surfaceDark,
-  },
-  errorBanner: {
-    backgroundColor: Colors.primary,
-    padding: 10,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: Colors.textPrimary,
-    fontSize: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
 });

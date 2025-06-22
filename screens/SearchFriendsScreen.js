@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, ActivityIndicator, SafeAreaView, StatusBar, Image
+  TextInput, ActivityIndicator, SafeAreaView, StatusBar, Image, Animated
 } from 'react-native';
 import { account, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +20,35 @@ export default function SearchFriendsScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const searchAnim = useRef(new Animated.Value(0)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  // Initialize animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        speed: 4,
+        bounciness: 6,
+        useNativeDriver: true,
+      }),
+      Animated.timing(searchAnim, {
+        toValue: 1,
+        duration: 600,
+        delay: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
 
   // Load all user profiles
   useEffect(() => {
@@ -98,46 +127,83 @@ export default function SearchFriendsScreen({ navigation }) {
     return () => clearInterval(interval);
   }, [currentUserId]);
 
-  const renderUserItem = ({ item }) => {
+  const handlePressIn = () => {
+    Animated.spring(buttonScale, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(buttonScale, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const renderUserItem = ({ item, index }) => {
     console.log("Rendering user:", item); // Debug log
 
     return (
-      <TouchableOpacity
-        style={styles.userItem}
-        onPress={() => startConversation(item.$id, item.name)}
+      <Animated.View
+        style={[
+          { 
+            opacity: fadeAnim,
+            transform: [{ 
+              translateY: slideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, index * 3]
+              })
+            }]
+          }
+        ]}
       >
-        <View style={styles.avatarContainer}>
-          <Image
-            source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
-            style={styles.avatarImage}
-            defaultSource={DEFAULT_AVATAR}
-          />
-          <View style={[
-            styles.statusIndicator,
-            {
-              backgroundColor: item.status === 'online' ? Colors.accentBlue : Colors.textSecondary,
-              borderColor: Colors.background // Make sure this is visible
-            }
-          ]} />
-        </View>
+        <TouchableOpacity
+          style={styles.userCard}
+          onPress={() => startConversation(item.$id, item.name)}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+        >
+          <View style={styles.userContent}>
+            <View style={styles.avatarContainer}>
+              <Image
+                source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
+                style={styles.avatarImage}
+                defaultSource={DEFAULT_AVATAR}
+              />
+              <View style={[
+                styles.statusIndicator,
+                {
+                  backgroundColor: item.status === 'online' ? '#00FF94' : '#9E9E9E',
+                }
+              ]} />
+            </View>
 
-        <View style={styles.userInfo}>
-          <Text style={styles.userName} numberOfLines={1}>
-            {item.name || 'Unknown User'}
-          </Text>
-          <Text style={[
-            styles.userStatus,
-            {
-              color: item.status === 'online' ? Colors.accentBlue : Colors.textSecondary,
-              fontSize: 12 // Make sure it's visible
-            }
-          ]}>
-            {item.status === 'online' ? 'Online' : 'Offline'}
-          </Text>
-        </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName} numberOfLines={1}>
+                {item.name || 'Unknown User'}
+              </Text>
+              <View style={styles.statusRow}>
+                <View style={[
+                  styles.statusBadge,
+                  { backgroundColor: item.status === 'online' ? '#00FF94' : 'rgba(255, 255, 255, 0.3)' }
+                ]}>
+                  <Text style={[
+                    styles.statusBadgeText,
+                    { color: item.status === 'online' ? 'white' : 'rgba(255, 255, 255, 0.8)' }
+                  ]}>
+                    {item.status === 'online' ? 'Online' : 'Offline'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
 
-        <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-      </TouchableOpacity>
+          <View style={styles.cardArrow}>
+            <Ionicons name="chatbubble-outline" size={20} color="rgba(255, 255, 255, 0.6)" />
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -203,158 +269,321 @@ export default function SearchFriendsScreen({ navigation }) {
     }
   };
 
+  const filteredUsers = users.filter(user =>
+    user.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.centeredContainer}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Loading users...</Text>
-      </SafeAreaView>
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.loadingContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          <View style={styles.loadingContent}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Finding friends...</Text>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.centeredContainer}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <Text style={[styles.errorText, {color: Colors.textPrimary}]}>{error}</Text>
-        <TouchableOpacity
-          style={[styles.retryButton, {backgroundColor: Colors.primary}]}
-          onPress={() => navigation.replace('SearchFriends')}
-        >
-          <Text style={[styles.retryButtonText, {color: Colors.textPrimary}]}>Retry</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <SafeAreaView style={styles.errorContainer}>
+          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          <View style={styles.errorContent}>
+            <Ionicons name="warning-outline" size={48} color={Colors.primary} />
+            <Text style={styles.errorTitle}>Connection Error</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => navigation.replace('SearchFriends')}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </ImageBackground>
     );
   }
-
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   return (
     <ImageBackground
       source={backgroundImage}
-      style={{ flex: 1 }}
+      style={styles.container}
       resizeMode="cover"
     >
       <SafeAreaView style={{ flex: 1 }}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-        <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}>
-
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <Animated.View 
+          style={[
+            styles.content,
+            { 
+              opacity: fadeAnim, 
+              transform: [{ translateY: slideAnim }] 
+            }
+          ]}
+        >
+          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+              <Ionicons name="arrow-back" size={24} color="white" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Find Friends</Text>
+            <View style={styles.headerSpacer} />
           </View>
 
-          <TextInput
-            style={styles.searchBar}
-            placeholder="Search by name..."
-            placeholderTextColor={Colors.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-
-          {filteredUsers.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No users found</Text>
+          {/* Search Bar */}
+          <Animated.View 
+            style={[
+              styles.searchContainer,
+              { 
+                opacity: searchAnim,
+                transform: [{ translateY: slideAnim }]
+              }
+            ]}
+          >
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color="rgba(255, 255, 255, 0.6)" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by name..."
+                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color="rgba(255, 255, 255, 0.6)" />
+                </TouchableOpacity>
+              )}
             </View>
-          ) : (
-            <FlatList
-              data={filteredUsers}
-              renderItem={renderUserItem}
-              keyExtractor={item => item.$id}
-            />
-          )}
-        </View>
+          </Animated.View>
+
+          {/* Results Section */}
+          <View style={styles.resultsContainer}>
+            <Text style={styles.sectionTitle}>
+              {searchQuery ? `${filteredUsers.length} Results` : `${users.length} Available Users`}
+            </Text>
+
+            {filteredUsers.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <View style={styles.emptyContent}>
+                  <Ionicons 
+                    name={searchQuery ? "search-outline" : "people-outline"} 
+                    size={64} 
+                    color="rgba(255, 255, 255, 0.4)" 
+                  />
+                  <Text style={styles.emptyTitle}>
+                    {searchQuery ? "No Users Found" : "No Users Available"}
+                  </Text>
+                  <Text style={styles.emptyText}>
+                    {searchQuery 
+                      ? "Try adjusting your search terms" 
+                      : "Check back later for new users to connect with"
+                    }
+                  </Text>
+                  {searchQuery && (
+                    <TouchableOpacity 
+                      style={styles.clearSearchButton}
+                      onPress={() => setSearchQuery('')}
+                    >
+                      <Text style={styles.clearSearchButtonText}>Clear Search</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredUsers}
+                renderItem={renderUserItem}
+                keyExtractor={item => item.$id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.listContent}
+              />
+            )}
+          </View>
+        </Animated.View>
       </SafeAreaView>
     </ImageBackground>
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  content: {
+    flex: 1,
     padding: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  loadingText: {
+    color: Colors.textPrimary,
+    marginTop: 15,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    maxWidth: 300,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 15,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    backgroundColor: Colors.surfaceDark,
+    marginTop: 20,
+    marginBottom: 25,
+    justifyContent: 'space-between',
   },
   backButton: {
-    marginRight: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginLeft: 15,
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  searchContainer: {
+    marginBottom: 25,
+  },
+  searchInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: 16,
+  },
+  resultsContainer: {
+    flex: 1,
+  },
+  sectionTitle: {
     color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
-    flex: 1,
+    marginBottom: 15,
   },
-  searchBar: {
-    backgroundColor: Colors.surfaceDark,
-    padding: 15,
-    margin: 15,
-    borderRadius: 10,
-    fontSize: 16,
-    color: Colors.textPrimary,
+  listContent: {
+    paddingBottom: 20,
+  },
+  userCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  userItem: {
+  userContent: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.primaryDeep,
-    backgroundColor: Colors.surfaceDark,
-    marginHorizontal: 15,
-    marginVertical: 5,
-    borderRadius: 10,
   },
   avatarContainer: {
     position: 'relative',
     marginRight: 15,
   },
   avatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.background,
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
     borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.surfaceDark,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.primary,
-  },
-  avatarText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.textPrimary,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   statusIndicator: {
     position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: Colors.background,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     bottom: 0,
     right: 0,
   },
@@ -362,50 +591,68 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   userName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: 'bold',
-    marginBottom: 4,
     color: Colors.textPrimary,
+    marginBottom: 6,
   },
-  userStatus: {
-    fontSize: 14,
-    color: Colors.textSecondary,
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  cardArrow: {
+    padding: 10,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  emptyContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    maxWidth: 300,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
   emptyText: {
     fontSize: 16,
     color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 25,
   },
-  // Style already defined above
-  centeredContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.background,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: Colors.textSecondary,
-  },
-  errorText: {
-    fontSize: 16,
-    marginBottom: 20,
-    color: Colors.textPrimary,
-  },
-  retryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+  clearSearchButton: {
     backgroundColor: Colors.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 15,
   },
-  retryButtonText: {
-    fontSize: 16,
+  clearSearchButtonText: {
+    color: 'white',
+    fontSize: 14,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
   },
 });
