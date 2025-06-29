@@ -49,8 +49,8 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     navigation1.navigate('Notifications'); // You'll need to create this screen
   };
 
-  const PROJECT_ID = '67d0bb27002cfc0b22d2';
-  const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
+  const PROJECT_ID = '685ebdb90007d578e80d';
+  const API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
