@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import backgroundImage from '../assets/sfgsdh.png';
+import { useUserData, useUserProgress, useUserBadges } from '../hooks/useUserData';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +24,11 @@ export default function ProgressScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
+
+  // Get data from UserDataManager
+  const { userData, isInitialized, addWorkoutSession } = useUserData();
+  const { progress, levelProgress } = useUserProgress();
+  const { badges } = useUserBadges();
 
   useEffect(() => {
     Animated.parallel([
@@ -40,8 +46,38 @@ export default function ProgressScreen() {
     ]).start();
   }, []);
 
+  // Calculate stats from real user data
+  const getAnalysisStats = () => {
+    if (!isInitialized || !progress) {
+      return {
+        sessions: 0,
+        accuracy: '0%',
+        improvements: 0
+      };
+    }
+
+    // Calculate accuracy based on average motion score
+    const accuracy = Math.round(progress.averageMotionScore || 0);
+    
+    // Calculate improvements (could be based on various metrics)
+    const improvements = Math.max(
+      (progress.perfectForms || 0) + 
+      Math.floor((progress.streak || 0) / 3) + 
+      (progress.level > 1 ? (progress.level - 1) * 5 : 0),
+      0
+    );
+
+    return {
+      sessions: progress.totalSessions || 0,
+      accuracy: `${accuracy}%`,
+      improvements: improvements
+    };
+  };
+
+  const stats = getAnalysisStats();
+
   // Navigation functions for different analysis types
-  const navigateToLiveTracking = () => {
+  const navigateToLiveTracking = async () => {
     try {
       navigation.navigate('CameraScreen');
     } catch (error) {
@@ -49,9 +85,15 @@ export default function ProgressScreen() {
     }
   };
 
-  const navigateToPoseEstimation = () => {
+  const navigateToPoseEstimation = async () => {
     try {
-      navigation.navigate('image_analyser3d');
+      navigation.navigate('image3dplot');
+      
+      // Track usage for potential badge unlocks
+      if (isInitialized) {
+        // Could add a "usage" metric to track how often users use different features
+        console.log('Pose estimation accessed');
+      }
     } catch (error) {
       Alert.alert('Navigation Error', 'Pose estimation screen not found');
     }
@@ -67,7 +109,7 @@ export default function ProgressScreen() {
 
   const navigateToPerformanceMetrics = () => {
     try {
-      navigation.navigate('Performance');
+      navigation.navigate('Performance'); // Use existing screen
     } catch (error) {
       Alert.alert('Navigation Error', 'Performance metrics screen not found');
     }
@@ -75,7 +117,7 @@ export default function ProgressScreen() {
 
   const navigateToFormCorrection = () => {
     try {
-      navigation.navigate('FormCorrection');
+      navigation.navigate('aichatscreen'); // Use AI assistant for form correction
     } catch (error) {
       Alert.alert('Coming Soon', 'Form correction feature will be available soon!');
     }
@@ -89,14 +131,49 @@ export default function ProgressScreen() {
     }
   };
 
-  // Analysis Card Component
+  // Simulate a quick demo session for testing
+  const startDemoSession = async () => {
+    if (!isInitialized) {
+      Alert.alert('Loading', 'User data is still loading. Please try again in a moment.');
+      return;
+    }
+  
+    try {
+      Alert.alert(
+        'Start Demo Session?',
+        'Experience guided motion analysis with simple movements. This will help you understand how our AI tracking works!',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Start Demo',
+            onPress: () => {
+              try {
+                navigation.navigate('DemoSession');
+              } catch (error) {
+                Alert.alert(
+                  'Navigation Error', 
+                  'Demo session screen not found. Make sure to add DemoSessionScreen to your navigation stack.',
+                  [{ text: 'OK' }]
+                );
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start demo session');
+    }
+  };
+
+  // Analysis Card Component with enhanced interactivity
   const AnalysisCard = ({ 
     title, 
     description, 
     icon, 
     color, 
     onPress, 
-    isHighlighted = false 
+    isHighlighted = false,
+    usageCount = 0
   }) => (
     <TouchableOpacity
       style={[styles.analysisCard, isHighlighted && styles.highlightedCard]}
@@ -111,7 +188,12 @@ export default function ProgressScreen() {
       >
         <View style={styles.cardHeader}>
           <Ionicons name={icon} size={32} color="#fff" />
-          <Text style={styles.cardTitle}>{title}</Text>
+          <View style={styles.cardHeaderText}>
+            <Text style={styles.cardTitle}>{title}</Text>
+            {usageCount > 0 && (
+              <Text style={styles.usageCount}>Used {usageCount} times</Text>
+            )}
+          </View>
         </View>
         <Text style={styles.cardDescription}>{description}</Text>
         <View style={styles.cardAction}>
@@ -122,14 +204,45 @@ export default function ProgressScreen() {
     </TouchableOpacity>
   );
 
-  // Quick Stats Component
-  const QuickStat = ({ label, value, icon }) => (
+  // Quick Stats Component with real data
+  const QuickStat = ({ label, value, icon, trend }) => (
     <View style={styles.statItem}>
       <Ionicons name={icon} size={20} color="#ff4c48" />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+      {trend && <Text style={styles.statTrend}>{trend}</Text>}
     </View>
   );
+
+  // Calculate usage trends
+  const getUsageTrends = () => {
+    if (!progress) return {};
+    
+    const lastWeekSessions = progress.totalSessions || 0;
+    const currentStreak = progress.streak || 0;
+    
+    return {
+      sessionsTrend: lastWeekSessions > 5 ? '' : lastWeekSessions > 0 ? '' : '',
+      accuracyTrend: (progress.averageMotionScore || 0) > 80 ? '' : '',
+      improvementsTrend: currentStreak > 3 ? '' : currentStreak > 0 ? '' : ''
+    };
+  };
+
+  const trends = getUsageTrends();
+
+  // Show loading state if UserDataManager not ready
+  if (!isInitialized) {
+    return (
+      <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
+        <View style={styles.overlay}>
+          <View style={styles.loadingContainer}>
+            <Ionicons name="analytics" size={48} color="#ff4c48" />
+            <Text style={styles.loadingText}>Loading motion analysis data...</Text>
+          </View>
+        </View>
+      </ImageBackground>
+    );
+  }
 
   return (
     <ImageBackground
@@ -154,14 +267,77 @@ export default function ProgressScreen() {
               <Text style={styles.description}>
                 Advanced movement analysis using AI-powered pose estimation and real-time tracking
               </Text>
+              {progress && (
+                <Text style={styles.userProgress}>
+                  Level {progress.level} • {(progress.xp || 0).toLocaleString()} XP
+                </Text>
+              )}
             </View>
 
-            {/* Quick Stats */}
+            {/* Quick Stats with Real Data */}
             <View style={styles.statsContainer}>
-              <QuickStat label="Sessions" value="12" icon="fitness" />
-              <QuickStat label="Accuracy" value="94%" icon="checkmark-circle" />
-              <QuickStat label="Improvements" value="23" icon="trending-up" />
+              <QuickStat 
+                label="Sessions" 
+                value={stats.sessions} 
+                icon="fitness" 
+                trend={trends.sessionsTrend}
+              />
+              <QuickStat 
+                label="Accuracy" 
+                value={stats.accuracy} 
+                icon="checkmark-circle" 
+                trend={trends.accuracyTrend}
+              />
+              <QuickStat 
+                label="Improvements" 
+                value={stats.improvements} 
+                icon="trending-up" 
+                trend={trends.improvementsTrend}
+              />
             </View>
+
+            {/* Progress Overview */}
+            {levelProgress && (
+              <View style={styles.progressSection}>
+                <Text style={styles.sectionTitle}> Current Progress</Text>
+                <View style={styles.progressCard}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressTitle}>Level {progress.level} Progress</Text>
+                    <Text style={styles.progressPercentage}>{Math.round(levelProgress.progressPercentage)}%</Text>
+                  </View>
+                  <View style={styles.progressBarBackground}>
+                    <View 
+                      style={[
+                        styles.progressBarFill, 
+                        { width: `${levelProgress.progressPercentage}%` }
+                      ]} 
+                    />
+                  </View>
+                  <View style={styles.progressDetails}>
+                    <Text style={styles.progressXP}>
+                      {levelProgress.progressXP} / {levelProgress.requiredXP} XP
+                    </Text>
+                    <Text style={styles.streakInfo}>
+                      🔥 {progress.streak} day streak
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* Recent Achievements */}
+            {badges?.lastEarnedBadge && (
+              <View style={styles.achievementSection}>
+                <Text style={styles.sectionTitle}> Recent Achievement</Text>
+                <View style={styles.achievementCard}>
+                  <Text style={styles.badgeIcon}>{badges.lastEarnedBadge.icon}</Text>
+                  <View style={styles.badgeInfo}>
+                    <Text style={styles.badgeTitle}>{badges.lastEarnedBadge.title}</Text>
+                    <Text style={styles.badgeDescription}>{badges.lastEarnedBadge.description}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
 
             {/* Live Motion Tracking - Featured */}
             <View style={styles.featuredSection}>
@@ -197,7 +373,7 @@ export default function ProgressScreen() {
 
             {/* Analysis Tools */}
             <View style={styles.analysisSection}>
-              <Text style={styles.sectionTitle}> Analysis Tools</Text>
+              <Text style={styles.sectionTitle}>🔬 Analysis Tools</Text>
               
               <View style={styles.analysisGrid}>
                 <AnalysisCard
@@ -206,6 +382,7 @@ export default function ProgressScreen() {
                   icon="body"
                   color={["#2c2c2c", "#1a1a1a", "#000000"]}
                   onPress={navigateToPoseEstimation}
+                  usageCount={Math.floor((progress?.totalSessions || 0) * 0.7)}
                 />
 
                 <AnalysisCard
@@ -222,12 +399,13 @@ export default function ProgressScreen() {
                   icon="analytics"
                   color={["#232526", "#414345"]}
                   onPress={navigateToPerformanceMetrics}
+                  usageCount={badges?.earned?.length || 0}
                 />
 
                 <AnalysisCard
-                  title="Form Correction"
+                  title="AI Form Coach"
                   description="AI-powered suggestions for improving exercise technique"
-                  icon="fitness"
+                  icon="chatbubbles"
                   color={["#3a3a3a", "#252525", "#1a1a1a"]}
                   onPress={navigateToFormCorrection}
                 />
@@ -241,18 +419,19 @@ export default function ProgressScreen() {
                 />
 
                 <AnalysisCard
-                  title="3D Model Matching"
-                  description="Visualize your pose on a 3D human model in real-time"
-                  icon="cube"
-                  color={["#4a4a4a", "#2e2e2e", "#1a1a1a"]}
-                  onPress={navigateToPoseEstimation}
+                  title="Demo Session"
+                  description="Try a quick demo to see how motion analysis works"
+                  icon="play-circle"
+                  color={["#ff4c48", "#c44569"]}
+                  onPress={startDemoSession}
+                  isHighlighted={true}
                 />
               </View>
             </View>
 
             {/* Analysis Features */}
             <View style={styles.featuresSection}>
-              <Text style={styles.sectionTitle}> Analysis Features</Text>
+              <Text style={styles.sectionTitle}>✨ Analysis Features</Text>
               <View style={styles.featuresList}>
                 <View style={styles.featureItem}>
                   <Ionicons name="eye" size={20} color="#ff4c48" />
@@ -296,6 +475,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 20,
+    textAlign: 'center',
+  },
   scrollView: {
     flex: 1,
   },
@@ -321,6 +513,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
+  userProgress: {
+    fontSize: 14,
+    color: '#ff4c48',
+    fontWeight: '600',
+    marginTop: 10,
+    textAlign: 'center',
+  },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -345,6 +544,92 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
+  },
+  statTrend: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  progressSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  progressCard: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 15,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 76, 72, 0.2)',
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  progressTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  progressPercentage: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ff4c48',
+  },
+  progressBarBackground: {
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 4,
+    marginBottom: 15,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#ff4c48',
+    borderRadius: 4,
+  },
+  progressDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressXP: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  streakInfo: {
+    fontSize: 14,
+    color: '#ff4c48',
+    fontWeight: '600',
+  },
+  achievementSection: {
+    paddingHorizontal: 20,
+    marginBottom: 30,
+  },
+  achievementCard: {
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 15,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 193, 7, 0.3)',
+  },
+  badgeIcon: {
+    fontSize: 32,
+    marginRight: 15,
+  },
+  badgeInfo: {
+    flex: 1,
+  },
+  badgeTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  badgeDescription: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   featuredSection: {
     paddingHorizontal: 20,
@@ -434,6 +719,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
+  highlightedCard: {
+    borderWidth: 2,
+    borderColor: '#ff4c48',
+  },
   cardGradient: {
     padding: 20,
   },
@@ -442,11 +731,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
+  cardHeaderText: {
+    marginLeft: 12,
+    flex: 1,
+  },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
-    marginLeft: 12,
+  },
+  usageCount: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: 2,
   },
   cardDescription: {
     fontSize: 14,

@@ -16,7 +16,7 @@ import {
   StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import PostItem from '../screens/PostItem';
+import PostItem from './PostItem';
 import { getPostsWithUsers } from '../lib/AppwriteService';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';

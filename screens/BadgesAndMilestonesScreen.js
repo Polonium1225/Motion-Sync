@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
+import { useUserData, useUserBadges, useUserProgress } from '../hooks/useUserData';
 
 // Import your background image
 import backgroundImage from '../assets/sfgsdh.png';
@@ -22,15 +23,11 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const BadgesAndMilestonesScreen = ({ navigation }) => {
   const [selectedTab, setSelectedTab] = useState('badges');
-  const [userStats, setUserStats] = useState({
-    level: 5,
-    xp: 3250,
-    totalBadges: 12,
-    unlockedBadges: 8,
-    totalSessions: 45,
-    perfectForms: 23,
-    streak: 15
-  });
+  
+  // Use UserDataManager data
+  const { userData, isInitialized } = useUserData();
+  const { badges, isUnlocked } = useUserBadges();
+  const { progress } = useUserProgress();
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -101,10 +98,15 @@ const BadgesAndMilestonesScreen = ({ navigation }) => {
           {badge.progress !== undefined && !isLocked && (
             <View style={styles.progressContainer}>
               <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: `${badge.progress}%` }]} />
+                <View style={[styles.progressFill, { width: `${Math.min(badge.progress, 100)}%` }]} />
               </View>
-              <Text style={styles.progressText}>{badge.progress}%</Text>
+              <Text style={styles.progressText}>{Math.round(badge.progress)}%</Text>
             </View>
+          )}
+          {!isLocked && badge.unlockedAt && (
+            <Text style={styles.unlockedDate}>
+              Unlocked: {new Date(badge.unlockedAt).toLocaleDateString()}
+            </Text>
           )}
         </TouchableOpacity>
       </Animated.View>
@@ -134,6 +136,14 @@ const BadgesAndMilestonesScreen = ({ navigation }) => {
                 🏆 {milestone.reward}
               </Text>
             )}
+            {milestone.progress !== undefined && !isCompleted && (
+              <View style={styles.milestoneProgressContainer}>
+                <View style={styles.milestoneProgressBar}>
+                  <View style={[styles.milestoneProgressFill, { width: `${Math.min(milestone.progress, 100)}%` }]} />
+                </View>
+                <Text style={styles.milestoneProgressText}>{Math.round(milestone.progress)}%</Text>
+              </View>
+            )}
           </View>
         </View>
         <View style={styles.milestoneRight}>
@@ -145,155 +155,259 @@ const BadgesAndMilestonesScreen = ({ navigation }) => {
     );
   };
 
-  const badges = [
+  // Show loading state while UserDataManager initializes
+  if (!isInitialized) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ImageBackground source={backgroundImage} style={styles.backgroundImage} resizeMode="cover">
+          <View style={styles.overlay}>
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading achievements...</Text>
+            </View>
+          </View>
+        </ImageBackground>
+      </SafeAreaView>
+    );
+  }
+
+  // Get earned badges directly from UserDataManager
+  const earnedBadges = badges?.earned || [];
+  
+  // Calculate progress for potential badges based on current user stats
+  const calculateBadgeProgress = (badgeId) => {
+    if (!progress) return 0;
+    
+    switch (badgeId) {
+      case 'first_steps':
+        return progress.totalSessions >= 1 ? 100 : 0;
+      case 'form_master':
+        const formProgress = progress.totalSessions >= 10 && progress.averageMotionScore >= 90 ? 100 : 
+          Math.min(((progress.averageMotionScore || 0) / 90) * ((progress.totalSessions || 0) / 10) * 100, 100);
+        return formProgress;
+      case 'consistency_king':
+        return Math.min(((progress.streak || 0) / 15) * 100, 100);
+      case 'tech_guru':
+        return progress.totalSessions >= 5 ? 100 : ((progress.totalSessions || 0) / 5) * 100;
+      case 'squat_specialist':
+        return Math.min(((progress.perfectForms || 0) / 20) * 100, 100);
+      case 'push_up_pro':
+        return progress.perfectForms >= 10 ? 100 : ((progress.perfectForms || 0) / 10) * 100;
+      case 'motion_tracker':
+        return Math.min(((progress.totalSessions || 0) / 100) * 100, 100);
+      case 'perfectionist':
+        return (progress.averageMotionScore || 0) >= 95 ? 100 : ((progress.averageMotionScore || 0) / 95) * 100;
+      default:
+        return 0;
+    }
+  };
+
+  // Available badges with current progress
+  const availableBadges = [
     {
-      id: 1,
-      title: "First Steps",
-      description: "Completed first motion analysis",
-      icon: "👶",
-      category: "getting_started"
+      id: 'first_steps',
+      title: 'First Steps',
+      description: 'Completed first motion analysis',
+      icon: '👶',
+      category: 'getting_started',
+      progress: calculateBadgeProgress('first_steps')
     },
     {
-      id: 2,
-      title: "Form Master",
-      description: "Achieved 90+ score in 10 exercises",
-      icon: "🎯",
-      progress: 70,
-      category: "form"
+      id: 'form_master',
+      title: 'Form Master',
+      description: 'Achieved 90+ score in 10 exercises',
+      icon: '🎯',
+      category: 'form',
+      progress: calculateBadgeProgress('form_master')
     },
     {
-      id: 3,
-      title: "Consistency King",
-      description: "15-day workout streak",
-      icon: "🔥",
-      category: "consistency"
+      id: 'consistency_king',
+      title: 'Consistency King',
+      description: '15-day workout streak',
+      icon: '🔥',
+      category: 'consistency',
+      progress: calculateBadgeProgress('consistency_king')
     },
     {
-      id: 4,
-      title: "Tech Guru",
-      description: "Mastered camera setup and tracking",
-      icon: "📱",
-      category: "technical"
+      id: 'tech_guru',
+      title: 'Tech Guru',
+      description: 'Mastered camera setup and tracking',
+      icon: '📱',
+      category: 'technical',
+      progress: calculateBadgeProgress('tech_guru')
     },
     {
-      id: 5,
-      title: "Squat Specialist",
-      description: "Perfect squat form 20 times",
-      icon: "🏋️",
-      progress: 85,
-      category: "exercises"
+      id: 'squat_specialist',
+      title: 'Squat Specialist',
+      description: 'Perfect squat form 20 times',
+      icon: '🏋️',
+      category: 'exercises',
+      progress: calculateBadgeProgress('squat_specialist')
     },
     {
-      id: 6,
-      title: "Push-up Pro",
-      description: "Flawless push-up technique",
-      icon: "💪",
-      category: "exercises"
+      id: 'push_up_pro',
+      title: 'Push-up Pro',
+      description: 'Flawless push-up technique',
+      icon: '💪',
+      category: 'exercises',
+      progress: calculateBadgeProgress('push_up_pro')
     },
     {
-      id: 7,
-      title: "Motion Tracker",
-      description: "100 motion analysis sessions",
-      icon: "📊",
-      progress: 45,
-      category: "progress"
+      id: 'motion_tracker',
+      title: 'Motion Tracker',
+      description: '100 motion analysis sessions',
+      icon: '📊',
+      category: 'progress',
+      progress: calculateBadgeProgress('motion_tracker')
     },
     {
-      id: 8,
-      title: "Perfectionist",
-      description: "Score above 95 in any exercise",
-      icon: "⭐",
-      category: "achievement"
+      id: 'perfectionist',
+      title: 'Perfectionist',
+      description: 'Score above 95 in any exercise',
+      icon: '⭐',
+      category: 'achievement',
+      progress: calculateBadgeProgress('perfectionist')
     }
   ];
 
+  // Separate earned and in-progress badges
+  const displayEarnedBadges = [];
+  const displayInProgressBadges = [];
+
+  // Add earned badges from UserDataManager
+  earnedBadges.forEach(earnedBadge => {
+    displayEarnedBadges.push({
+      ...earnedBadge,
+      progress: 100
+    });
+  });
+
+  // Add in-progress badges (not yet earned)
+  availableBadges.forEach(badge => {
+    if (!isUnlocked(badge.id)) {
+      displayInProgressBadges.push(badge);
+    }
+  });
+
+  // Locked badges (high-level achievements)
   const lockedBadges = [
     {
-      id: 9,
-      title: "Marathon Master",
-      requirement: "Complete 1000 sessions",
-      icon: "🏃",
-      category: "milestone"
+      id: 'marathon_master',
+      title: 'Marathon Master',
+      requirement: 'Complete 1000 sessions',
+      icon: '🏃',
+      category: 'milestone'
     },
     {
-      id: 10,
-      title: "Form Fanatic",
-      requirement: "Achieve 100% in 5 different exercises",
-      icon: "🏆",
-      category: "form"
+      id: 'form_fanatic',
+      title: 'Form Fanatic',
+      requirement: 'Achieve 100% in 5 different exercises',
+      icon: '🏆',
+      category: 'form'
     },
     {
-      id: 11,
-      title: "Streak Legend",
-      requirement: "Maintain 100-day streak",
-      icon: "⚡",
-      category: "consistency"
+      id: 'streak_legend',
+      title: 'Streak Legend',
+      requirement: 'Maintain 100-day streak',
+      icon: '⚡',
+      category: 'consistency'
     },
     {
-      id: 12,
-      title: "AI Whisperer",
-      requirement: "Use AI assistant 50 times",
-      icon: "🤖",
-      category: "social"
+      id: 'ai_whisperer',
+      title: 'AI Whisperer',
+      requirement: 'Use AI assistant 50 times',
+      icon: '🤖',
+      category: 'social'
     }
   ];
 
+  // Calculate milestone progress based on user data
+  const calculateMilestoneProgress = (milestoneId) => {
+    if (!progress) return 0;
+    
+    switch (milestoneId) {
+      case 1:
+        return Math.min(((progress.totalSessions || 0) / 1) * 100, 100);
+      case 2:
+        return Math.min(((progress.totalSessions || 0) / 5) * 100, 100);
+      case 3:
+        return Math.min(((progress.averageMotionScore || 0) / 70) * 100, 100);
+      case 4:
+        return Math.min(((progress.streak || 0) / 7) * 100, 100);
+      case 5:
+        return Math.min(((progress.totalSessions || 0) / 15) * 100, 100);
+      case 6:
+        return Math.min(((progress.averageMotionScore || 0) / 95) * 100, 100);
+      default:
+        return 0;
+    }
+  };
+
+  // Generate milestones based on user progress
   const milestones = [
     {
       id: 1,
-      title: "Welcome to MotionSync",
-      description: "Complete your first motion analysis session",
+      title: 'Welcome to MotionSync',
+      description: 'Complete your first motion analysis session',
       xp: 100,
-      reward: "First Steps Badge",
-      completed: true
+      reward: 'First Steps Badge',
+      completed: (progress?.totalSessions || 0) >= 1,
+      progress: calculateMilestoneProgress(1)
     },
     {
       id: 2,
-      title: "Camera Setup Master",
-      description: "Successfully configure optimal camera positioning",
+      title: 'Camera Setup Master',
+      description: 'Successfully configure optimal camera positioning',
       xp: 150,
-      reward: "Tech Guru Badge",
-      completed: true
+      reward: 'Tech Guru Badge',
+      completed: (progress?.totalSessions || 0) >= 5,
+      progress: calculateMilestoneProgress(2)
     },
     {
       id: 3,
-      title: "Form Improvement",
-      description: "Improve your motion score by 20 points",
+      title: 'Form Improvement',
+      description: 'Improve your motion score by 20 points',
       xp: 200,
-      reward: "Progress Tracker Badge",
-      completed: true
+      reward: 'Progress Tracker Badge',
+      completed: (progress?.averageMotionScore || 0) >= 70,
+      progress: calculateMilestoneProgress(3)
     },
     {
       id: 4,
-      title: "Consistency Builder",
-      description: "Complete motion analysis for 7 consecutive days",
+      title: 'Consistency Builder',
+      description: 'Complete motion analysis for 7 consecutive days',
       xp: 250,
-      reward: "Weekly Warrior Badge",
-      completed: false
+      reward: 'Weekly Warrior Badge',
+      completed: (progress?.streak || 0) >= 7,
+      progress: calculateMilestoneProgress(4)
     },
     {
       id: 5,
-      title: "Exercise Variety",
-      description: "Analyze 5 different exercise types",
+      title: 'Exercise Variety',
+      description: 'Analyze 5 different exercise types',
       xp: 300,
-      reward: "Versatile Athlete Badge",
-      completed: false
+      reward: 'Versatile Athlete Badge',
+      completed: (progress?.totalSessions || 0) >= 15,
+      progress: calculateMilestoneProgress(5)
     },
     {
       id: 6,
-      title: "Perfect Form",
-      description: "Achieve a motion score of 95+ in any exercise",
+      title: 'Perfect Form',
+      description: 'Achieve a motion score of 95+ in any exercise',
       xp: 400,
-      reward: "Perfectionist Badge",
-      completed: false
+      reward: 'Perfectionist Badge',
+      completed: (progress?.averageMotionScore || 0) >= 95,
+      progress: calculateMilestoneProgress(6)
     }
   ];
 
-  const calculateProgress = () => {
-    const totalXP = milestones.reduce((sum, milestone) => sum + milestone.xp, 0);
-    const earnedXP = milestones.filter(m => m.completed).reduce((sum, milestone) => sum + milestone.xp, 0);
-    return (earnedXP / totalXP) * 100;
+  const calculateOverallProgress = () => {
+    const totalMilestones = milestones.length;
+    const completedMilestones = milestones.filter(m => m.completed).length;
+    return totalMilestones > 0 ? (completedMilestones / totalMilestones) * 100 : 0;
   };
+
+  // Calculate total badges for header
+  const totalBadges = displayEarnedBadges.length + displayInProgressBadges.length + lockedBadges.length;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -315,7 +429,9 @@ const BadgesAndMilestonesScreen = ({ navigation }) => {
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Achievements</Text>
               <View style={styles.headerStats}>
-                <Text style={styles.headerStatsText}>{userStats.unlockedBadges}/{userStats.totalBadges}</Text>
+                <Text style={styles.headerStatsText}>
+                  {displayEarnedBadges.length}/{totalBadges}
+                </Text>
               </View>
             </View>
 
@@ -324,23 +440,23 @@ const BadgesAndMilestonesScreen = ({ navigation }) => {
               <Text style={styles.overviewTitle}>Your Progress</Text>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{userStats.level}</Text>
+                  <Text style={styles.statNumber}>{progress?.level || 1}</Text>
                   <Text style={styles.statLabel}>Level</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{userStats.xp.toLocaleString()}</Text>
+                  <Text style={styles.statNumber}>{(progress?.xp || 0).toLocaleString()}</Text>
                   <Text style={styles.statLabel}>Total XP</Text>
                 </View>
                 <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{userStats.streak}</Text>
+                  <Text style={styles.statNumber}>{progress?.streak || 0}</Text>
                   <Text style={styles.statLabel}>Day Streak</Text>
                 </View>
               </View>
               <View style={styles.overallProgress}>
                 <View style={styles.overallProgressBar}>
-                  <View style={[styles.overallProgressFill, { width: `${calculateProgress()}%` }]} />
+                  <View style={[styles.overallProgressFill, { width: `${calculateOverallProgress()}%` }]} />
                 </View>
-                <Text style={styles.overallProgressText}>{Math.round(calculateProgress())}% Complete</Text>
+                <Text style={styles.overallProgressText}>{Math.round(calculateOverallProgress())}% Complete</Text>
               </View>
             </View>
 
@@ -381,14 +497,29 @@ const BadgesAndMilestonesScreen = ({ navigation }) => {
             <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
               {selectedTab === 'badges' ? (
                 <View style={styles.badgesContent}>
-                  <Text style={styles.sectionTitle}>Earned Badges</Text>
-                  <View style={styles.badgesGrid}>
-                    {badges.map((badge) => (
-                      <Badge key={badge.id} badge={badge} />
-                    ))}
-                  </View>
+                  {displayEarnedBadges.length > 0 && (
+                    <>
+                      <Text style={styles.sectionTitle}>Earned Badges ({displayEarnedBadges.length})</Text>
+                      <View style={styles.badgesGrid}>
+                        {displayEarnedBadges.map((badge) => (
+                          <Badge key={badge.id} badge={badge} />
+                        ))}
+                      </View>
+                    </>
+                  )}
                   
-                  <Text style={styles.sectionTitle}>Locked Badges</Text>
+                  {displayInProgressBadges.length > 0 && (
+                    <>
+                      <Text style={styles.sectionTitle}>In Progress ({displayInProgressBadges.length})</Text>
+                      <View style={styles.badgesGrid}>
+                        {displayInProgressBadges.map((badge) => (
+                          <Badge key={badge.id} badge={badge} />
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  <Text style={styles.sectionTitle}>Locked Badges ({lockedBadges.length})</Text>
                   <View style={styles.badgesGrid}>
                     {lockedBadges.map((badge) => (
                       <Badge key={badge.id} badge={badge} isLocked={true} />
@@ -429,6 +560,17 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -637,6 +779,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
+  unlockedDate: {
+    color: '#4CAF50',
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 5,
+    opacity: 0.8,
+  },
   milestonesContent: {
     paddingHorizontal: 20,
     paddingBottom: 30,
@@ -687,6 +836,26 @@ const styles = StyleSheet.create({
   milestoneReward: {
     color: '#ff4c48',
     fontSize: 12,
+    fontWeight: '600',
+  },
+  milestoneProgressContainer: {
+    marginTop: 8,
+  },
+  milestoneProgressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    marginBottom: 4,
+  },
+  milestoneProgressFill: {
+    height: '100%',
+    backgroundColor: '#ff4c48',
+    borderRadius: 2,
+  },
+  milestoneProgressText: {
+    color: '#ff4c48',
+    fontSize: 10,
     fontWeight: '600',
   },
   milestoneRight: {

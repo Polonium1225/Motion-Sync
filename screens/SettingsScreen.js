@@ -16,16 +16,14 @@ import {
   Platform 
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import { account, databases, storage, ID, Query, DATABASE_ID, COLLECTIONS, userProfiles } from '../lib/AppwriteService';
-import { Client } from 'appwrite';
+import { account, databases, ID, Query, DATABASE_ID, COLLECTIONS, userProfiles } from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import backgroundImage from '../assets/sfgsdh.png';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import userDataManager from '../lib/UserDataManager'; // Import the data manager
+import { useUserData, useUserSettings, useUserProgress } from '../hooks/useUserData';
 
 export default function SettingsScreen({ setIsLoggedIn }) {
   const [name, setName] = useState('');
@@ -35,11 +33,25 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   const [profileDoc, setProfileDoc] = useState(null);
   const [selectedImageObj, setSelectedImageObj] = useState(null);
   
-  // User data from data manager
-  const [userStats, setUserStats] = useState(null);
-  const [userSettings, setUserSettings] = useState(null);
+  // Use UserDataManager hooks
+  const { 
+    userData, 
+    isInitialized, 
+    updateProfile, 
+    updateSettings: updateUserSettings,
+    exportData,
+    resetData,
+    forceSync
+  } = useUserData();
   
-  // Settings states
+  const { 
+    settings, 
+    updateSettings: updateSettingsHook
+  } = useUserSettings();
+  
+  const { progress } = useUserProgress();
+  
+  // Local settings states (synced with UserDataManager)
   const [notifications, setNotifications] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
@@ -55,28 +67,36 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
 
-  // Load current user data and stats
+  // Sync local state with UserDataManager settings
+  useEffect(() => {
+    if (settings && isInitialized) {
+      setNotifications(settings.notifications?.workoutReminders ?? true);
+      setSoundEffects(settings.notifications?.soundEffects ?? true);
+      setHapticFeedback(settings.notifications?.hapticFeedback ?? true);
+      setRealTimeFeedback(settings.motionAnalysis?.realTimeFeedback ?? true);
+      setVoiceInstructions(settings.motionAnalysis?.voiceInstructions ?? true);
+      setDataSharing(settings.privacy?.dataSharing ?? false);
+    }
+  }, [settings, isInitialized]);
+
+  // Load current user data
   useEffect(() => {
     const loadUser = async () => {
+      if (!isInitialized) return;
+
       try {
         setLoading(true);
         
         // Load Appwrite user data
         const user = await account.get();
         setUserId(user.$id);
-        setName(user.name || '');
         
-        const profiles = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          [Query.equal('userId', user.$id)]
-        );
-
-        if (profiles.documents.length > 0) {
-          const profile = profiles.documents[0];
-          setProfileDoc(profile);
+        // Use UserDataManager profile data if available
+        if (userData?.profile) {
+          const profile = userData.profile;
+          setName(profile.name || user.name || '');
           
-          if (profile.avatar) {
+          if (profile.avatar && profile.avatar !== 'avatar.png') {
             try {
               const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
               console.log('Loading avatar image from:', imageUrl);
@@ -85,10 +105,31 @@ export default function SettingsScreen({ setIsLoggedIn }) {
               console.log('Error getting file view:', error);
             }
           }
-        }
+        } else {
+          // Fallback to direct Appwrite query
+          setName(user.name || '');
+          
+          const profiles = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.USER_PROFILES,
+            [Query.equal('userId', user.$id)]
+          );
 
-        // Load user data manager stats
-        await loadUserDataManagerStats();
+          if (profiles.documents.length > 0) {
+            const profile = profiles.documents[0];
+            setProfileDoc(profile);
+            
+            if (profile.avatar && profile.avatar !== 'avatar.png') {
+              try {
+                const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
+                console.log('Loading avatar image from:', imageUrl);
+                setImage(imageUrl);
+              } catch (error) {
+                console.log('Error getting file view:', error);
+              }
+            }
+          }
+        }
         
       } catch (error) {
         console.log('Load user error:', error);
@@ -99,45 +140,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     };
 
     loadUser();
-  }, []);
-
-  const loadUserDataManagerStats = async () => {
-    try {
-      // Initialize data manager if not already done
-      if (!userDataManager.isInitialized) {
-        await userDataManager.initialize();
-      }
-      
-      const progress = userDataManager.getUserProgress();
-      const badges = userDataManager.getUserBadges();
-      const achievements = userDataManager.getUserAchievements();
-      const settings = userDataManager.getUserSettings();
-      
-      setUserStats({
-        level: progress?.level || 1,
-        xp: progress?.xp || 0,
-        totalSessions: progress?.totalSessions || 0,
-        perfectForms: progress?.perfectForms || 0,
-        streak: progress?.streak || 0,
-        averageScore: progress?.averageMotionScore || 0,
-        totalBadges: badges?.earned?.length || 0,
-        totalAchievements: achievements?.totalBadgesEarned || 0
-      });
-
-      if (settings) {
-        setUserSettings(settings);
-        setNotifications(settings.notifications?.workoutReminders ?? true);
-        setSoundEffects(settings.notifications?.soundEffects ?? true);
-        setHapticFeedback(settings.notifications?.hapticFeedback ?? true);
-        setRealTimeFeedback(settings.motionAnalysis?.realTimeFeedback ?? true);
-        setVoiceInstructions(settings.motionAnalysis?.voiceInstructions ?? true);
-        setDataSharing(settings.privacy?.dataSharing ?? false);
-      }
-      
-    } catch (error) {
-      console.error('Error loading user data manager stats:', error);
-    }
-  };
+  }, [isInitialized, userData]);
 
   useEffect(() => {
     Animated.parallel([
@@ -273,7 +276,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
       
       await account.updateName(name);
       
-      let avatarId = profileDoc?.avatar;
+      let avatarId = profileDoc?.avatar || userData?.profile?.avatar;
       if (image && selectedImageObj && !image.includes('profile_images')) {
         console.log('Uploading new image...');
         avatarId = await uploadImage(selectedImageObj);
@@ -283,7 +286,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
       const updateData = { 
         name,
         userId,
-        status: profileDoc?.status || 'online',
+        status: profileDoc?.status || userData?.profile?.status || 'online',
       };
 
       if (avatarId) {
@@ -308,8 +311,8 @@ export default function SettingsScreen({ setIsLoggedIn }) {
         );
       }
 
-      // Update user data manager profile
-      await userDataManager.updateUserProfile({ name });
+      // Update UserDataManager profile
+      await updateProfile({ name, avatar: avatarId });
 
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
@@ -320,28 +323,134 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     }
   };
 
-  const updateSettings = async () => {
+  const handleUpdateSettings = async () => {
     try {
       const settingsUpdate = {
         notifications: {
           workoutReminders: notifications,
           soundEffects: soundEffects,
           hapticFeedback: hapticFeedback,
+          achievementAlerts: notifications,
+          weeklyReports: notifications,
         },
         motionAnalysis: {
           realTimeFeedback: realTimeFeedback,
           voiceInstructions: voiceInstructions,
+          difficulty: settings?.motionAnalysis?.difficulty || 'intermediate',
+          targetAccuracy: settings?.motionAnalysis?.targetAccuracy || 85,
         },
         privacy: {
           dataSharing: dataSharing,
+          analytics: settings?.privacy?.analytics ?? true,
+          profileVisibility: settings?.privacy?.profileVisibility || 'private',
+        },
+        preferences: {
+          theme: settings?.preferences?.theme || 'dark',
+          units: settings?.preferences?.units || 'metric',
+          language: settings?.preferences?.language || 'en'
         }
       };
 
-      await userDataManager.updateSettings(settingsUpdate);
+      await updateSettingsHook(settingsUpdate);
       Alert.alert('Success', 'Settings updated successfully!');
     } catch (error) {
       console.error('Error updating settings:', error);
       Alert.alert('Error', 'Failed to update settings');
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      Alert.alert(
+        'Export Data',
+        'Are you sure you want to export all your data?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Export',
+            onPress: async () => {
+              try {
+                setLoading(true);
+                const exportedData = await exportData();
+                
+                // Create summary for user
+                const summary = {
+                  level: exportedData.progress?.level || 1,
+                  totalXP: exportedData.progress?.xp || 0,
+                  totalSessions: exportedData.progress?.totalSessions || 0,
+                  badgesEarned: exportedData.badges?.earned?.length || 0,
+                  streak: exportedData.progress?.streak || 0,
+                  averageScore: Math.round(exportedData.progress?.averageMotionScore || 0)
+                };
+                
+                Alert.alert(
+                  'Export Complete',
+                  `Your data has been exported successfully!\n\n` +
+                  `📊 Level: ${summary.level}\n` +
+                  `⭐ Total XP: ${summary.totalXP.toLocaleString()}\n` +
+                  `🏋️ Sessions: ${summary.totalSessions}\n` +
+                  `🏆 Badges: ${summary.badgesEarned}\n` +
+                  `🔥 Streak: ${summary.streak} days\n` +
+                  `📈 Avg Score: ${summary.averageScore}%`,
+                  [{ text: 'OK' }]
+                );
+              } catch (error) {
+                Alert.alert('Export Failed', error.message);
+              } finally {
+                setLoading(false);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      Alert.alert('Error', 'Failed to export data');
+    }
+  };
+
+  const handleResetData = async () => {
+    Alert.alert(
+      'Reset All Data',
+      'This will permanently delete all your progress, badges, and statistics. This action cannot be undone.\n\nAre you absolutely sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset All Data',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await resetData();
+              Alert.alert(
+                'Data Reset Complete', 
+                'All your progress data has been reset successfully. Your profile information has been preserved.',
+                [{ text: 'OK' }]
+              );
+            } catch (error) {
+              Alert.alert('Reset Failed', error.message);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleForceSync = async () => {
+    try {
+      setLoading(true);
+      const success = await forceSync();
+      if (success) {
+        Alert.alert('Sync Complete', 'Your data has been synchronized with the cloud.');
+      } else {
+        Alert.alert('Sync Failed', 'Unable to sync with cloud. Please check your connection.');
+      }
+    } catch (error) {
+      Alert.alert('Sync Error', error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -357,6 +466,8 @@ export default function SettingsScreen({ setIsLoggedIn }) {
           style: 'destructive',
           onPress: async () => {
             try {
+              setLoading(true);
+              
               try {
                 const user = await account.get();
                 await userProfiles.safeUpdateStatus(user.$id, 'offline');
@@ -371,6 +482,8 @@ export default function SettingsScreen({ setIsLoggedIn }) {
             } catch (error) {
               console.error('Logout error:', error);
               setIsLoggedIn(false);
+            } finally {
+              setLoading(false);
             }
           }
         }
@@ -414,6 +527,21 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     </TouchableOpacity>
   );
 
+  // Show loading state while UserDataManager initializes
+  if (!isInitialized) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ImageBackground source={backgroundImage} style={styles.backgroundImage} resizeMode="cover">
+          <View style={styles.overlay}>
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Loading settings...</Text>
+            </View>
+          </View>
+        </ImageBackground>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ImageBackground source={backgroundImage} style={styles.backgroundImage} resizeMode="cover">
@@ -433,7 +561,9 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Profile & Settings</Text>
-              <View style={styles.headerSpace} />
+              <TouchableOpacity onPress={handleForceSync} style={styles.syncButton}>
+                <Ionicons name="sync" size={20} color="#fff" />
+              </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -476,34 +606,46 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                 </View>
               </View>
 
-              {/* Dashboard Stats */}
-              {userStats && (
+              {/* Dashboard Stats from UserDataManager */}
+              {progress && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Your Progress</Text>
                   <View style={styles.statsGrid}>
                     <StatCard 
                       title="Level" 
-                      value={userStats.level} 
+                      value={progress.level || 1} 
                       icon="trending-up"
-                      subtitle={`${userStats.xp} XP`}
+                      subtitle={`${(progress.xp || 0).toLocaleString()} XP`}
                     />
                     <StatCard 
                       title="Sessions" 
-                      value={userStats.totalSessions} 
+                      value={progress.totalSessions || 0} 
                       icon="fitness"
                       subtitle="Completed"
                     />
                     <StatCard 
                       title="Streak" 
-                      value={userStats.streak} 
+                      value={progress.streak || 0} 
                       icon="flame"
                       subtitle="Days"
                     />
                     <StatCard 
                       title="Avg Score" 
-                      value={userStats.averageScore} 
+                      value={Math.round(progress.averageMotionScore || 0)} 
                       icon="trophy"
                       subtitle="Motion Quality"
+                    />
+                    <StatCard 
+                      title="Perfect Forms" 
+                      value={progress.perfectForms || 0} 
+                      icon="checkmark-circle"
+                      subtitle="Achieved"
+                    />
+                    <StatCard 
+                      title="Badges" 
+                      value={userData?.badges?.earned?.length || 0} 
+                      icon="medal"
+                      subtitle="Earned"
                     />
                   </View>
                 </View>
@@ -527,10 +669,24 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                     <Ionicons name="chatbubbles" size={24} color="#ff4c48" />
                     <Text style={styles.quickActionText}>AI Assistant</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.quickActionButton}
+                    onPress={goToMotionAnalysis}
+                  >
+                    <Ionicons name="camera" size={24} color="#ff4c48" />
+                    <Text style={styles.quickActionText}>Motion Analysis</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.quickActionButton}
+                    onPress={goToGymFinder}
+                  >
+                    <Ionicons name="location" size={24} color="#ff4c48" />
+                    <Text style={styles.quickActionText}>Gym Finder</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
-              {/* App Settings */}
+              {/* Motion Analysis Settings */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Motion Analysis</Text>
                 <View style={styles.settingsContainer}>
@@ -588,7 +744,13 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                     title="Export Data"
                     subtitle="Download your workout data"
                     type="button"
-                    onPress={() => Alert.alert('Export Data', 'Feature coming soon!')}
+                    onPress={handleExportData}
+                  />
+                  <SettingItem
+                    title="Reset All Data"
+                    subtitle="Permanently delete all progress"
+                    type="button"
+                    onPress={handleResetData}
                   />
                 </View>
               </View>
@@ -599,8 +761,17 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                 <View style={styles.settingsContainer}>
                   <SettingItem
                     title="App Version"
-                    subtitle="1.0.0"
+                    subtitle="1.0.0 (with UserDataManager v2)"
                     type="button"
+                  />
+                  <SettingItem
+                    title="Data Sync Status"
+                    subtitle={userData?.profile?.lastActive ? 
+                      `Last synced: ${new Date(userData.profile.lastActive).toLocaleDateString()}` : 
+                      'Never synced'
+                    }
+                    type="button"
+                    onPress={handleForceSync}
                   />
                   <SettingItem
                     title="Privacy Policy"
@@ -620,10 +791,15 @@ export default function SettingsScreen({ setIsLoggedIn }) {
               {/* Action Buttons */}
               <View style={styles.section}>
                 <TouchableOpacity
-                  onPress={updateSettings}
+                  onPress={handleUpdateSettings}
                   style={styles.actionButton}
+                  disabled={loading}
                 >
-                  <Text style={styles.actionButtonText}>Save Settings</Text>
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.actionButtonText}>Save Settings</Text>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity 
@@ -663,6 +839,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -680,13 +867,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  syncButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  headerSpace: {
-    width: 40,
   },
   scrollView: {
     flex: 1,
@@ -798,6 +990,7 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
   quickActionButton: {
@@ -806,6 +999,7 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     width: '48%',
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: 'rgba(255, 76, 72, 0.3)',
   },

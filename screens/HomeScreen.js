@@ -2,23 +2,35 @@ import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ImageBackground, Animated, ScrollView } from 'react-native';
 import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { account, databases, DATABASE_ID, COLLECTIONS, Query, userProfiles } from '../lib/AppwriteService';
+import { account, userProfiles, getUserConversations } from '../lib/AppwriteService';
 import { useNavigation } from '@react-navigation/native';
 import Colors from '../constants/Colors';
+import { useUserData, useUserProgress } from '../hooks/useUserData';
 
-import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image
+import backgroundImage from '../assets/sfgsdh.png';
+
+const DEFAULT_AVATAR = require('../assets/icon.png');
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
-  const [profileData, setProfileData] = React.useState({
-    profileImage: require('../assets/icon.png'),
+  const {
+    userData,
+    isInitialized,
+    loading: userDataLoading,
+    updateProfile,
+    forceSync
+  } = useUserData();
+
+  const {
+    progress,
+    levelProgress,
+    addWorkoutSession
+  } = useUserProgress();
+
+  const [profileData, setProfileData] = useState({
+    profileImage: DEFAULT_AVATAR,
     fullName: 'Name',
   });
 
-  // New state for XP and level progress
-  const [userXP, setUserXP] = useState(2750); // Current XP points
-  const [currentLevel, setCurrentLevel] = useState(1);
-  const [xpForCurrentLevel, setXpForCurrentLevel] = useState(0);
-  const [xpForNextLevel, setXpForNextLevel] = useState(1000);
   const [notifications, setNotifications] = useState({
     messages: 0,
     news: 0,
@@ -33,20 +45,19 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const scrollViewRef = useRef(null);
 
   const handleNavigate = () => {
-    navigation1.navigate('image_analyser3d'); // Replace with your actual route (e.g., CameraScreen)
+    navigation1.navigate('image_analyser3d');
   };
 
-  // New navigation handlers
   const handleGymSearch = () => {
-    navigation1.navigate('GymFinder'); // You'll need to create this screen
+    navigation1.navigate('GymFinder');
   };
 
   const handleAIAssistant = () => {
-    navigation1.navigate('aichatscreen'); // You'll need to create this screen
+    navigation1.navigate('aichatscreen');
   };
 
   const handleNotifications = () => {
-    navigation1.navigate('Notifications'); // You'll need to create this screen
+    navigation1.navigate('Notifications');
   };
 
   const PROJECT_ID = '67d0bb27002cfc0b22d2';
@@ -62,8 +73,73 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const scrollIndicatorOpacity = useRef(new Animated.Value(1)).current;
   const scrollIndicatorBounce = useRef(new Animated.Value(0)).current;
 
+  // Function to get unread message count
+  const getUnreadMessageCount = async (userId) => {
+    try {
+      // Get all conversations for the user
+      const conversations = await getUserConversations(userId);
+      
+      let totalUnreadCount = 0;
+      
+      for (const conversation of conversations) {
+        // Check if there are unread messages in this conversation
+        // You'll need to implement this based on your message schema
+        // This is a placeholder - replace with actual unread count logic
+        const unreadCount = await getConversationUnreadCount(conversation.$id, userId);
+        totalUnreadCount += unreadCount;
+      }
+      
+      return totalUnreadCount;
+    } catch (error) {
+      console.error('Error getting unread message count:', error);
+      return 0;
+    }
+  };
+
+  // Helper function to get unread count for a specific conversation
+  const getConversationUnreadCount = async (conversationId, userId) => {
+    try {
+      // This is a placeholder implementation
+      // You need to modify this based on your message schema
+      // For example, if you track read status in messages:
+      
+      // const unreadMessages = await databases.listDocuments(
+      //   DATABASE_ID,
+      //   'messages', // Your messages collection ID
+      //   [
+      //     Query.equal('conversationId', conversationId),
+      //     Query.notEqual('senderId', userId), // Messages not sent by current user
+      //     Query.equal('isRead', false) // Unread messages
+      //   ]
+      // );
+      // return unreadMessages.total;
+      
+      // For now, return 0 - replace with actual implementation
+      return 0;
+    } catch (error) {
+      console.error('Error getting conversation unread count:', error);
+      return 0;
+    }
+  };
+
+  // Function to construct profile image URI
+  const getProfileImageUri = (avatar) => {
+    if (!avatar || avatar === 'avatar.png') {
+      return DEFAULT_AVATAR;
+    }
+    
+    try {
+      // Construct the direct file view URL
+      const imageUri = `${API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${PROJECT_ID}&mode=admin`;
+      return { uri: imageUri };
+    } catch (error) {
+      console.error('Error constructing image URI:', error);
+      return DEFAULT_AVATAR;
+    }
+  };
+
   // Load profile data and notifications when component mounts
-  React.useEffect(() => {
+  useEffect(() => {
     const loadProfileData = async () => {
       try {
         // Check if user is authenticated
@@ -82,50 +158,41 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
 
         const userId = user.$id;
 
-        // Load profile from database
-        const profiles = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          [Query.equal('userId', userId)]
-        );
+        // Update profile data from UserDataManager if available
+        if (userData?.profile) {
+          const profile = userData.profile;
+          let newProfileData = {
+            fullName: profile.name || user.name || 'Name',
+            profileImage: getProfileImageUri(profile.avatar),
+          };
 
-        let newProfileData = {
-          fullName: user.name || 'Name',
-          profileImage: require('../assets/icon.png'),
-        };
-
-        if (profiles.documents.length > 0) {
-          const profile = profiles.documents[0];
-          newProfileData.fullName = profile.name || user.name || 'Name';
-
-          // Load user level and XP if available
-          if (profile.level) {
-            setCurrentLevel(profile.level);
-          }
-          if (profile.xp) {
-            setUserXP(profile.xp);
-          }
-
-          // If profile has avatar, get direct file URL
-          if (profile.avatar && profile.avatar !== 'avatar.png') {
-            try {
-              const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
-              newProfileData.profileImage = { uri: imageUrl };
-            } catch (error) {
-              console.log('Error getting file view:', error);
-            }
+          setProfileData(newProfileData);
+        } else {
+          // Fallback: Try to get profile directly from Appwrite
+          try {
+            const profile = await userProfiles.getProfileByUserId(userId);
+            const newProfileData = {
+              fullName: profile.name || user.name || 'Name',
+              profileImage: getProfileImageUri(profile.avatar),
+            };
+            setProfileData(newProfileData);
+          } catch (profileError) {
+            console.log('Error getting profile, using defaults:', profileError);
+            // Use default values
+            setProfileData({
+              fullName: user.name || 'Name',
+              profileImage: DEFAULT_AVATAR,
+            });
           }
         }
 
-        setProfileData(newProfileData);
-
-        // Load notifications (you can customize this based on your backend)
+        // Load notifications with actual unread message count
         await loadNotifications(userId);
 
         // Update AsyncStorage for offline fallback
-        await AsyncStorage.setItem('profile_name', newProfileData.fullName);
-        if (newProfileData.profileImage.uri) {
-          await AsyncStorage.setItem('profile_image', newProfileData.profileImage.uri);
+        await AsyncStorage.setItem('profile_name', userData?.profile?.name || user.name || 'Name');
+        if (userData?.profile?.avatar) {
+          await AsyncStorage.setItem('profile_avatar', userData.profile.avatar);
         }
       } catch (error) {
         console.error('Failed to load profile data:', error);
@@ -134,23 +201,12 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
         // Fallback to AsyncStorage
         try {
           const savedProfileName = await AsyncStorage.getItem('profile_name');
-          const savedProfileImageUri = await AsyncStorage.getItem('profile_image');
-          const savedLevel = await AsyncStorage.getItem('user_level');
-          const savedXP = await AsyncStorage.getItem('user_xp');
+          const savedProfileAvatar = await AsyncStorage.getItem('profile_avatar');
           
-          if (savedProfileName || savedProfileImageUri) {
-            setProfileData({
-              fullName: savedProfileName || 'Name',
-              profileImage: savedProfileImageUri ? { uri: savedProfileImageUri } : require('../assets/icon.png'),
-            });
-          }
-          
-          if (savedLevel) {
-            setCurrentLevel(parseInt(savedLevel));
-          }
-          if (savedXP) {
-            setUserXP(parseInt(savedXP));
-          }
+          setProfileData({
+            fullName: savedProfileName || 'Name',
+            profileImage: savedProfileAvatar ? getProfileImageUri(savedProfileAvatar) : DEFAULT_AVATAR,
+          });
         } catch (storageError) {
           console.error('Failed to load from AsyncStorage:', storageError);
         }
@@ -162,29 +218,44 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     // Reload data when screen comes into focus
     const unsubscribe = navigation.addListener('focus', () => {
       loadProfileData();
+      if (isInitialized) {
+        forceSync(); // Sync user data when screen becomes active
+      }
     });
 
     return unsubscribe;
-  }, [navigation, setIsLoggedIn]);
+  }, [navigation, setIsLoggedIn, userData, isInitialized]);
 
-  // Load notifications function
+  // Load notifications function with actual unread message count
   const loadNotifications = async (userId) => {
     try {
-      // Mock notification loading - replace with your actual API calls
-      const mockNotifications = {
-        messages: Math.floor(Math.random() * 5), // Random number for demo
-        news: Math.floor(Math.random() * 3),
-        hasNewContent: Math.random() > 0.5
+      // Get actual unread message count
+      const unreadMessages = await getUnreadMessageCount(userId);
+      
+      // Calculate other notifications based on user progress
+      const newsCount = userData?.progress?.level > 1 ? 
+        Math.floor(userData.progress.level / 2) : 0;
+
+      const calculatedNotifications = {
+        messages: unreadMessages,
+        news: newsCount,
+        hasNewContent: unreadMessages > 0 || newsCount > 0
       };
       
-      setNotifications(mockNotifications);
+      setNotifications(calculatedNotifications);
       
       // Start pulse animation if there are notifications
-      if (mockNotifications.messages > 0 || mockNotifications.news > 0) {
+      if (calculatedNotifications.messages > 0 || calculatedNotifications.news > 0) {
         startNotificationPulse();
       }
     } catch (error) {
       console.error('Failed to load notifications:', error);
+      // Fallback to default values
+      setNotifications({
+        messages: 0,
+        news: 0,
+        hasNewContent: false
+      });
     }
   };
 
@@ -251,41 +322,29 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     }
   };
 
-  // Handle level change
-  const handleLevelChange = async (value) => {
-    setCurrentLevel(Math.round(value));
-    try {
-      await AsyncStorage.setItem('user_level', Math.round(value).toString());
-      // You can also update this in your database
-    } catch (error) {
-      console.error('Failed to save level:', error);
-    }
-  };
-
-  // XP Progress Bar Component (non-interactive)
+  // XP Progress Bar Component using UserDataManager data
   const XPProgressBar = () => {
-    const levelData = calculateLevelFromXP(userXP);
-    const progressPercentage = currentLevel >= 10 ? 100 : 
-      (levelData.progressXP / levelData.requiredXP) * 100;
-    
-    const progressBarWidth = useRef(new Animated.Value(progressPercentage)).current;
+    if (!levelProgress) return null;
+
+    const progressBarWidth = useRef(new Animated.Value(levelProgress.progressPercentage)).current;
 
     useEffect(() => {
       Animated.timing(progressBarWidth, {
-        toValue: progressPercentage,
+        toValue: levelProgress.progressPercentage,
         duration: 1000,
         useNativeDriver: false,
       }).start();
-    }, [progressPercentage]);
+    }, [levelProgress.progressPercentage]);
 
     return (
       <View style={styles.xpProgressContainer}>
         {/* XP Numbers */}
         <View style={styles.xpInfoRow}>
           <Text style={styles.xpText}>
-            {currentLevel >= 10 ? 'MAX LEVEL' : `${levelData.progressXP} / ${levelData.requiredXP} XP`}
+            {levelProgress.currentLevel >= 10 ? 'MAX LEVEL' : 
+             `${levelProgress.progressXP} / ${levelProgress.requiredXP} XP`}
           </Text>
-          <Text style={styles.totalXpText}>Total: {userXP.toLocaleString()} XP</Text>
+          <Text style={styles.totalXpText}>Total: {levelProgress.currentXP.toLocaleString()} XP</Text>
         </View>
         
         {/* Progress Bar */}
@@ -312,7 +371,7 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
                 style={[
                   styles.levelMarker,
                   { left: `${((i + 1) / 10) * 100}%` },
-                  currentLevel > i + 1 && styles.levelMarkerPassed
+                  levelProgress.currentLevel > i + 1 && styles.levelMarkerPassed
                 ]} 
               />
             ))}
@@ -320,50 +379,13 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
         </View>
         
         {/* Next level info */}
-        {currentLevel < 10 && (
+        {levelProgress.currentLevel < 10 && (
           <Text style={styles.nextLevelText}>
-            {xpForNextLevel - userXP} XP to Level {currentLevel + 1}
+            {levelProgress.xpForNextLevel - levelProgress.currentXP} XP to Level {levelProgress.currentLevel + 1}
           </Text>
         )}
       </View>
     );
-  };
-
-  // Calculate level and XP progress
-  const calculateLevelFromXP = (xp) => {
-    // XP required for each level (exponential growth)
-    const xpRequirements = [
-      0,     // Level 1: 0 XP
-      1000,  // Level 2: 1000 XP
-      2500,  // Level 3: 2500 XP
-      4500,  // Level 4: 4500 XP
-      7000,  // Level 5: 7000 XP
-      10000, // Level 6: 10000 XP
-      14000, // Level 7: 14000 XP
-      19000, // Level 8: 19000 XP
-      25000, // Level 9: 25000 XP
-      32000, // Level 10: 32000 XP
-    ];
-
-    let level = 1;
-    for (let i = 0; i < xpRequirements.length; i++) {
-      if (xp >= xpRequirements[i]) {
-        level = i + 1;
-      } else {
-        break;
-      }
-    }
-
-    const currentLevelXP = level > 1 ? xpRequirements[level - 1] : 0;
-    const nextLevelXP = level < 10 ? xpRequirements[level] : xpRequirements[9];
-    
-    return {
-      level: Math.min(level, 10),
-      currentLevelXP,
-      nextLevelXP,
-      progressXP: xp - currentLevelXP,
-      requiredXP: nextLevelXP - currentLevelXP
-    };
   };
 
   // Handle Logout
@@ -434,6 +456,17 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     return 'Expert';
   };
 
+  // Show loading state while UserDataManager initializes
+  if (userDataLoading && !isInitialized) {
+    return (
+      <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading your progress...</Text>
+        </View>
+      </ImageBackground>
+    );
+  }
+
   return (
     <ImageBackground
       source={backgroundImage}
@@ -455,7 +488,15 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
             </View>
             <TouchableOpacity onPress={handleNotifications}>
               <Animated.View style={[styles.profileImageContainer, { transform: [{ scale: notifications.hasNewContent ? notificationPulse : 1 }] }]}>
-                <Image source={profileData.profileImage} style={styles.profileImage} />
+                <Image 
+                  source={profileData.profileImage} 
+                  style={styles.profileImage}
+                  defaultSource={DEFAULT_AVATAR}
+                  onError={() => {
+                    console.log('Image load error, falling back to default');
+                    setProfileData(prev => ({ ...prev, profileImage: DEFAULT_AVATAR }));
+                  }}
+                />
                 {(notifications.messages > 0 || notifications.news > 0) && (
                   <View style={styles.notificationBadge}>
                     <Text style={styles.notificationText}>
@@ -471,34 +512,58 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
           <View style={styles.levelContainer}>
             <Text style={styles.levelTitle}>Fitness Level Progress</Text>
             <View style={styles.levelSliderContainer}>
-              <Text style={styles.levelLabel}>Level {currentLevel}</Text>
-              <Text style={styles.levelDescription}>{getLevelDescription(currentLevel)}</Text>
+              <Text style={styles.levelLabel}>
+                Level {progress?.level || 1}
+              </Text>
+              <Text style={styles.levelDescription}>
+                {getLevelDescription(progress?.level || 1)}
+              </Text>
             </View>
             <XPProgressBar />
           </View>
 
-          {/* Notifications Section */}
+          {/* Enhanced Notifications Section with UserDataManager data */}
           <View style={styles.notificationsContainer}>
-            <Text style={styles.sectionTitle}>Updates & Notifications</Text>
+            <Text style={styles.sectionTitle}>Your Progress Overview</Text>
+            <View style={styles.progressOverviewRow}>
+              <View style={styles.progressItem}>
+                <Text style={styles.progressNumber}>{progress?.totalSessions || 0}</Text>
+                <Text style={styles.progressLabel}>Total Sessions</Text>
+              </View>
+              <View style={styles.progressItem}>
+                <Text style={styles.progressNumber}>{progress?.perfectForms || 0}</Text>
+                <Text style={styles.progressLabel}>Perfect Forms</Text>
+              </View>
+              <View style={styles.progressItem}>
+                <Text style={styles.progressNumber}>{progress?.streak || 0}</Text>
+                <Text style={styles.progressLabel}>Current Streak</Text>
+              </View>
+            </View>
+            
             <View style={styles.notificationRow}>
-              <TouchableOpacity style={styles.notificationItem} onPress={handleNotifications}>
-                <Text style={styles.notificationIcon}>💬</Text>
+              <TouchableOpacity style={styles.notificationItem} onPress={() => navigation1.navigate('BadgesAndMilestonesScreen')}>
+                <Text style={styles.notificationIcon}>🏆</Text>
                 <View>
-                  <Text style={styles.notificationItemTitle}>Messages</Text>
+                  <Text style={styles.notificationItemTitle}>Achievements</Text>
                   <Text style={styles.notificationItemCount}>
-                    {notifications.messages > 0 ? `${notifications.messages} new` : 'No new messages'}
+                    {userData?.badges?.earned?.length || 0} badges earned
                   </Text>
                 </View>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.notificationItem} onPress={handleNotifications}>
-                <Text style={styles.notificationIcon}>🔔</Text>
+              <TouchableOpacity style={styles.notificationItem} onPress={() => navigation1.navigate('FindFriendScreen')}>
+                <Text style={styles.notificationIcon}>💬</Text>
                 <View>
-                  <Text style={styles.notificationItemTitle}>News & Updates</Text>
+                  <Text style={styles.notificationItemTitle}>Messages</Text>
                   <Text style={styles.notificationItemCount}>
-                    {notifications.news > 0 ? `${notifications.news} new` : 'No new updates'}
+                    {notifications.messages > 0 ? `${notifications.messages} unread` : 'No new messages'}
                   </Text>
                 </View>
+                {notifications.messages > 0 && (
+                  <View style={styles.messageNotificationBadge}>
+                    <Text style={styles.messageNotificationText}>{notifications.messages}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -597,6 +662,17 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
   profileImageContainer: {
     position: 'relative',
   },
@@ -629,7 +705,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 20,
     left: '50%',
-    transform: [{ translateX: -20 }], // Better centering method
+    transform: [{ translateX: -20 }],
     zIndex: 1000,
   },
   scrollIndicatorContainer: {
@@ -649,7 +725,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   scrollIndicatorArrow: {
-    color: Colors.primary, // Using vibrant primary color
+    color: Colors.primary,
     fontSize: 24,
     fontWeight: 'bold',
   },
@@ -751,17 +827,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     marginTop: 5,
   },
-  levelIndicators: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
-  },
-  levelIndicatorText: {
-    color: '#fff',
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  // Notifications Styles
+  // Enhanced Notifications Styles
   notificationsContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 15,
@@ -773,6 +839,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 15,
+  },
+  progressOverviewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 10,
+  },
+  progressItem: {
+    alignItems: 'center',
+  },
+  progressNumber: {
+    color: Colors.primary,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  progressLabel: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 3,
   },
   notificationRow: {
     flexDirection: 'row',

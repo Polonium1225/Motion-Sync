@@ -11,7 +11,8 @@ import {
   Alert,
   ImageBackground,
   Animated,
-  Dimensions
+  Dimensions,
+  ScrollView
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 import { saveHistory, getUserId } from '../lib/AppwriteService';
 import { API_CONFIG } from './config';
+import { useUserData, useUserProgress } from '../hooks/useUserData';
 
 const { width, height } = Dimensions.get('window');
 
@@ -31,6 +33,10 @@ export default function PerformanceScreen() {
   const [userId, setUserId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
+  
+  // Get data from UserDataManager
+  const { userData, isInitialized, addWorkoutSession } = useUserData();
+  const { progress, levelProgress } = useUserProgress();
   
   // Animation values
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -97,6 +103,33 @@ export default function PerformanceScreen() {
       rotateLoop.stop();
     };
   }, []);
+
+  // Calculate user performance stats
+  const getPerformanceStats = () => {
+    if (!isInitialized || !progress) {
+      return {
+        totalComparisons: 0,
+        averageImprovement: 0,
+        bestScore: 0,
+        recentSessions: 0
+      };
+    }
+
+    // Calculate stats from user data
+    const totalComparisons = Math.floor((progress.totalSessions || 0) * 0.3); // Assume 30% of sessions include comparisons
+    const averageImprovement = Math.min(Math.round((progress.averageMotionScore || 0) - 60), 40); // Improvement from baseline
+    const bestScore = Math.round(progress.averageMotionScore || 0);
+    const recentSessions = Math.min(progress.totalSessions || 0, 10);
+
+    return {
+      totalComparisons,
+      averageImprovement: Math.max(averageImprovement, 0),
+      bestScore,
+      recentSessions
+    };
+  };
+
+  const stats = getPerformanceStats();
 
   const handleCompare = useCallback(async () => {
     if (!pastVideoUri) {
@@ -166,6 +199,24 @@ export default function PerformanceScreen() {
   
       if (!compareResponse.ok) throw new Error(compareResult.detail || 'Comparison failed');
   
+      // Record this as a workout session in UserDataManager
+      if (isInitialized) {
+        try {
+          const sessionData = {
+            exerciseType: 'performance_comparison',
+            motionScore: Math.round((compareResult.similarity || 0) * 100),
+            duration: 300, // Assume 5 minute analysis session
+            perfectForms: compareResult.improvements ? compareResult.improvements.length : 0,
+            date: new Date().toISOString()
+          };
+
+          const xpGained = await addWorkoutSession(sessionData);
+          console.log(`Performance comparison completed! XP gained: ${xpGained}`);
+        } catch (error) {
+          console.error('Failed to record session:', error);
+        }
+      }
+
       navigation.navigate('PerformanceComparisonScreen', {
         videoUri: newUrl,
         pastVideoUri: pastUrl,
@@ -186,7 +237,7 @@ export default function PerformanceScreen() {
     } finally {
       setLoading(false);
     }
-  }, [pastVideoUri, videoUri, buttonScale]);
+  }, [pastVideoUri, videoUri, buttonScale, isInitialized, addWorkoutSession]);
 
   const pickVideo = async (setVideoFunction) => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -283,6 +334,15 @@ export default function PerformanceScreen() {
     }).start();
   };
 
+  // Quick access to other features
+  const navigateToAchievements = () => {
+    navigation.navigate('BadgesAndMilestonesScreen');
+  };
+
+  const navigateToProgress = () => {
+    navigation.navigate('ProgressScreen');
+  };
+
   return (
     <ImageBackground
       source={require('../assets/backalso2.png')}
@@ -298,114 +358,175 @@ export default function PerformanceScreen() {
           }
         ]}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton} 
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Performance Analysis</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        {/* Title Section */}
-        <View style={styles.titleSection}>
-          <Text style={styles.sectionTitle}>Compare Performance</Text>
-          <Text style={styles.sectionSubtitle}>
-            Upload two videos to analyze your improvement
-          </Text>
-        </View>
-
-        {/* Video Selection Section */}
-        <View style={styles.videoContainer}>
-          {/* Past Video Card */}
-          <TouchableOpacity 
-            style={styles.videoCard}
-            onPress={() => setPastModalVisible(true)}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardIconContainer}>
-                <Text style={styles.cardIcon}>📹</Text>
-              </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardTitle}>Past Performance</Text>
-                <Text style={styles.cardSubtitle}>
-                  {pastVideoUri ? 'Video selected ✓' : 'Tap to select video'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.cardArrow}>
-              <Text style={styles.arrowText}>→</Text>
-            </View>
-            {pastVideoUri && (
-              <View style={styles.checkmark}>
-                <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* VS Indicator */}
-          <View style={styles.vsContainer}>
-            <View style={styles.vsCircle}>
-              <Text style={styles.vsText}>VS</Text>
-            </View>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton} 
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Performance Analysis</Text>
+            <TouchableOpacity 
+              style={styles.statsButton} 
+              onPress={navigateToAchievements}
+            >
+              <Ionicons name="trophy" size={24} color="white" />
+            </TouchableOpacity>
           </View>
 
-          {/* New Video Card */}
-          <TouchableOpacity 
-            style={styles.videoCard}
-            onPress={() => setModalVisible(true)}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-          >
-            <View style={styles.cardContent}>
-              <View style={styles.cardIconContainer}>
-                <Text style={styles.cardIcon}>🎬</Text>
+          {/* User Progress Overview */}
+          {isInitialized && progress && (
+            <View style={styles.progressOverview}>
+              <Text style={styles.overviewTitle}>Your Performance Journey</Text>
+              <View style={styles.userStats}>
+                <View style={styles.userLevel}>
+                  <Text style={styles.levelNumber}>Level {progress.level}</Text>
+                  <Text style={styles.levelXP}>{(progress.xp || 0).toLocaleString()} XP</Text>
+                </View>
+                <View style={styles.userStreak}>
+                  <Text style={styles.streakNumber}>{progress.streak || 0}</Text>
+                  <Text style={styles.streakLabel}>Day Streak 🔥</Text>
+                </View>
               </View>
-              <View style={styles.cardTextContainer}>
-                <Text style={styles.cardTitle}>New Performance</Text>
-                <Text style={styles.cardSubtitle}>
-                  {videoUri ? 'Video selected ✓' : 'Tap to select video'}
-                </Text>
-              </View>
+              {levelProgress && (
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBar}>
+                    <View 
+                      style={[
+                        styles.progressFill, 
+                        { width: `${levelProgress.progressPercentage}%` }
+                      ]} 
+                    />
+                  </View>
+                  <Text style={styles.progressText}>
+                    {levelProgress.progressXP} / {levelProgress.requiredXP} XP to next level
+                  </Text>
+                </View>
+              )}
             </View>
-            <View style={styles.cardArrow}>
-              <Text style={styles.arrowText}>→</Text>
-            </View>
-            {videoUri && (
-              <View style={styles.checkmark}>
-                <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+          )}
 
-        {/* Compare Button */}
-        <Animated.View 
-          style={[
-            { transform: [{ scale: pulseAnimation }] }
-          ]}
-        >
-          <TouchableOpacity 
-            style={[
-              styles.compareButton,
-              (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
-            ]}
-            onPress={handleCompare}
-            disabled={!pastVideoUri || !videoUri}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-          >
-            <View style={styles.compareButtonContent}>
-              <Ionicons name="analytics-outline" size={24} color="white" />
-              <Text style={styles.compareButtonText}>ANALYZE PERFORMANCE</Text>
+          {/* Title Section */}
+          <View style={styles.titleSection}>
+            <Text style={styles.sectionTitle}>Compare Performance</Text>
+            <Text style={styles.sectionSubtitle}>
+              Upload two videos to analyze your improvement and earn XP
+            </Text>
+          </View>
+
+          {/* Video Selection Section */}
+          <View style={styles.videoContainer}>
+            {/* Past Video Card */}
+            <TouchableOpacity 
+              style={styles.videoCard}
+              onPress={() => setPastModalVisible(true)}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardIconContainer}>
+                  <Text style={styles.cardIcon}>📹</Text>
+                </View>
+                <View style={styles.cardTextContainer}>
+                  <Text style={styles.cardTitle}>Past Performance</Text>
+                  <Text style={styles.cardSubtitle}>
+                    {pastVideoUri ? 'Video selected ✓' : 'Tap to select video'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.cardArrow}>
+                <Text style={styles.arrowText}>→</Text>
+              </View>
+              {pastVideoUri && (
+                <View style={styles.checkmark}>
+                  <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* VS Indicator */}
+            <View style={styles.vsContainer}>
+              <View style={styles.vsCircle}>
+                <Text style={styles.vsText}>VS</Text>
+              </View>
+              <Text style={styles.vsSubtext}>Compare & Earn XP</Text>
             </View>
-          </TouchableOpacity>
-        </Animated.View>
+
+            {/* New Video Card */}
+            <TouchableOpacity 
+              style={styles.videoCard}
+              onPress={() => setModalVisible(true)}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              <View style={styles.cardContent}>
+                <View style={styles.cardIconContainer}>
+                  <Text style={styles.cardIcon}>🎬</Text>
+                </View>
+                <View style={styles.cardTextContainer}>
+                  <Text style={styles.cardTitle}>New Performance</Text>
+                  <Text style={styles.cardSubtitle}>
+                    {videoUri ? 'Video selected ✓' : 'Tap to select video'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.cardArrow}>
+                <Text style={styles.arrowText}>→</Text>
+              </View>
+              {videoUri && (
+                <View style={styles.checkmark}>
+                  <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Compare Button */}
+          <Animated.View 
+            style={[
+              { transform: [{ scale: pulseAnimation }] }
+            ]}
+          >
+            <TouchableOpacity 
+              style={[
+                styles.compareButton,
+                (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
+              ]}
+              onPress={handleCompare}
+              disabled={!pastVideoUri || !videoUri}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              <View style={styles.compareButtonContent}>
+                <Ionicons name="analytics-outline" size={24} color="white" />
+                <Text style={styles.compareButtonText}>ANALYZE & EARN XP</Text>
+                {isInitialized && (
+                  <Text style={styles.xpHint}>+50-100 XP</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Quick Actions */}
+          <View style={styles.quickActions}>
+            <TouchableOpacity 
+              style={styles.quickActionButton}
+              onPress={navigateToProgress}
+            >
+              <Ionicons name="trending-up" size={20} color="#ff4c48" />
+              <Text style={styles.quickActionText}>View Progress</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.quickActionButton}
+              onPress={navigateToAchievements}
+            >
+              <Ionicons name="trophy" size={20} color="#ff4c48" />
+              <Text style={styles.quickActionText}>Achievements</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
         {/* Modal for NEW Video Upload */}
         <Modal animationType="fade" transparent={true} visible={modalVisible}>
@@ -522,8 +643,11 @@ export default function PerformanceScreen() {
               >
                 <Ionicons name="analytics-outline" size={48} color={Colors.primary} />
               </Animated.View>
-              <Text style={styles.loadingTitle}>Processing</Text>
+              <Text style={styles.loadingTitle}>Processing Analysis</Text>
               <Text style={styles.loadingMessage}>{loadingMessage}</Text>
+              {isInitialized && (
+                <Text style={styles.loadingXP}>Earning XP for your analysis...</Text>
+              )}
               <View style={styles.loadingBar}>
                 <View style={styles.loadingBarFill} />
               </View>
@@ -543,11 +667,15 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 20,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 20,
-    marginBottom: 30,
+    marginBottom: 20,
     justifyContent: 'space-between',
   },
   backButton: {
@@ -566,23 +694,94 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginLeft: 15,
   },
-  headerSpacer: {
+  statsButton: {
     width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  progressOverview: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
+  },
+  overviewTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  userStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 15,
+  },
+  userLevel: {
+    alignItems: 'center',
+  },
+  levelNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ff4c48',
+  },
+  levelXP: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  userStreak: {
+    alignItems: 'center',
+  },
+  streakNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#ff4c48',
+  },
+  streakLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  progressBarContainer: {
+    alignItems: 'center',
+  },
+  progressBar: {
+    width: '100%',
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 3,
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#ff4c48',
+    borderRadius: 3,
+  },
+  progressText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   titleSection: {
-    marginBottom: 30,
+    marginBottom: 20,
     alignItems: 'center',
   },
   sectionTitle: {
     color: Colors.textPrimary,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
     textAlign: 'center',
   },
   sectionSubtitle: {
     color: Colors.textSecondary,
-    fontSize: 16,
+    fontSize: 14,
     textAlign: 'center',
     opacity: 0.8,
   },
@@ -590,7 +789,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 15,
     padding: 20,
-    marginBottom: 30,
+    marginBottom: 20,
   },
   videoCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
@@ -691,6 +890,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  vsSubtext: {
+    color: '#ff4c48',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 5,
+  },
   compareButton: {
     backgroundColor: 'rgba(255, 76, 72, 0.1)',
     borderWidth: 2,
@@ -706,13 +911,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    marginBottom: 20,
   },
   compareButtonDisabled: {
     opacity: 0.5,
     borderColor: '#666',
   },
   compareButtonContent: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -720,7 +925,33 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
-    marginLeft: 10,
+    marginTop: 8,
+  },
+  xpHint: {
+    color: '#ff4c48',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 20,
+  },
+  quickActionButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+    width: '45%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 76, 72, 0.2)',
+  },
+  quickActionText: {
+    color: Colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 5,
   },
   modalOverlay: {
     flex: 1,
@@ -839,6 +1070,13 @@ const styles = StyleSheet.create({
   loadingMessage: {
     fontSize: 16,
     color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  loadingXP: {
+    fontSize: 14,
+    color: '#ff4c48',
+    fontWeight: '600',
     textAlign: 'center',
     marginBottom: 20,
   },

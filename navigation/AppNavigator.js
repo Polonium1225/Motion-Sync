@@ -27,6 +27,9 @@ import FindFriendScreen from '../screens/FindFriendScreen';
 import image_analyser3d from '../screens/image_analyser3d';
 import aichatscreen from '../screens/aichatscreen.js'
 import BadgesAndMilestonesScreen from '../screens/BadgesAndMilestonesScreen.js'
+import GymFinder from '../screens/GymFinder.js'
+import image3dplot from '../screens/image3dplot.js'
+import DemoSessionScreen from '../screens/DemoSessionScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -135,6 +138,15 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             name="CreatePost"
             component={CreatePostScreen}
           />
+          <Stack.Screen
+            name="image3dplot"
+            component={image3dplot}
+          />
+          <Stack.Screen 
+            name="DemoSession" 
+            component={DemoSessionScreen}
+            options={{ headerShown: false }}
+          />
 
           {/* Existing screens */}
           <Stack.Screen
@@ -149,9 +161,10 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             name="test"
             component={test}
           />
+          
           <Stack.Screen
-            name="Chat"
-            component={ChatScreen}
+            name="GymFinder"
+            component={GymFinder}
           />
           <Stack.Screen
             name="SearchFriends"
