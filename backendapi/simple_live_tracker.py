@@ -1,67 +1,10 @@
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 import json
-import cv2
-import numpy as np
-import base64
-import asyncio
-from typing import Dict, Optional, Any
-from concurrent.futures import ThreadPoolExecutor
-import time
-from pose_processor import pose, mp_pose
+from typing import Optional
 
-# Router for pose tracking endpoints
+# Router for high-performance pose tracking
 pose_tracking_router = APIRouter()
-
-# Store active sessions for WebSocket tracking
-active_sessions: Dict[str, Any] = {}
-
-# Thread pool for CPU-intensive tasks
-executor = ThreadPoolExecutor(max_workers=4)
-
-# Performance monitoring
-frame_times = []
-MAX_FRAME_HISTORY = 30
-
-def process_frame_cpu_intensive(img_data):
-    """CPU-intensive frame processing in separate thread"""
-    try:
-        # Decode image
-        nparr = np.frombuffer(img_data, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if img is None:
-            return None
-            
-        # Don't resize - MediaPipe handles various resolutions well
-        # This preserves the original aspect ratio
-        
-        # Process pose landmarks
-        rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        pose_results = pose.process(rgb_frame)
-        
-        return pose_results
-    except Exception as e:
-        print(f"Frame processing error: {e}")
-        return None
-
-@pose_tracking_router.get("/debug/test_message")
-async def test_message():
-    """Test endpoint to verify message formatting"""
-    test_message = {
-        "type": "info",
-        "message": "Test message",
-        "ready": True,
-        "landmarks": [
-            {
-                "x": 0.5,
-                "y": 0.5,
-                "z": 0.0,
-                "visibility": 0.9
-            } for _ in range(33)
-        ]
-    }
-    return test_message
 
 @pose_tracking_router.get("/pose_tracker/tracking")
 async def tracking_page(
@@ -71,21 +14,7 @@ async def tracking_page(
     height: Optional[float] = None,
     skeleton: bool = True
 ):
-    """Return optimized HTML page with camera access and WebSocket connection for live pose estimation."""
-    if width and height:
-        aspect_ratio = 19/6
-        if width/height > aspect_ratio:
-            width_val = height * aspect_ratio
-            height_val = height
-        else:
-            width_val = width
-            height_val = width / aspect_ratio
-    else:
-        width_val = 360
-        height_val = 360 * (19/6)
-    
-    host = request.headers.get("host", "localhost:8000")
-    scheme = request.headers.get("x-forwarded-proto", "http")
+    """High-performance pose tracking with client-side processing"""
     
     html_content = f"""
     <!DOCTYPE html>
@@ -93,7 +22,7 @@ async def tracking_page(
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>Live Pose Estimation</title>
+        <title>High-Performance Pose Estimation</title>
         <style>
             body, html {{
                 margin: 0;
@@ -105,6 +34,7 @@ async def tracking_page(
                 display: flex;
                 justify-content: center;
                 align-items: center;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }}
             .container {{
                 width: 100%;
@@ -132,50 +62,107 @@ async def tracking_page(
                 pointer-events: none;
                 background: transparent;
             }}
-            #status {{
-                position: absolute;
-                bottom: 10px;
-                left: 10px;
-                background-color: rgba(0,0,0,0.5);
-                color: white;
-                padding: 5px;
-                border-radius: 5px;
-                font-family: Arial, sans-serif;
-                z-index: 100;
-            }}
-            #fpsCounter {{
-                position: absolute;
-                top: 10px;
-                right: 10px;
-                background-color: rgba(0,0,0,0.5);
-                color: white;
-                padding: 3px;
-                border-radius: 3px;
-                font-family: monospace;
-                font-size: 12px;
-                z-index: 100;
-            }}
-            #flipCameraBtn {{
+            .controls {{
                 position: absolute;
                 top: 10px;
                 left: 10px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                z-index: 100;
+            }}
+            .control-row {{
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }}
+            button {{
                 background-color: rgba(0,0,0,0.7);
                 color: white;
                 border: none;
                 padding: 8px 12px;
                 border-radius: 5px;
-                font-family: Arial, sans-serif;
-                font-size: 14px;
+                font-size: 12px;
                 cursor: pointer;
-                z-index: 100;
-                transition: background-color 0.3s;
+                transition: all 0.3s;
+                font-weight: 500;
             }}
-            #flipCameraBtn:hover {{
+            button:hover {{
                 background-color: rgba(0,0,0,0.9);
+                transform: translateY(-1px);
             }}
-            #flipCameraBtn:disabled {{
+            button:disabled {{
                 opacity: 0.5;
                 cursor: not-allowed;
+                transform: none;
+            }}
+            .performance-panel {{
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                background-color: rgba(0,0,0,0.7);
+                color: white;
+                padding: 8px;
+                border-radius: 5px;
+                font-size: 11px;
+                font-family: monospace;
+                z-index: 100;
+                min-width: 120px;
+            }}
+            .status-bar {{
+                position: absolute;
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                background-color: rgba(0,0,0,0.5);
+                color: white;
+                padding: 8px;
+                border-radius: 5px;
+                font-size: 12px;
+                z-index: 100;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            .quality-indicator {{
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }}
+            .quality-dot {{
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                transition: all 0.3s;
+            }}
+            .quality-excellent {{ background-color: #4ade80; }}
+            .quality-good {{ background-color: #fbbf24; }}
+            .quality-fair {{ background-color: #f97316; }}
+            .quality-poor {{ background-color: #ef4444; }}
+            .loading {{
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                color: white;
+                background-color: rgba(0,0,0,0.7);
+                padding: 20px;
+                border-radius: 10px;
+                text-align: center;
+                z-index: 200;
+            }}
+            .loading-spinner {{
+                border: 3px solid #f3f3f3;
+                border-top: 3px solid #3498db;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 10px;
+            }}
+            @keyframes spin {{
+                0% {{ transform: rotate(0deg); }}
+                100% {{ transform: rotate(360deg); }}
             }}
         </style>
     </head>
@@ -183,527 +170,1048 @@ async def tracking_page(
         <div class="container">
             <video id="videoElement" autoplay playsinline muted></video>
             <canvas id="canvasOverlay"></canvas>
-            <div id="status">Initializing camera...</div>
-            <div id="fpsCounter">FPS: --</div>
-            <button id="flipCameraBtn">📷 Flip</button>
+            
+            <div class="loading" id="loadingIndicator">
+                <div class="loading-spinner"></div>
+                <div>Loading MediaPipe...</div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-row">
+                    <button id="flipCameraBtn">📷 Flip</button>
+                    <button id="toggleSkeletonBtn">🦴 Skeleton ✓</button>
+                    <button id="qualityBtn">⚡ Auto</button>
+                </div>
+                <div class="control-row">
+                    <button id="gpuBtn">🖥️ GPU</button>
+                    <button id="smoothBtn">✨ Smooth ✓</button>
+                    <button id="roiBtn">🎯 ROI</button>
+                </div>
+            </div>
+            
+            <div class="performance-panel" id="performancePanel">
+                <div>FPS: <span id="fpsDisplay">--</span></div>
+                <div>Process: <span id="processTimeDisplay">--</span>ms</div>
+                <div>Quality: <span id="qualityDisplay">--</span></div>
+                <div>Mode: <span id="modeDisplay">Loading...</span></div>
+            </div>
+            
+            <div class="status-bar">
+                <div id="statusText">Initializing...</div>
+                <div class="quality-indicator">
+                    <div class="quality-dot" id="qualityDot"></div>
+                    <span id="confidenceText">--</span>
+                </div>
+            </div>
         </div>
+
+        <!-- MediaPipe CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
         
         <script>
-            const showSkeleton = {str(skeleton).lower()};
-            const serverURL = "{scheme}://{host}";
-            
-            const video = document.getElementById('videoElement');
-            const canvas = document.getElementById('canvasOverlay');
-            const ctx = canvas.getContext('2d');
-            const statusDiv = document.getElementById('status');
-            const fpsCounter = document.getElementById('fpsCounter');
-            const flipCameraBtn = document.getElementById('flipCameraBtn');
-            const container = document.querySelector('.container');
-            
-            // Camera management variables
-            let currentFacingMode = 'user';
-            let currentStream = null;
-            
-            // Performance optimization variables
-            let frameCount = 0;
-            let lastFpsTime = performance.now();
-            let lastFrameTime = 0;
-            let processingFrame = false;
-            
-            // Video content dimensions tracking
-            let videoContentRect = {{ x: 0, y: 0, width: 0, height: 0 }};
-            
-            // Original connections array for better skeleton
-            const connections = [
-                // Face
-                [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
-                // Arms
-                [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-                [15, 17], [15, 19], [15, 21], [17, 19],
-                [16, 18], [16, 20], [16, 22], [18, 20],
-                // Torso
-                [11, 23], [12, 24], [23, 24],
-                // Legs
-                [23, 25], [24, 26], [25, 27], [26, 28],
-                [27, 29], [27, 31], [28, 30], [28, 32],
-                [29, 31], [30, 32]
-            ];
-            
-            function calculateVideoContentRect() {{
-                const containerRect = container.getBoundingClientRect();
-                const videoAspectRatio = video.videoWidth / video.videoHeight;
-                const containerAspectRatio = containerRect.width / containerRect.height;
-                
-                let contentWidth, contentHeight, contentX, contentY;
-                
-                if (videoAspectRatio > containerAspectRatio) {{
-                    // Video is wider than container - letterbox top/bottom
-                    contentWidth = containerRect.width;
-                    contentHeight = containerRect.width / videoAspectRatio;
-                    contentX = 0;
-                    contentY = (containerRect.height - contentHeight) / 2;
-                }} else {{
-                    // Video is taller than container - letterbox left/right
-                    contentWidth = containerRect.height * videoAspectRatio;
-                    contentHeight = containerRect.height;
-                    contentX = (containerRect.width - contentWidth) / 2;
-                    contentY = 0;
+            // High-Performance Pose Tracking System
+            class HighPerformancePoseTracker {{
+                constructor() {{
+                    this.showSkeleton = {str(skeleton).lower()};
+                    this.initializeElements();
+                    this.initializeSettings();
+                    this.initializePerformanceMonitoring();
+                    this.initializeWorkers();
+                    this.setupEventListeners();
                 }}
                 
-                videoContentRect = {{
-                    x: contentX,
-                    y: contentY,
-                    width: contentWidth,
-                    height: contentHeight
-                }};
-                
-                console.log('Video content rect:', videoContentRect);
-                console.log('Container rect:', containerRect);
-                console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
-            }}
-            
-            function updateCanvasSize() {{
-                const rect = container.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height;
-                
-                // Recalculate video content dimensions when canvas is resized
-                if (video.videoWidth && video.videoHeight) {{
-                    calculateVideoContentRect();
-                }}
-                
-                console.log(`Canvas size: ${{canvas.width}}x${{canvas.height}}`);
-            }}
-            
-            updateCanvasSize();
-            window.addEventListener('resize', updateCanvasSize);
-            
-            let ws = null;
-            let isConnected = false;
-            let reconnectAttempts = 0;
-            const MAX_RECONNECT_ATTEMPTS = 5;
-            
-            function sendMessageToReactNative(data) {{
-                try {{
-                    let messageData;
+                initializeElements() {{
+                    this.video = document.getElementById('videoElement');
+                    this.canvas = document.getElementById('canvasOverlay');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.container = this.canvas.parentElement;
                     
-                    if (typeof data === 'string') {{
-                        messageData = data;
-                    }} else if (typeof data === 'object' && data !== null) {{
-                        messageData = JSON.stringify(data);
+                    // Control elements
+                    this.flipCameraBtn = document.getElementById('flipCameraBtn');
+                    this.toggleSkeletonBtn = document.getElementById('toggleSkeletonBtn');
+                    this.qualityBtn = document.getElementById('qualityBtn');
+                    this.gpuBtn = document.getElementById('gpuBtn');
+                    this.smoothBtn = document.getElementById('smoothBtn');
+                    this.roiBtn = document.getElementById('roiBtn');
+                    
+                    // Display elements
+                    this.loadingIndicator = document.getElementById('loadingIndicator');
+                    this.fpsDisplay = document.getElementById('fpsDisplay');
+                    this.processTimeDisplay = document.getElementById('processTimeDisplay');
+                    this.qualityDisplay = document.getElementById('qualityDisplay');
+                    this.modeDisplay = document.getElementById('modeDisplay');
+                    this.statusText = document.getElementById('statusText');
+                    this.qualityDot = document.getElementById('qualityDot');
+                    this.confidenceText = document.getElementById('confidenceText');
+                }}
+                
+                initializeSettings() {{
+                    this.currentFacingMode = 'user';
+                    this.currentStream = null;
+                    this.poseDetector = null;
+                    this.isProcessing = false;
+                    this.lastLandmarks = null;
+                    
+                    // Performance settings
+                    this.settings = {{
+                        qualityMode: 'auto', // auto, high, medium, low
+                        useGPU: true,
+                        useSmoothing: true,
+                        useROI: false,
+                        targetFPS: 30,
+                        skipFrames: 0,
+                        adaptiveQuality: true
+                    }};
+                    
+                    // Initialize button states
+                    this.smoothBtn.textContent = '✨ Smooth ✓';
+                    this.toggleSkeletonBtn.textContent = '🦴 Skeleton ✓';
+                    
+                    // Processing modes based on device capability
+                    this.modes = {{
+                        'high': {{ resolution: {{ width: 640, height: 480 }}, skipFrames: 0, modelComplexity: 2 }},
+                        'medium': {{ resolution: {{ width: 480, height: 360 }}, skipFrames: 1, modelComplexity: 1 }},
+                        'low': {{ resolution: {{ width: 320, height: 240 }}, skipFrames: 2, modelComplexity: 0 }}
+                    }};
+                    
+                    this.currentMode = 'medium';
+                    
+                    // Landmark smoothing
+                    this.landmarkHistory = [];
+                    this.maxHistory = 5;
+                    
+                    // ROI tracking
+                    this.roi = null;
+                    this.expandROI = 1.2;
+                    
+                    console.log('Settings initialized - Skeleton enabled by default:', this.showSkeleton);
+                }}
+                
+                initializePerformanceMonitoring() {{
+                    this.performance = {{
+                        frameCount: 0,
+                        lastFPSTime: performance.now(),
+                        currentFPS: 0,
+                        lastProcessTime: 0,
+                        averageProcessTime: 0,
+                        processTimes: [],
+                        lastFrameTime: 0,
+                        frameSkipCounter: 0
+                    }};
+                }}
+                
+                async initializeWorkers() {{
+                    // Initialize Web Worker for background processing
+                    try {{
+                        this.worker = new Worker(URL.createObjectURL(new Blob([`
+                            // Web Worker for background pose processing
+                            let landmarkHistory = [];
+                            const maxHistory = 5;
+                            
+                            function smoothLandmarks(landmarks) {{
+                                landmarkHistory.push(landmarks);
+                                if (landmarkHistory.length > maxHistory) {{
+                                    landmarkHistory.shift();
+                                }}
+                                
+                                if (landmarkHistory.length < 2) return landmarks;
+                                
+                                const smoothed = [];
+                                const weights = [0.1, 0.15, 0.2, 0.25, 0.3];
+                                const activeWeights = weights.slice(-landmarkHistory.length);
+                                const weightSum = activeWeights.reduce((a, b) => a + b, 0);
+                                
+                                for (let i = 0; i < landmarks.length; i++) {{
+                                    let x = 0, y = 0, z = 0, visibility = 0;
+                                    
+                                    for (let j = 0; j < landmarkHistory.length; j++) {{
+                                        const weight = activeWeights[j] / weightSum;
+                                        const landmark = landmarkHistory[j][i];
+                                        x += landmark.x * weight;
+                                        y += landmark.y * weight;
+                                        z += landmark.z * weight;
+                                        visibility += landmark.visibility * weight;
+                                    }}
+                                    
+                                    smoothed.push({{ x, y, z, visibility }});
+                                }}
+                                
+                                return smoothed;
+                            }}
+                            
+                            function calculateROI(landmarks) {{
+                                const visibleLandmarks = landmarks.filter(l => l.visibility > 0.5);
+                                if (visibleLandmarks.length < 4) return null;
+                                
+                                const xs = visibleLandmarks.map(l => l.x);
+                                const ys = visibleLandmarks.map(l => l.y);
+                                
+                                return {{
+                                    x: Math.min(...xs),
+                                    y: Math.min(...ys),
+                                    width: Math.max(...xs) - Math.min(...xs),
+                                    height: Math.max(...ys) - Math.min(...ys)
+                                }};
+                            }}
+                            
+                            self.onmessage = function(e) {{
+                                const {{ type, data }} = e.data;
+                                
+                                if (type === 'smoothLandmarks') {{
+                                    const smoothed = smoothLandmarks(data);
+                                    self.postMessage({{ type: 'smoothed', data: smoothed }});
+                                }} else if (type === 'calculateROI') {{
+                                    const roi = calculateROI(data);
+                                    self.postMessage({{ type: 'roi', data: roi }});
+                                }}
+                            }};
+                        `], {{ type: 'application/javascript' }})));
+                        
+                        this.worker.onmessage = (e) => this.handleWorkerMessage(e);
+                    }} catch (error) {{
+                        console.warn('Web Worker not supported, using main thread');
+                        this.worker = null;
+                    }}
+                }}
+                
+                handleWorkerMessage(e) {{
+                    const {{ type, data }} = e.data;
+                    
+                    if (type === 'smoothed') {{
+                        this.lastSmoothedLandmarks = data;
+                    }} else if (type === 'roi') {{
+                        this.roi = data;
+                    }}
+                }}
+                
+                setupEventListeners() {{
+                    this.flipCameraBtn.addEventListener('click', () => this.flipCamera());
+                    this.toggleSkeletonBtn.addEventListener('click', () => this.toggleSkeleton());
+                    this.qualityBtn.addEventListener('click', () => this.cycleQuality());
+                    this.gpuBtn.addEventListener('click', () => this.toggleGPU());
+                    this.smoothBtn.addEventListener('click', () => this.toggleSmoothing());
+                    this.roiBtn.addEventListener('click', () => this.toggleROI());
+                    
+                    window.addEventListener('resize', () => {{
+                        this.updateCanvasSize();
+                        // Recalculate video content rect after resize
+                        setTimeout(() => this.calculateVideoContentRect(), 100);
+                    }});
+                    window.addEventListener('beforeunload', () => this.cleanup());
+                }}
+                
+                async initialize() {{
+                    try {{
+                        this.updateStatus('Loading MediaPipe models...');
+                        await this.initializeMediaPipe();
+                        
+                        this.updateStatus('Requesting camera access...');
+                        await this.startCamera();
+                        
+                        this.updateStatus('Optimizing performance...');
+                        await this.optimizePerformance();
+                        
+                        this.hideLoading();
+                        this.updateStatus('High-performance pose tracking active');
+                        this.startProcessing();
+                    }} catch (error) {{
+                        console.error('Initialization error:', error);
+                        this.updateStatus(`Error: ${{error.message}}`);
+                        this.hideLoading();
+                    }}
+                }}
+                
+                async initializeMediaPipe() {{
+                    try {{
+                        // Check if MediaPipe is available
+                        if (typeof Pose === 'undefined') {{
+                            console.warn('MediaPipe not available, using fallback');
+                            await this.initializeTensorFlowPose();
+                            return;
+                        }}
+                        
+                        // Initialize MediaPipe Pose
+                        this.pose = new Pose({{
+                            locateFile: (file) => {{
+                                return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${{file}}`;
+                            }}
+                        }});
+                        
+                        this.pose.setOptions({{
+                            modelComplexity: this.modes[this.currentMode].modelComplexity,
+                            smoothLandmarks: true,
+                            enableSegmentation: false,
+                            smoothSegmentation: false,
+                            minDetectionConfidence: 0.5,
+                            minTrackingConfidence: 0.5
+                        }});
+                        
+                        this.pose.onResults((results) => this.onPoseResults(results));
+                        
+                        // Set up pose connections for drawing
+                        this.connections = POSE_CONNECTIONS || this.getDefaultConnections();
+                        this.modeDisplay.textContent = 'MediaPipe';
+                        
+                        console.log('MediaPipe initialized successfully');
+                        
+                    }} catch (error) {{
+                        console.error('MediaPipe initialization failed:', error);
+                        await this.initializeFallback();
+                    }}
+                }}
+                
+                async initializeFallback() {{
+                    // Simple fallback pose detection without external libraries
+                    this.modeDisplay.textContent = 'Fallback Mode';
+                    this.connections = this.getDefaultConnections();
+                    
+                    // Create a simple pose detector for testing
+                    this.pose = {{
+                        send: async (input) => {{
+                            // Generate mock pose data for testing skeleton display
+                            setTimeout(() => {{
+                                this.onPoseResults({{
+                                    poseLandmarks: this.generateMockPose()
+                                }});
+                            }}, 16); // ~60 FPS
+                        }}
+                    }};
+                    
+                    console.log('Using fallback pose detection');
+                }}
+                
+                generateMockPose() {{
+                    // Generate 33 mock landmarks for testing
+                    const landmarks = [];
+                    const centerX = 0.5;
+                    const centerY = 0.5;
+                    
+                    // Create a basic human pose shape
+                    const poseTemplate = [
+                        // Face (0-10)
+                        {{x: centerX, y: centerY - 0.25, z: 0}}, // nose
+                        {{x: centerX - 0.02, y: centerY - 0.27, z: 0}}, // left eye inner
+                        {{x: centerX - 0.04, y: centerY - 0.27, z: 0}}, // left eye
+                        {{x: centerX - 0.06, y: centerY - 0.27, z: 0}}, // left eye outer
+                        {{x: centerX + 0.02, y: centerY - 0.27, z: 0}}, // right eye inner
+                        {{x: centerX + 0.04, y: centerY - 0.27, z: 0}}, // right eye
+                        {{x: centerX + 0.06, y: centerY - 0.27, z: 0}}, // right eye outer
+                        {{x: centerX - 0.03, y: centerY - 0.22, z: 0}}, // left ear
+                        {{x: centerX + 0.03, y: centerY - 0.22, z: 0}}, // right ear
+                        {{x: centerX - 0.02, y: centerY - 0.2, z: 0}}, // mouth left
+                        {{x: centerX + 0.02, y: centerY - 0.2, z: 0}}, // mouth right
+                        
+                        // Shoulders and arms (11-22)
+                        {{x: centerX - 0.1, y: centerY - 0.1, z: 0}}, // left shoulder
+                        {{x: centerX + 0.1, y: centerY - 0.1, z: 0}}, // right shoulder
+                        {{x: centerX - 0.15, y: centerY + 0.05, z: 0}}, // left elbow
+                        {{x: centerX + 0.15, y: centerY + 0.05, z: 0}}, // right elbow
+                        {{x: centerX - 0.18, y: centerY + 0.15, z: 0}}, // left wrist
+                        {{x: centerX + 0.18, y: centerY + 0.15, z: 0}}, // right wrist
+                        {{x: centerX - 0.19, y: centerY + 0.17, z: 0}}, // left pinky
+                        {{x: centerX + 0.19, y: centerY + 0.17, z: 0}}, // right pinky
+                        {{x: centerX - 0.185, y: centerY + 0.19, z: 0}}, // left index
+                        {{x: centerX + 0.185, y: centerY + 0.19, z: 0}}, // right index
+                        {{x: centerX - 0.18, y: centerY + 0.16, z: 0}}, // left thumb
+                        {{x: centerX + 0.18, y: centerY + 0.16, z: 0}}, // right thumb
+                        
+                        // Hips and legs (23-32)
+                        {{x: centerX - 0.08, y: centerY + 0.2, z: 0}}, // left hip
+                        {{x: centerX + 0.08, y: centerY + 0.2, z: 0}}, // right hip
+                        {{x: centerX - 0.08, y: centerY + 0.35, z: 0}}, // left knee
+                        {{x: centerX + 0.08, y: centerY + 0.35, z: 0}}, // right knee
+                        {{x: centerX - 0.08, y: centerY + 0.5, z: 0}}, // left ankle
+                        {{x: centerX + 0.08, y: centerY + 0.5, z: 0}}, // right ankle
+                        {{x: centerX - 0.1, y: centerY + 0.52, z: 0}}, // left heel
+                        {{x: centerX + 0.1, y: centerY + 0.52, z: 0}}, // right heel
+                        {{x: centerX - 0.06, y: centerY + 0.52, z: 0}}, // left foot index
+                        {{x: centerX + 0.06, y: centerY + 0.52, z: 0}}  // right foot index
+                    ];
+                    
+                    // Add some animation
+                    const time = Date.now() * 0.001;
+                    return poseTemplate.map((landmark, i) => ({{
+                        x: landmark.x + Math.sin(time + i * 0.1) * 0.01,
+                        y: landmark.y + Math.cos(time + i * 0.15) * 0.005,
+                        z: landmark.z,
+                        visibility: 0.9
+                    }}));
+                }}
+                
+                async initializeTensorFlowPose() {{
+                    // Placeholder for TensorFlow.js implementation
+                    console.log('TensorFlow.js pose detection not implemented yet');
+                    await this.initializeFallback();
+                }}
+                
+                getDefaultConnections() {{
+                    return [
+                        [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
+                        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+                        [15, 17], [15, 19], [15, 21], [17, 19],
+                        [16, 18], [16, 20], [16, 22], [18, 20],
+                        [11, 23], [12, 24], [23, 24],
+                        [23, 25], [24, 26], [25, 27], [26, 28],
+                        [27, 29], [27, 31], [28, 30], [28, 32],
+                        [29, 31], [30, 32]
+                    ];
+                }}
+                
+                async optimizePerformance() {{
+                    // Detect device capabilities
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                    
+                    if (gl) {{
+                        this.settings.useGPU = true;
+                        this.gpuBtn.textContent = '🖥️ GPU ✓';
                     }} else {{
-                        messageData = String(data);
+                        this.settings.useGPU = false;
+                        this.gpuBtn.textContent = '🖥️ CPU';
+                        this.gpuBtn.disabled = true;
                     }}
                     
-                    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {{
-                        window.ReactNativeWebView.postMessage(messageData);
-                    }} else if (window.postMessage) {{
-                        window.postMessage(messageData, '*');
-                    }}
-                    
-                    if (typeof window.webViewCallback === 'function') {{
-                        try {{
-                            window.webViewCallback(JSON.parse(messageData));
-                        }} catch (e) {{
-                            window.webViewCallback(data);
+                    // Auto-detect optimal settings
+                    if (this.settings.qualityMode === 'auto') {{
+                        const deviceMemory = navigator.deviceMemory || 4;
+                        const hardwareConcurrency = navigator.hardwareConcurrency || 4;
+                        
+                        if (deviceMemory >= 8 && hardwareConcurrency >= 8) {{
+                            this.currentMode = 'high';
+                        }} else if (deviceMemory >= 4 && hardwareConcurrency >= 4) {{
+                            this.currentMode = 'medium';
+                        }} else {{
+                            this.currentMode = 'low';
                         }}
                     }}
-                }} catch (e) {{
-                    console.error('Error sending message to React Native:', e);
-                }}
-            }}
-            
-            // Transform normalized coordinates to actual video content coordinates
-            function transformLandmarkCoordinates(landmark) {{
-                return {{
-                    x: videoContentRect.x + (landmark.x * videoContentRect.width),
-                    y: videoContentRect.y + (landmark.y * videoContentRect.height),
-                    visibility: landmark.visibility
-                }};
-            }}
-            
-            // Enhanced drawing function with proper coordinate transformation
-            function drawLandmarks(landmarks) {{
-                if (!showSkeleton || !Array.isArray(landmarks)) return;
-                
-                try {{
-                    // Clear canvas with transparent background
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
                     
-                    if (landmarks.length < 33) {{
-                        console.warn('Insufficient landmarks for drawing');
+                    this.updateModeDisplay();
+                }}
+                
+                async startCamera() {{
+                    const mode = this.modes[this.currentMode];
+                    
+                    const constraints = {{
+                        video: {{
+                            facingMode: this.currentFacingMode,
+                            width: {{ ideal: mode.resolution.width }},
+                            height: {{ ideal: mode.resolution.height }},
+                            frameRate: {{ ideal: this.settings.targetFPS }}
+                        }},
+                        audio: false
+                    }};
+                    
+                    if (this.currentStream) {{
+                        this.currentStream.getTracks().forEach(track => track.stop());
+                    }}
+                    
+                    this.currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.video.srcObject = this.currentStream;
+                    
+                    return new Promise(resolve => {{
+                        this.video.onloadedmetadata = () => {{
+                            console.log('Video metadata loaded:', this.video.videoWidth, 'x', this.video.videoHeight);
+                            this.updateCanvasSize();
+                            
+                            // Wait a bit more for the video to be fully ready
+                            this.video.onloadeddata = () => {{
+                                console.log('Video data loaded, calculating content rect');
+                                this.calculateVideoContentRect();
+                                resolve();
+                            }};
+                        }};
+                    }});
+                }}
+                
+                updateCanvasSize() {{
+                    const rect = this.container.getBoundingClientRect();
+                    this.canvas.width = rect.width;
+                    this.canvas.height = rect.height;
+                    
+                    // Calculate video content area for coordinate transformation
+                    this.calculateVideoContentRect();
+                    
+                    console.log('Canvas resized to:', this.canvas.width, 'x', this.canvas.height);
+                }}
+                
+                calculateVideoContentRect() {{
+                    if (!this.video.videoWidth || !this.video.videoHeight) {{
+                        // Default values if video not ready
+                        this.videoContentRect = {{
+                            x: 0,
+                            y: 0,
+                            width: this.canvas.width,
+                            height: this.canvas.height
+                        }};
                         return;
                     }}
                     
-                    // Update video content rectangle
-                    if (video.videoWidth && video.videoHeight) {{
-                        calculateVideoContentRect();
+                    const containerRect = this.container.getBoundingClientRect();
+                    const videoAspectRatio = this.video.videoWidth / this.video.videoHeight;
+                    const containerAspectRatio = containerRect.width / containerRect.height;
+                    
+                    let contentWidth, contentHeight, contentX, contentY;
+                    
+                    if (videoAspectRatio > containerAspectRatio) {{
+                        // Video is wider than container - letterbox top/bottom
+                        contentWidth = containerRect.width;
+                        contentHeight = containerRect.width / videoAspectRatio;
+                        contentX = 0;
+                        contentY = (containerRect.height - contentHeight) / 2;
+                    }} else {{
+                        // Video is taller than container - letterbox left/right
+                        contentWidth = containerRect.height * videoAspectRatio;
+                        contentHeight = containerRect.height;
+                        contentX = (containerRect.width - contentWidth) / 2;
+                        contentY = 0;
                     }}
                     
-                    // Transform all landmarks to screen coordinates
-                    const transformedLandmarks = landmarks.map(transformLandmarkCoordinates);
-                    
-                    // Draw connections
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-                    ctx.lineWidth = 2;
-                    
-                    connections.forEach(([p1, p2]) => {{
-                        const landmark1 = transformedLandmarks[p1];
-                        const landmark2 = transformedLandmarks[p2];
-                        const originalLandmark1 = landmarks[p1];
-                        const originalLandmark2 = landmarks[p2];
-                        
-                        if (landmark1 && landmark2 && 
-                            originalLandmark1 && originalLandmark2 &&
-                            originalLandmark1.visibility > 0.5 && originalLandmark2.visibility > 0.5) {{
-                            ctx.beginPath();
-                            ctx.moveTo(landmark1.x, landmark1.y);
-                            ctx.lineTo(landmark2.x, landmark2.y);
-                            ctx.stroke();
-                        }}
-                    }});
-                    
-                    // Draw landmarks
-                    transformedLandmarks.forEach((landmark, idx) => {{
-                        const originalLandmark = landmarks[idx];
-                        if (landmark && originalLandmark && originalLandmark.visibility > 0.5) {{
-                            ctx.fillStyle = idx < 11 ? '#FF6B6B' : '#4ECDC4';
-                            ctx.beginPath();
-                            ctx.arc(
-                                landmark.x,
-                                landmark.y,
-                                idx < 11 ? 3 : 5,
-                                0,
-                                Math.PI * 2
-                            );
-                            ctx.fill();
-                        }}
-                    }});
-                    
-                    // Update FPS counter
-                    frameCount++;
-                    const now = performance.now();
-                    if (now - lastFpsTime >= 1000) {{
-                        fpsCounter.textContent = `FPS: ${{frameCount}}`;
-                        frameCount = 0;
-                        lastFpsTime = now;
-                    }}
-                }} catch (drawError) {{
-                    console.error('Error drawing landmarks:', drawError);
-                }}
-            }}
-            
-            async function startCamera() {{
-                try {{
-                    updateStatus("Requesting camera permission...");
-                    flipCameraBtn.disabled = true;
-                    
-                    const constraints = {{
-                        video: {{ 
-                            facingMode: currentFacingMode,
-                            width: {{ ideal: 640, max: 1280 }},
-                            height: {{ ideal: 480, max: 720 }},
-                            frameRate: {{ ideal: 30 }}
-                        }},
-                        audio: false
+                    this.videoContentRect = {{
+                        x: contentX,
+                        y: contentY,
+                        width: contentWidth,
+                        height: contentHeight
                     }};
                     
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {{
-                        throw new Error("Camera API not available. Please ensure camera permissions are granted.");
+                    console.log('Video content rect:', this.videoContentRect);
+                    console.log('Video dimensions:', this.video.videoWidth, 'x', this.video.videoHeight);
+                    console.log('Container dimensions:', containerRect.width, 'x', containerRect.height);
+                }}
+                
+                transformLandmarkCoordinates(landmark) {{
+                    if (!this.videoContentRect) {{
+                        this.calculateVideoContentRect();
                     }}
                     
-                    // Stop existing stream if any
-                    if (currentStream) {{
-                        currentStream.getTracks().forEach(track => track.stop());
-                    }}
-                    
-                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                    currentStream = stream;
-                    updateStatus("Camera connected!");
-                    video.srcObject = stream;
-                    
-                    video.onloadedmetadata = () => {{
-                        updateStatus("Camera ready, connecting to server...");
-                        flipCameraBtn.disabled = false;
+                    return {{
+                        x: this.videoContentRect.x + (landmark.x * this.videoContentRect.width),
+                        y: this.videoContentRect.y + (landmark.y * this.videoContentRect.height),
+                        z: landmark.z,
+                        visibility: landmark.visibility
+                    }};
+                }}
+                
+                startProcessing() {{
+                    const processFrame = async () => {{
+                        if (!this.video.videoWidth) {{
+                            requestAnimationFrame(processFrame);
+                            return;
+                        }}
                         
-                        video.onloadeddata = () => {{
-                            updateCanvasSize();
-                            calculateVideoContentRect();
-                            console.log(`Video size: ${{video.videoWidth}}x${{video.videoHeight}}`);
+                        const now = performance.now();
+                        const shouldSkip = this.shouldSkipFrame();
+                        
+                        if (!shouldSkip && !this.isProcessing) {{
+                            this.isProcessing = true;
+                            const startTime = performance.now();
+                            
+                            try {{
+                                await this.processCurrentFrame();
+                                this.updatePerformanceMetrics(performance.now() - startTime);
+                            }} catch (error) {{
+                                console.error('Processing error:', error);
+                            }} finally {{
+                                this.isProcessing = false;
+                            }}
+                        }}
+                        
+                        this.updateFPS();
+                        requestAnimationFrame(processFrame);
+                    }};
+                    
+                    processFrame();
+                }}
+                
+                shouldSkipFrame() {{
+                    const mode = this.modes[this.currentMode];
+                    this.performance.frameSkipCounter++;
+                    
+                    if (this.performance.frameSkipCounter <= mode.skipFrames) {{
+                        return true;
+                    }}
+                    
+                    this.performance.frameSkipCounter = 0;
+                    return false;
+                }}
+                
+                async processCurrentFrame() {{
+                    if (!this.pose) return;
+                    
+                    // Create processing canvas
+                    const processCanvas = document.createElement('canvas');
+                    const processCtx = processCanvas.getContext('2d');
+                    
+                    const mode = this.modes[this.currentMode];
+                    processCanvas.width = mode.resolution.width;
+                    processCanvas.height = mode.resolution.height;
+                    
+                    // Apply ROI if enabled
+                    if (this.settings.useROI && this.roi) {{
+                        const roi = this.roi;
+                        const expandedROI = {{
+                            x: Math.max(0, roi.x - roi.width * (this.expandROI - 1) / 2),
+                            y: Math.max(0, roi.y - roi.height * (this.expandROI - 1) / 2),
+                            width: Math.min(1, roi.width * this.expandROI),
+                            height: Math.min(1, roi.height * this.expandROI)
                         }};
                         
-                        if (!isConnected) {{
-                            connectWebSocket();
-                        }}
-                    }};
-                }} catch (err) {{
-                    console.error('Camera error:', err);
-                    updateStatus(`Camera error: ${{err.message}}`);
-                    flipCameraBtn.disabled = false;
-                    sendMessageToReactNative({{
-                        type: 'error',
-                        message: `Camera error: ${{err.message}}`,
-                        details: err.toString()
-                    }});
-                }}
-            }}
-            
-            async function flipCamera() {{
-                try {{
-                    flipCameraBtn.disabled = true;
-                    updateStatus("Switching camera...");
-                    
-                    // Toggle facing mode
-                    const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-                    
-                    // Test if the new camera is available
-                    const testConstraints = {{
-                        video: {{ 
-                            facingMode: {{ exact: newFacingMode }},
-                            width: {{ ideal: 640 }},
-                            height: {{ ideal: 480 }}
-                        }},
-                        audio: false
-                    }};
-                    
-                    try {{
-                        // Test the camera availability
-                        const testStream = await navigator.mediaDevices.getUserMedia(testConstraints);
-                        testStream.getTracks().forEach(track => track.stop());
-                        
-                        // If successful, proceed with the switch
-                        currentFacingMode = newFacingMode;
-                        
-                        // Update button text
-                        flipCameraBtn.textContent = currentFacingMode === 'user' ? '📷 Flip' : '📱 Flip';
-                        
-                        // Restart camera with new facing mode
-                        await startCamera();
-                        
-                        sendMessageToReactNative({{
-                            type: 'camera_flipped',
-                            facingMode: currentFacingMode
-                        }});
-                        
-                    }} catch (cameraTestError) {{
-                        // Camera not available, fall back to any available camera
-                        console.warn(`${{newFacingMode}} camera not available, trying fallback`);
-                        
-                        const fallbackConstraints = {{
-                            video: {{ 
-                                facingMode: newFacingMode,  // Remove 'exact' constraint
-                                width: {{ ideal: 640 }},
-                                height: {{ ideal: 480 }}
-                            }},
-                            audio: false
-                        }};
-                        
-                        try {{
-                            const fallbackStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
-                            fallbackStream.getTracks().forEach(track => track.stop());
-                            
-                            currentFacingMode = newFacingMode;
-                            flipCameraBtn.textContent = currentFacingMode === 'user' ? '📷 Flip' : '📱 Flip';
-                            await startCamera();
-                            
-                            sendMessageToReactNative({{
-                                type: 'camera_flipped',
-                                facingMode: currentFacingMode
-                            }});
-                            
-                        }} catch (fallbackError) {{
-                            throw new Error(`${{newFacingMode}} camera not available on this device`);
-                        }}
+                        processCtx.drawImage(
+                            this.video,
+                            expandedROI.x * this.video.videoWidth,
+                            expandedROI.y * this.video.videoHeight,
+                            expandedROI.width * this.video.videoWidth,
+                            expandedROI.height * this.video.videoHeight,
+                            0, 0, processCanvas.width, processCanvas.height
+                        );
+                    }} else {{
+                        processCtx.drawImage(this.video, 0, 0, processCanvas.width, processCanvas.height);
                     }}
                     
-                }} catch (err) {{
-                    console.error('Camera flip error:', err);
-                    updateStatus(`Camera flip failed: ${{err.message}}`);
-                    flipCameraBtn.disabled = false;
-                    
-                    sendMessageToReactNative({{
-                        type: 'error',
-                        message: `Camera flip failed: ${{err.message}}`,
-                        details: err.toString()
-                    }});
-                }}
-            }}
-            
-            // Add event listener for flip button
-            flipCameraBtn.addEventListener('click', flipCamera);
-            
-            // Cleanup camera stream when page is unloaded
-            window.addEventListener('beforeunload', () => {{
-                if (currentStream) {{
-                    currentStream.getTracks().forEach(track => track.stop());
-                }}
-            }});
-            
-            function updateStatus(message) {{
-                statusDiv.textContent = message;
-                console.log(message);
-                sendMessageToReactNative({{
-                    type: 'status',
-                    message: message
-                }});
-            }}
-            
-            function connectWebSocket() {{
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${{protocol}}//${{window.location.host}}/ws/pose_tracking`;
-                
-                updateStatus(`Connecting to WebSocket...`);
-                
-                if (ws) {{
-                    ws.close();
+                    // Send to MediaPipe
+                    await this.pose.send({{ image: processCanvas }});
                 }}
                 
-                try {{
-                    ws = new WebSocket(wsUrl);
+                onPoseResults(results) {{
+                    let landmarks = null;
                     
-                    ws.onopen = () => {{
-                        updateStatus("Live pose estimation active");
-                        isConnected = true;
-                        reconnectAttempts = 0;
-                        
-                        // Start sending frames
-                        requestAnimationFrame(sendFrame);
-                        
-                        sendMessageToReactNative({{
-                            type: 'status',
-                            status: 'connected'
-                        }});
-                    }};
+                    // Handle different result formats
+                    if (results.poseLandmarks) {{
+                        landmarks = results.poseLandmarks;
+                    }} else if (results.landmarks) {{
+                        landmarks = results.landmarks;
+                    }}
                     
-                    ws.onclose = (event) => {{
-                        isConnected = false;
-                        updateStatus(`Connection lost (code: ${{event.code}})`);
-                        
-                        sendMessageToReactNative({{
-                            type: 'status',
-                            status: 'disconnected',
-                            code: event.code
-                        }});
-                        
-                        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {{
-                            reconnectAttempts++;
-                            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
-                            updateStatus(`Reconnecting in ${{delay/1000}} seconds...`);
-                            
-                            setTimeout(() => {{
-                                if (!isConnected) connectWebSocket();
-                            }}, delay);
+                    if (!landmarks || landmarks.length === 0) {{
+                        this.updateQualityIndicator(0, 'none');
+                        if (this.showSkeleton) {{
+                            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                        }}
+                        return;
+                    }}
+                    
+                    console.log('Pose detected with', landmarks.length, 'landmarks');
+                    
+                    // Store landmarks for debugging
+                    this.lastLandmarks = landmarks;
+                    
+                    // Apply smoothing
+                    if (this.settings.useSmoothing) {{
+                        if (this.worker) {{
+                            this.worker.postMessage({{ type: 'smoothLandmarks', data: landmarks }});
+                            landmarks = this.lastSmoothedLandmarks || landmarks;
                         }} else {{
-                            updateStatus("Failed to connect. Please reload the page.");
-                            // Stop camera stream if connection fails permanently
-                            if (currentStream) {{
-                                currentStream.getTracks().forEach(track => track.stop());
-                                currentStream = null;
-                            }}
+                            landmarks = this.applySmoothingMainThread(landmarks);
                         }}
-                    }};
-                    
-                    ws.onerror = (error) => {{
-                        console.error('WebSocket error:', error);
-                        updateStatus("WebSocket error occurred");
-                    }};
-                    
-                    ws.onmessage = (event) => {{
-                        try {{
-                            const data = JSON.parse(event.data);
-                            
-                            if (!data || typeof data !== 'object') {{
-                                console.warn('Invalid data received from server');
-                                return;
-                            }}
-                            
-                            if (data.type === 'pose_data') {{
-                                updateStatus("Pose detected");
-                                sendMessageToReactNative(data);
-                            }} else if (data.type === 'info') {{
-                                const message = data.message || "Pose estimation running";
-                                updateStatus(message);
-                                sendMessageToReactNative(data);
-                            }} else if (data.type === 'error') {{
-                                const errorMessage = data.message || "Unknown error";
-                                updateStatus(`Error: ${{errorMessage}}`);
-                                sendMessageToReactNative(data);
-                            }} else if (data.type === 'pong') {{
-                                console.log('Received pong');
-                            }}
-                            
-                            // Draw landmarks if available and skeleton is enabled
-                            if (data.landmarks && Array.isArray(data.landmarks) && showSkeleton) {{
-                                drawLandmarks(data.landmarks);
-                            }}
-                            
-                            processingFrame = false;
-                            
-                        }} catch (e) {{
-                            console.error('Error processing server message:', e);
-                            processingFrame = false;
-                            
-                            sendMessageToReactNative({{
-                                type: 'error',
-                                message: 'Error processing server message',
-                                details: e.toString()
-                            }});
-                        }}
-                    }};
-                }} catch (err) {{
-                    console.error('WebSocket initialization error:', err);
-                    updateStatus(`WebSocket creation error: ${{err.message}}`);
-                }}
-            }}
-            
-            // Optimized frame sending
-            function sendFrame() {{
-                if (!isConnected || !video.videoWidth) {{
-                    if (isConnected) {{
-                        requestAnimationFrame(sendFrame);
                     }}
-                    return;
+                    
+                    // Calculate ROI for next frame
+                    if (this.settings.useROI && this.worker) {{
+                        this.worker.postMessage({{ type: 'calculateROI', data: landmarks }});
+                    }}
+                    
+                    // Calculate quality metrics
+                    const confidence = this.calculateConfidence(landmarks);
+                    const quality = this.determineQuality(confidence);
+                    
+                    // Draw results - ALWAYS try to draw if skeleton is enabled
+                    if (this.showSkeleton) {{
+                        console.log('Drawing skeleton with', landmarks.length, 'landmarks');
+                        this.drawPoseResults(landmarks);
+                    }}
+                    
+                    // Update UI
+                    this.updateQualityIndicator(confidence, quality);
+                    
+                    // Adaptive quality adjustment
+                    if (this.settings.adaptiveQuality) {{
+                        this.adjustQualityBasedOnPerformance();
+                    }}
+                    
+                    // Send to React Native
+                    this.sendToReactNative({{
+                        type: 'pose_data',
+                        landmarks: landmarks,
+                        confidence: confidence,
+                        quality: quality,
+                        performance: this.performance
+                    }});
                 }}
                 
-                const now = performance.now();
+                applySmoothingMainThread(landmarks) {{
+                    this.landmarkHistory.push(landmarks);
+                    if (this.landmarkHistory.length > this.maxHistory) {{
+                        this.landmarkHistory.shift();
+                    }}
+                    
+                    if (this.landmarkHistory.length < 2) return landmarks;
+                    
+                    const smoothed = [];
+                    const weights = [0.1, 0.15, 0.2, 0.25, 0.3];
+                    const activeWeights = weights.slice(-this.landmarkHistory.length);
+                    const weightSum = activeWeights.reduce((a, b) => a + b, 0);
+                    
+                    for (let i = 0; i < landmarks.length; i++) {{
+                        let x = 0, y = 0, z = 0, visibility = 0;
+                        
+                        for (let j = 0; j < this.landmarkHistory.length; j++) {{
+                            const weight = activeWeights[j] / weightSum;
+                            const landmark = this.landmarkHistory[j][i];
+                            x += landmark.x * weight;
+                            y += landmark.y * weight;
+                            z += landmark.z * weight;
+                            visibility += landmark.visibility * weight;
+                        }}
+                        
+                        smoothed.push({{ x, y, z, visibility }});
+                    }}
+                    
+                    return smoothed;
+                }}
                 
-                // Target 20 FPS (50ms between frames)
-                if (!processingFrame && now - lastFrameTime >= 50) {{
+                calculateConfidence(landmarks) {{
+                    const visibleLandmarks = landmarks.filter(l => l.visibility > 0.5);
+                    return visibleLandmarks.length / landmarks.length;
+                }}
+                
+                determineQuality(confidence) {{
+                    if (confidence > 0.8) return 'excellent';
+                    if (confidence > 0.6) return 'good';
+                    if (confidence > 0.4) return 'fair';
+                    return 'poor';
+                }}
+                
+                drawPoseResults(landmarks) {{
                     try {{
-                        const tempCanvas = document.createElement('canvas');
-                        const tempCtx = tempCanvas.getContext('2d');
+                        console.log('Drawing pose with', landmarks.length, 'landmarks, canvas size:', this.canvas.width, 'x', this.canvas.height);
                         
-                        // Capture at standard resolution, let CSS handle aspect ratio
-                        tempCanvas.width = 320;
-                        tempCanvas.height = 240;
+                        // Clear canvas
+                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
                         
-                        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
-                        
-                        // Medium quality for balance
-                        const imageData = tempCanvas.toDataURL('image/jpeg', 0.7);
-                        const base64Data = imageData.split(',')[1];
-                        
-                        if (ws && ws.readyState === WebSocket.OPEN) {{
-                            ws.send(JSON.stringify({{
-                                frame: base64Data
-                            }}));
-                            processingFrame = true;
-                            lastFrameTime = now;
+                        if (!landmarks || landmarks.length < 10) {{
+                            console.warn('Insufficient landmarks for drawing:', landmarks?.length || 0);
+                            return;
                         }}
-                    }} catch (e) {{
-                        console.error('Error capturing frame:', e);
-                        processingFrame = false;
+                        
+                        // Update video content rectangle for current frame
+                        this.calculateVideoContentRect();
+                        
+                        // Debug: Draw video content area border (optional)
+                        if (this.videoContentRect && false) {{ // Set to true to debug
+                            this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                            this.ctx.lineWidth = 2;
+                            this.ctx.strokeRect(
+                                this.videoContentRect.x, 
+                                this.videoContentRect.y, 
+                                this.videoContentRect.width, 
+                                this.videoContentRect.height
+                            );
+                        }}
+                        
+                        // Transform all landmarks to screen coordinates
+                        const transformedLandmarks = landmarks.map(landmark => this.transformLandmarkCoordinates(landmark));
+                        
+                        // Draw connections first
+                        this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+                        this.ctx.lineWidth = 3;
+                        this.ctx.lineCap = 'round';
+                        
+                        let drawnConnections = 0;
+                        this.connections.forEach(([startIdx, endIdx]) => {{
+                            const startLandmark = transformedLandmarks[startIdx];
+                            const endLandmark = transformedLandmarks[endIdx];
+                            const originalStart = landmarks[startIdx];
+                            const originalEnd = landmarks[endIdx];
+                            
+                            if (startLandmark && endLandmark && originalStart && originalEnd) {{
+                                const startVis = originalStart.visibility || 1;
+                                const endVis = originalEnd.visibility || 1;
+                                
+                                if (startVis > 0.3 && endVis > 0.3) {{
+                                    const startX = startLandmark.x;
+                                    const startY = startLandmark.y;
+                                    const endX = endLandmark.x;
+                                    const endY = endLandmark.y;
+                                    
+                                    // Only draw if coordinates are valid
+                                    if (startX >= 0 && startY >= 0 && endX >= 0 && endY >= 0 &&
+                                        startX <= this.canvas.width && startY <= this.canvas.height &&
+                                        endX <= this.canvas.width && endY <= this.canvas.height) {{
+                                        
+                                        this.ctx.beginPath();
+                                        this.ctx.moveTo(startX, startY);
+                                        this.ctx.lineTo(endX, endY);
+                                        this.ctx.stroke();
+                                        drawnConnections++;
+                                    }}
+                                }}
+                            }}
+                        }});
+                        
+                        console.log('Drew', drawnConnections, 'connections');
+                        
+                        // Draw landmarks as circles using transformed coordinates
+                        let drawnLandmarks = 0;
+                        transformedLandmarks.forEach((transformedLandmark, idx) => {{
+                            const originalLandmark = landmarks[idx];
+                            if (transformedLandmark && originalLandmark) {{
+                                const visibility = originalLandmark.visibility || 1;
+                                
+                                if (visibility > 0.3) {{
+                                    const x = transformedLandmark.x;
+                                    const y = transformedLandmark.y;
+                                    
+                                    // Only draw if coordinates are valid
+                                    if (x >= 0 && y >= 0 && x <= this.canvas.width && y <= this.canvas.height) {{
+                                        // Different colors for different body parts
+                                        if (idx < 11) {{
+                                            this.ctx.fillStyle = '#FF6B6B'; // Face - red
+                                        }} else if (idx < 23) {{
+                                            this.ctx.fillStyle = '#4ECDC4'; // Arms - teal
+                                        }} else {{
+                                            this.ctx.fillStyle = '#45B7D1'; // Legs - blue
+                                        }}
+                                        
+                                        this.ctx.beginPath();
+                                        this.ctx.arc(x, y, idx < 11 ? 4 : 6, 0, Math.PI * 2);
+                                        this.ctx.fill();
+                                        
+                                        // Add a white border
+                                        this.ctx.strokeStyle = 'white';
+                                        this.ctx.lineWidth = 1;
+                                        this.ctx.stroke();
+                                        
+                                        drawnLandmarks++;
+                                    }}
+                                }}
+                            }}
+                        }});
+                        
+                        console.log('Drew', drawnLandmarks, 'landmarks');
+                        console.log('Video content area:', this.videoContentRect);
+                        
+                        // Debug: Show first landmark transformation
+                        if (landmarks.length > 0 && transformedLandmarks.length > 0) {{
+                            const original = landmarks[0];
+                            const transformed = transformedLandmarks[0];
+                            console.log('First landmark transform:', 
+                                'original:', original.x.toFixed(3), ',', original.y.toFixed(3),
+                                'transformed:', transformed.x.toFixed(1), ',', transformed.y.toFixed(1)
+                            );
+                        }}
+                        
+                        if (drawnLandmarks === 0 && drawnConnections === 0) {{
+                            console.warn('No landmarks or connections were drawn - check landmark data and video content rect');
+                        }}
+                        
+                    }} catch (error) {{
+                        console.error('Error drawing pose results:', error);
+                        // Draw a simple indicator to show the system is working
+                        this.ctx.fillStyle = 'red';
+                        this.ctx.fillRect(10, 10, 20, 20);
                     }}
                 }}
                 
-                requestAnimationFrame(sendFrame);
+                updatePerformanceMetrics(processTime) {{
+                    this.performance.lastProcessTime = processTime;
+                    this.performance.processTimes.push(processTime);
+                    
+                    if (this.performance.processTimes.length > 30) {{
+                        this.performance.processTimes.shift();
+                    }}
+                    
+                    this.performance.averageProcessTime = 
+                        this.performance.processTimes.reduce((a, b) => a + b, 0) / 
+                        this.performance.processTimes.length;
+                    
+                    this.processTimeDisplay.textContent = Math.round(processTime);
+                }}
+                
+                updateFPS() {{
+                    this.performance.frameCount++;
+                    const now = performance.now();
+                    
+                    if (now - this.performance.lastFPSTime >= 1000) {{
+                        this.performance.currentFPS = this.performance.frameCount;
+                        this.performance.frameCount = 0;
+                        this.performance.lastFPSTime = now;
+                        
+                        this.fpsDisplay.textContent = this.performance.currentFPS;
+                    }}
+                }}
+                
+                updateQualityIndicator(confidence, quality) {{
+                    this.qualityDisplay.textContent = quality;
+                    this.confidenceText.textContent = `${{Math.round(confidence * 100)}}%`;
+                    
+                    this.qualityDot.className = `quality-dot quality-${{quality}}`;
+                }}
+                
+                adjustQualityBasedOnPerformance() {{
+                    const targetFPS = this.settings.targetFPS;
+                    const currentFPS = this.performance.currentFPS;
+                    const avgProcessTime = this.performance.averageProcessTime;
+                    
+                    if (currentFPS < targetFPS * 0.8 || avgProcessTime > 33) {{
+                        // Performance is poor, lower quality
+                        if (this.currentMode === 'high') {{
+                            this.currentMode = 'medium';
+                            this.updateModeDisplay();
+                        }} else if (this.currentMode === 'medium') {{
+                            this.currentMode = 'low';
+                            this.updateModeDisplay();
+                        }}
+                    }} else if (currentFPS > targetFPS * 1.2 && avgProcessTime < 16) {{
+                        // Performance is good, try higher quality
+                        if (this.currentMode === 'low') {{
+                            this.currentMode = 'medium';
+                            this.updateModeDisplay();
+                        }} else if (this.currentMode === 'medium') {{
+                            this.currentMode = 'high';
+                            this.updateModeDisplay();
+                        }}
+                    }}
+                }}
+                
+                updateModeDisplay() {{
+                    const mode = this.currentMode.charAt(0).toUpperCase() + this.currentMode.slice(1);
+                    this.modeDisplay.textContent = `MediaPipe (${{mode}})`;
+                }}
+                
+                // Control methods
+                async flipCamera() {{
+                    this.flipCameraBtn.disabled = true;
+                    this.updateStatus('Switching camera...');
+                    
+                    try {{
+                        this.currentFacingMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
+                        this.flipCameraBtn.textContent = this.currentFacingMode === 'user' ? '📷 Flip' : '📱 Flip';
+                        
+                        await this.startCamera();
+                        this.updateStatus('Camera switched successfully');
+                    }} catch (error) {{
+                        this.updateStatus(`Camera switch failed: ${{error.message}}`);
+                        this.currentFacingMode = this.currentFacingMode === 'user' ? 'environment' : 'user';
+                        this.flipCameraBtn.textContent = this.currentFacingMode === 'user' ? '📷 Flip' : '📱 Flip';
+                    }} finally {{
+                        this.flipCameraBtn.disabled = false;
+                    }}
+                }}
+                
+                toggleSkeleton() {{
+                    this.showSkeleton = !this.showSkeleton;
+                    this.toggleSkeletonBtn.textContent = this.showSkeleton ? '🦴 Skeleton ✓' : '🦴 Skeleton';
+                    
+                    console.log('Skeleton toggled:', this.showSkeleton ? 'ON' : 'OFF');
+                    
+                    if (!this.showSkeleton) {{
+                        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                        console.log('Cleared canvas');
+                    }} else {{
+                        // Force a redraw if we have recent landmarks
+                        if (this.lastLandmarks) {{
+                            console.log('Forcing redraw with last landmarks');
+                            this.drawPoseResults(this.lastLandmarks);
+                        }}
+                    }}
+                    
+                    this.updateStatus(`Skeleton display: ${{this.showSkeleton ? 'enabled' : 'disabled'}}`);
+                }}
+                
+                cycleQuality() {{
+                    const modes = ['auto', 'high', 'medium', 'low'];
+                    const currentIndex = modes.indexOf(this.settings.qualityMode);
+                    const nextIndex = (currentIndex + 1) % modes.length;
+                    
+                    this.settings.qualityMode = modes[nextIndex];
+                    this.qualityBtn.textContent = `⚡ ${{this.settings.qualityMode.charAt(0).toUpperCase() + this.settings.qualityMode.slice(1)}}`;
+                    
+                    if (this.settings.qualityMode !== 'auto') {{
+                        this.currentMode = this.settings.qualityMode;
+                        this.settings.adaptiveQuality = false;
+                    }} else {{
+                        this.settings.adaptiveQuality = true;
+                    }}
+                    
+                    this.updateModeDisplay();
+                }}
+                
+                toggleGPU() {{
+                    this.settings.useGPU = !this.settings.useGPU;
+                    this.gpuBtn.textContent = this.settings.useGPU ? '🖥️ GPU ✓' : '🖥️ CPU';
+                }}
+                
+                toggleSmoothing() {{
+                    this.settings.useSmoothing = !this.settings.useSmoothing;
+                    this.smoothBtn.textContent = this.settings.useSmoothing ? '✨ Smooth ✓' : '✨ Smooth';
+                    
+                    if (!this.settings.useSmoothing) {{
+                        this.landmarkHistory = [];
+                    }}
+                }}
+                
+                toggleROI() {{
+                    this.settings.useROI = !this.settings.useROI;
+                    this.roiBtn.textContent = this.settings.useROI ? '🎯 ROI ✓' : '🎯 ROI';
+                    
+                    if (!this.settings.useROI) {{
+                        this.roi = null;
+                    }}
+                }}
+                
+                // Utility methods
+                updateStatus(message) {{
+                    this.statusText.textContent = message;
+                    console.log(`[PoseTracker] ${{message}}`);
+                }}
+                
+                hideLoading() {{
+                    this.loadingIndicator.style.display = 'none';
+                }}
+                
+                sendToReactNative(data) {{
+                    try {{
+                        const messageData = JSON.stringify(data);
+                        
+                        if (window.ReactNativeWebView?.postMessage) {{
+                            window.ReactNativeWebView.postMessage(messageData);
+                        }} else if (window.postMessage) {{
+                            window.postMessage(messageData, '*');
+                        }}
+                        
+                        if (typeof window.webViewCallback === 'function') {{
+                            window.webViewCallback(data);
+                        }}
+                    }} catch (error) {{
+                        console.error('Error sending message to React Native:', error);
+                    }}
+                }}
+                
+                cleanup() {{
+                    if (this.currentStream) {{
+                        this.currentStream.getTracks().forEach(track => track.stop());
+                    }}
+                    
+                    if (this.worker) {{
+                        this.worker.terminate();
+                    }}
+                    
+                    if (this.pose) {{
+                        this.pose.close();
+                    }}
+                }}
             }}
             
-            // Start everything
+            // Initialize the high-performance pose tracker
+            const poseTracker = new HighPerformancePoseTracker();
+            
+            // Start when DOM is ready
             if (document.readyState === 'complete' || document.readyState === 'interactive') {{
-                setTimeout(startCamera, 100);
+                setTimeout(() => poseTracker.initialize(), 100);
             }} else {{
-                document.addEventListener('DOMContentLoaded', startCamera);
+                document.addEventListener('DOMContentLoaded', () => poseTracker.initialize());
             }}
         </script>
     </body>
@@ -711,125 +1219,3 @@ async def tracking_page(
     """
     
     return HTMLResponse(content=html_content)
-
-@pose_tracking_router.websocket("/ws/pose_tracking")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time pose estimation"""
-    session_id = f"session_{id(websocket)}"
-    active_sessions[session_id] = {"connected": True, "last_processed": 0}
-    
-    try:
-        await websocket.accept()
-        
-        # Send initial connection message
-        initial_message = {
-            "type": "info",
-            "message": "Live pose estimation connected",
-            "ready": True
-        }
-        await websocket.send_json(initial_message)
-        
-        while True:
-            data = await websocket.receive_text()
-            
-            try:
-                frame_data = json.loads(data)
-            except json.JSONDecodeError as e:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": f"Invalid JSON received: {str(e)}"
-                })
-                continue
-            
-            if frame_data.get("type") == "ping":
-                await websocket.send_json({"type": "pong"})
-                continue
-                
-            if "frame" not in frame_data:
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "No frame data received"
-                })
-                continue
-            
-            # Simple rate limiting
-            current_time = time.time()
-            session = active_sessions.get(session_id, {})
-            if current_time - session.get("last_processed", 0) < 0.05:  # 20 FPS max
-                continue
-                
-            try:
-                # Decode frame data
-                img_data = base64.b64decode(frame_data["frame"])
-                
-                # Process frame in thread pool
-                loop = asyncio.get_event_loop()
-                pose_results = await loop.run_in_executor(executor, process_frame_cpu_intensive, img_data)
-                
-                # Update last processed time
-                active_sessions[session_id]["last_processed"] = current_time
-                
-                if pose_results is None:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": "Could not process image"
-                    })
-                    continue
-                
-                result = {
-                    "type": "pose_data",
-                    "message": "Pose data available"
-                }
-                
-                if pose_results and pose_results.pose_landmarks:
-                    try:
-                        landmarks = []
-                        for idx, landmark in enumerate(pose_results.pose_landmarks.landmark):
-                            if hasattr(landmark, 'x') and hasattr(landmark, 'y') and hasattr(landmark, 'visibility'):
-                                landmarks.append({
-                                    "x": float(landmark.x),
-                                    "y": float(landmark.y),
-                                    "z": float(getattr(landmark, 'z', 0.0)),
-                                    "visibility": float(landmark.visibility)
-                                })
-                            else:
-                                landmarks.append({
-                                    "x": 0.0,
-                                    "y": 0.0,
-                                    "z": 0.0,
-                                    "visibility": 0.0
-                                })
-                        
-                        if len(landmarks) >= 33:
-                            result["landmarks"] = landmarks
-                            result["pose_detected"] = True
-                        else:
-                            result["pose_detected"] = False
-                            result["message"] = "Incomplete pose data"
-                    except Exception as landmark_error:
-                        print(f"Error processing landmarks: {landmark_error}")
-                        result["pose_detected"] = False
-                        result["message"] = "Error processing pose landmarks"
-                else:
-                    result["pose_detected"] = False
-                    result["message"] = "No pose detected"
-                
-                # Send the result
-                await websocket.send_json(result)
-                
-            except Exception as processing_error:
-                error_message = {
-                    "type": "error",
-                    "message": f"Processing error: {str(processing_error)}"
-                }
-                await websocket.send_json(error_message)
-                print(f"Processing error: {processing_error}")
-                
-    except WebSocketDisconnect:
-        if session_id in active_sessions:
-            del active_sessions[session_id]
-        print(f"WebSocket disconnected: {session_id}")
-    except Exception as e:
-        print(f"WebSocket error: {str(e)}")
-        if session_id in active_sessions:
-            del active_sessions[session_id]

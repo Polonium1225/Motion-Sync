@@ -344,6 +344,7 @@ const styles = StyleSheet.create({
   },
   cameraModeIndicator: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    marginTop:-80,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 15,
@@ -351,6 +352,7 @@ const styles = StyleSheet.create({
   },
   cameraModeText: {
     color: 'white',
+    top:5,
     fontSize: 10,
     fontWeight: '600',
   },
