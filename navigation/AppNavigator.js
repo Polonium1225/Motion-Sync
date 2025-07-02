@@ -30,6 +30,7 @@ import BadgesAndMilestonesScreen from '../screens/BadgesAndMilestonesScreen.js'
 import GymFinder from '../screens/GymFinder.js'
 import image3dplot from '../screens/image3dplot.js'
 import DemoSessionScreen from '../screens/DemoSessionScreen';
+import UserProfileScreen from '../screens/UserProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -135,6 +136,10 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             component={aichatscreen}
           />
           <Stack.Screen
+            name="Chat"
+            component={ChatScreen}
+          />
+          <Stack.Screen
             name="CreatePost"
             component={CreatePostScreen}
           />
@@ -160,6 +165,10 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
           <Stack.Screen
             name="test"
             component={test}
+          />
+          <Stack.Screen
+            name="UserProfileScreen"
+            component={UserProfileScreen}
           />
           
           <Stack.Screen

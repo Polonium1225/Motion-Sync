@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Animated, TextInput, FlatList, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Animated, TextInput, FlatList, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId, getPostById, addComment } from '../lib/AppwriteService';
-import { DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
+import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId, databases, Query, DATABASE_ID, COLLECTIONS, getPostById, addComment } from '../lib/AppwriteService';
 import DEFAULT_AVATAR from '../assets/avatar.png';
 import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
@@ -28,6 +27,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
+  const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -168,6 +168,66 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     }
   };
 
+  const handleMoreMenuPress = () => {
+    setMoreMenuVisible(true);
+  };
+
+  const handleViewProfile = () => {
+    setMoreMenuVisible(false);
+    
+    // Get the correct user ID - note the capital U in UserId
+    const postUserId = post.UserId || post.userId || post.user?.userId || post.user?.$id || post.$userId;
+    
+    console.log('Found userId:', postUserId, 'from field: UserId');
+    
+    if (!postUserId) {
+      console.error('❌ No userId found in post object');
+      Alert.alert('Error', 'Unable to find user profile. Post structure may be invalid.');
+      return;
+    }
+    
+    console.log('✅ Navigating to UserProfileScreen with userId:', postUserId);
+    
+    navigation.navigate('UserProfileScreen', {
+      userId: postUserId,
+      userName: post.user?.name || 'Unknown User',
+      userAvatar: avatarUrl
+    });
+  };
+
+  const handleSendMessage = () => {
+    setMoreMenuVisible(false);
+    navigation.navigate('Chat', {
+      friendId: post.UserId,
+      friendName: post.user?.name || 'Unknown User',
+      conversationId: `new_${post.UserId}_${Date.now()}`
+    });
+  };
+
+  const handleReportPost = () => {
+    setMoreMenuVisible(false);
+    Alert.alert(
+      'Report Post',
+      'Why are you reporting this post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Spam', onPress: () => Alert.alert('Reported', 'Thank you for reporting. We will review this post.') },
+        { text: 'Inappropriate Content', onPress: () => Alert.alert('Reported', 'Thank you for reporting. We will review this post.') },
+        { text: 'Harassment', onPress: () => Alert.alert('Reported', 'Thank you for reporting. We will review this post.') }
+      ]
+    );
+  };
+
+  const handleSharePost = () => {
+    setMoreMenuVisible(false);
+    Alert.alert('Share Post', 'Share functionality coming soon!');
+  };
+
+  const handleCopyLink = () => {
+    setMoreMenuVisible(false);
+    Alert.alert('Link Copied', 'Post link copied to clipboard!');
+  };
+
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
     
@@ -247,62 +307,101 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     });
   };
 
-  const [failedAvatars, setFailedAvatars] = useState(new Set());
+  // Custom Avatar Component with fallback logic
+  const CommentAvatar = ({ user, style }) => {
+    const [currentImageUrl, setCurrentImageUrl] = useState(null);
+    const [imageIndex, setImageIndex] = useState(0);
 
-  const renderComment = ({ item }) => {
-    const getCommentAvatarUrl = (user) => {
-      if (!user?.avatar) return null;
-      
-      // If avatar is already a full URL and hasn't failed before, use it
-      if (typeof user.avatar === 'string' && user.avatar.startsWith('http')) {
-        // If this URL has failed before, try constructing with main project
-        if (failedAvatars.has(user.avatar)) {
-          // Extract file ID from the failed URL
+    useEffect(() => {
+      if (!user?.avatar) {
+        setCurrentImageUrl(null);
+        return;
+      }
+
+      const generateAvatarUrls = (avatar) => {
+        const urls = [];
+        
+        // If it's already a full URL, try it first
+        if (typeof avatar === 'string' && avatar.startsWith('http')) {
+          urls.push(avatar);
+          
+          // Also try constructing with main project credentials
+          const fileIdMatch = avatar.match(/files\/([^\/]+)\//);
+          if (fileIdMatch) {
+            const fileId = fileIdMatch[1];
+            urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`);
+          }
+        } else {
+          // If it's just an ID, try both projects
+          urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${PROJECT_ID}`);
+          urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${COMMENT_PROJECT_ID}`);
+        }
+        
+        return urls;
+      };
+
+      const possibleUrls = generateAvatarUrls(user.avatar);
+      if (possibleUrls[imageIndex]) {
+        setCurrentImageUrl(possibleUrls[imageIndex]);
+      }
+    }, [user?.avatar, imageIndex]);
+
+    const handleImageError = () => {
+      const possibleUrls = user?.avatar ? (() => {
+        const urls = [];
+        if (typeof user.avatar === 'string' && user.avatar.startsWith('http')) {
+          urls.push(user.avatar);
           const fileIdMatch = user.avatar.match(/files\/([^\/]+)\//);
           if (fileIdMatch) {
             const fileId = fileIdMatch[1];
-            return `${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`;
+            urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`);
           }
+        } else {
+          urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${user.avatar}/view?project=${PROJECT_ID}`);
+          urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${user.avatar}/view?project=${COMMENT_PROJECT_ID}`);
         }
-        return user.avatar;
+        return urls;
+      })() : [];
+
+      const nextIndex = imageIndex + 1;
+      if (nextIndex < possibleUrls.length) {
+        console.log(`❌ Avatar failed, trying fallback ${nextIndex + 1}/${possibleUrls.length}`);
+        setImageIndex(nextIndex);
+      } else {
+        console.log('❌ All avatar URLs failed, using default');
+        setCurrentImageUrl(null);
       }
-      
-      // If it's just an ID, construct with main project
-      return `${API_ENDPOINT}/storage/buckets/profile_images/files/${user.avatar}/view?project=${PROJECT_ID}`;
     };
 
-    const avatarUrl = getCommentAvatarUrl(item.user);
+    const handleImageLoad = () => {
+      console.log('✅ Comment avatar loaded successfully:', currentImageUrl);
+    };
 
     return (
-      <View style={styles.commentContainer}>
-        <Image 
-          source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
-          style={styles.commentAvatar}
-          defaultSource={DEFAULT_AVATAR}
-          onError={(e) => {
-            console.log('❌ Comment avatar failed for URL:', avatarUrl);
-            
-            // Mark this URL as failed for future fallback
-            if (item.user?.avatar && typeof item.user.avatar === 'string' && item.user.avatar.startsWith('http')) {
-              setFailedAvatars(prev => new Set([...prev, item.user.avatar]));
-            }
-          }}
-          onLoad={() => {
-            console.log('✅ Comment avatar loaded successfully:', avatarUrl);
-          }}
-        />
-        <View style={styles.commentContent}>
-          <View style={styles.commentHeader}>
-            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
-            <Text style={styles.commentDate}>
-              {formatDate(item.$createdAt)}
-            </Text>
-          </View>
-          <Text style={styles.commentText}>{item.content}</Text>
-        </View>
-      </View>
+      <Image 
+        source={currentImageUrl ? { uri: currentImageUrl } : DEFAULT_AVATAR}
+        style={style}
+        defaultSource={DEFAULT_AVATAR}
+        onError={handleImageError}
+        onLoad={handleImageLoad}
+      />
     );
   };
+
+  const renderComment = ({ item }) => (
+    <View style={styles.commentContainer}>
+      <CommentAvatar user={item.user} style={styles.commentAvatar} />
+      <View style={styles.commentContent}>
+        <View style={styles.commentHeader}>
+          <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+          <Text style={styles.commentDate}>
+            {formatDate(item.$createdAt)}
+          </Text>
+        </View>
+        <Text style={styles.commentText}>{item.content}</Text>
+      </View>
+    </View>
+  );
 
   return (
     <Animated.View 
@@ -342,7 +441,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.moreButton}>
+        <TouchableOpacity style={styles.moreButton} onPress={handleMoreMenuPress}>
           <Ionicons name="ellipsis-horizontal" size={20} color="rgba(255, 255, 255, 0.6)" />
         </TouchableOpacity>
       </View>
@@ -523,6 +622,48 @@ const PostItem = ({ post, navigation, index = 0 }) => {
           </View>
         </Animated.View>
       )}
+
+      {/* More Menu Modal */}
+      <Modal
+        visible={moreMenuVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setMoreMenuVisible(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          onPress={() => setMoreMenuVisible(false)}
+        >
+          <View style={styles.moreMenu}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleViewProfile}>
+              <Ionicons name="person-outline" size={20} color="#fff" />
+              <Text style={styles.menuItemText}>View Profile</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleSendMessage}>
+              <Ionicons name="chatbubble-outline" size={20} color="#fff" />
+              <Text style={styles.menuItemText}>Send Message</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleSharePost}>
+              <Ionicons name="share-outline" size={20} color="#fff" />
+              <Text style={styles.menuItemText}>Share Post</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleCopyLink}>
+              <Ionicons name="link-outline" size={20} color="#fff" />
+              <Text style={styles.menuItemText}>Copy Link</Text>
+            </TouchableOpacity>
+            
+            <View style={styles.menuDivider} />
+            
+            <TouchableOpacity style={[styles.menuItem, styles.reportItem]} onPress={handleReportPost}>
+              <Ionicons name="flag-outline" size={20} color="#FF6B6B" />
+              <Text style={[styles.menuItemText, styles.reportText]}>Report Post</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </Animated.View>
   );
 };
@@ -782,6 +923,44 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreMenu: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 8,
+    minWidth: 200,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  menuItemText: {
+    color: '#fff',
+    fontSize: 16,
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 4,
+  },
+  reportItem: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+  },
+  reportText: {
+    color: '#FF6B6B',
   },
 });
 

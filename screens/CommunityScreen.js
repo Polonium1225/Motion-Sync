@@ -13,9 +13,11 @@ import {
   ImageBackground,
   StatusBar,
   SafeAreaView,
-  Animated
+  Animated,
+  Alert,
+  Modal
 } from 'react-native';
-import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles } from "../lib/AppwriteService";
+import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -31,6 +33,12 @@ export default function FindFriendScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentUserId, setCurrentUserId] = useState('');
+  const [deletingConversations, setDeletingConversations] = useState(new Set());
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [lastDeleteTime, setLastDeleteTime] = useState(0); // Track last deletion
   const isFocused = useIsFocused();
 
   // Animation values
@@ -38,6 +46,8 @@ export default function FindFriendScreen({ navigation }) {
   const slideAnim = useRef(new Animated.Value(40)).current;
   const searchAnim = useRef(new Animated.Value(0)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const modalScale = useRef(new Animated.Value(0.8)).current;
+  const modalOpacity = useRef(new Animated.Value(0)).current;
 
   // Initialize animations
   useEffect(() => {
@@ -80,12 +90,21 @@ export default function FindFriendScreen({ navigation }) {
   // Load conversations and users
   useEffect(() => {
     const loadData = async () => {
+      // Don't reload if we just deleted something (within 5 seconds)
+      const timeSinceLastDelete = Date.now() - lastDeleteTime;
+      if (timeSinceLastDelete < 5000) {
+        console.log('⏳ Skipping reload - recent deletion detected');
+        return;
+      }
+
       try {
         setIsLoading(true);
         const user = await account.get();
         setCurrentUserId(user.$id);
         
+        console.log('📥 Loading conversations from database...');
         const userConversations = await getUserConversations(user.$id);
+        console.log(`📥 Loaded ${userConversations.length} conversations`);
         
         // Get participant IDs and fetch their profiles
         const userIds = new Set();
@@ -125,6 +144,7 @@ export default function FindFriendScreen({ navigation }) {
     
         setUsers(userMap);
         setConversations(userConversations);
+        console.log('📥 Data loading completed');
       } catch (err) {
         console.error("Error loading data:", err);
         setError("Failed to load conversations. Please try again.");
@@ -133,12 +153,15 @@ export default function FindFriendScreen({ navigation }) {
       }
     };
 
-    if (isFocused) loadData();
-  }, [isFocused]);
+    if (isFocused) {
+      console.log('👁️ Screen focused, checking if reload needed...');
+      loadData();
+    }
+  }, [isFocused, lastDeleteTime]);
 
   // Optimized status updates with better error handling
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId || conversations.length === 0) return;
 
     const updateStatuses = async () => {
       try {
@@ -150,7 +173,7 @@ export default function FindFriendScreen({ navigation }) {
         if (userIds.length === 0) return;
 
         const uniqueIds = [...new Set(userIds)];
-        console.log('Updating statuses for users:', uniqueIds);
+        console.log('🔄 Updating statuses for users:', uniqueIds);
         
         await Promise.all(uniqueIds.map(async userId => {
           try {
@@ -160,7 +183,7 @@ export default function FindFriendScreen({ navigation }) {
             setUsers(prev => {
               const currentStatus = prev[userId]?.status;
               if (currentStatus !== newStatus) {
-                console.log(`User ${userId} status: ${currentStatus} -> ${newStatus}`);
+                console.log(`🔄 User ${userId} status: ${currentStatus} -> ${newStatus}`);
                 return {
                   ...prev,
                   [userId]: {
@@ -194,7 +217,7 @@ export default function FindFriendScreen({ navigation }) {
     // Set up periodic updates every 5 seconds
     const interval = setInterval(updateStatuses, 5000);
     return () => clearInterval(interval);
-  }, [conversations, currentUserId]);
+  }, [conversations, currentUserId]); // Updated dependency
 
   const getFilteredConversations = () => {
     if (!searchQuery) return conversations;
@@ -227,6 +250,258 @@ export default function FindFriendScreen({ navigation }) {
       friendName: friend.name,
       conversationId: conversation.$id
     });
+  };
+
+  // Add the missing handleForceRefresh function
+  const handleForceRefresh = async () => {
+    console.log('🔄 Force refresh triggered');
+    setIsLoading(true);
+    setLastDeleteTime(0); // Reset delete time to allow immediate reload
+    
+    try {
+      const user = await account.get();
+      setCurrentUserId(user.$id);
+      
+      console.log('📥 Force loading conversations from database...');
+      const userConversations = await getUserConversations(user.$id);
+      console.log(`📥 Force loaded ${userConversations.length} conversations`);
+      
+      // Get participant IDs and fetch their profiles
+      const userIds = new Set();
+      userConversations.forEach(conv => {
+        if (conv.participant1 !== user.$id) userIds.add(conv.participant1);
+        if (conv.participant2 !== user.$id) userIds.add(conv.participant2);
+      });
+
+      const userMap = {};
+      await Promise.all(Array.from(userIds).map(async userId => {
+        try {
+          const profile = await userProfiles.getProfileByUserId(userId);
+          let avatarUrl = DEFAULT_AVATAR;
+          
+          if (profile.avatar) {
+            // Create direct download URL
+            avatarUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
+          }
+          
+          userMap[userId] = {
+            $id: userId,
+            name: profile.name,
+            avatar: avatarUrl,
+            status: profile.status || 'offline'
+          };
+        } catch (err) {
+          console.error(`Error loading profile for ${userId}:`, err);
+          userMap[userId] = {
+            $id: userId,
+            name: 'Unknown User',
+            avatar: DEFAULT_AVATAR,
+            status: 'offline'
+          };
+        }
+      }));
+
+      setUsers(userMap);
+      setConversations(userConversations);
+      setError(null); // Clear any previous errors
+      console.log('📥 Force refresh completed');
+    } catch (err) {
+      console.error("Error during force refresh:", err);
+      setError("Failed to refresh conversations. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteConversation = async () => {
+    if (!selectedConversation || !selectedFriend) return;
+    
+    const conversationId = selectedConversation.$id;
+    
+    try {
+      setDeletingConversations(prev => new Set([...prev, conversationId]));
+      setShowDeleteModal(false);
+      
+      console.log('🗑️ Starting deletion for conversation:', conversationId);
+      
+      // Delete all messages in the conversation first
+      const messagesResponse = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.MESSAGES,
+        [Query.equal('conversationId', conversationId)]
+      );
+
+      console.log(`🗑️ Found ${messagesResponse.documents.length} messages to delete`);
+
+      // Delete messages in batches
+      await Promise.all(
+        messagesResponse.documents.map(async message => {
+          console.log('🗑️ Deleting message:', message.$id);
+          return databases.deleteDocument(DATABASE_ID, COLLECTIONS.MESSAGES, message.$id);
+        })
+      );
+
+      console.log('🗑️ All messages deleted, now deleting conversation');
+
+      // Delete the conversation
+      await databases.deleteDocument(DATABASE_ID, COLLECTIONS.CONVERSATIONS, conversationId);
+
+      console.log('🗑️ Conversation deleted from database');
+
+      // Update local state - remove the conversation
+      setConversations(prevConversations => {
+        const updatedConversations = prevConversations.filter(conv => conv.$id !== conversationId);
+        console.log(`🗑️ Updated conversations: ${prevConversations.length} -> ${updatedConversations.length}`);
+        console.log('🗑️ Removed conversation:', conversationId);
+        return updatedConversations;
+      });
+
+      // Also remove from users if no other conversations exist with this user
+      const friendId = selectedConversation.participant1 === currentUserId 
+        ? selectedConversation.participant2 
+        : selectedConversation.participant1;
+
+      setUsers(prevUsers => {
+        // Check if there are other conversations with this user
+        const hasOtherConversations = conversations.some(conv => 
+          conv.$id !== conversationId && 
+          (conv.participant1 === friendId || conv.participant2 === friendId)
+        );
+
+        if (!hasOtherConversations) {
+          console.log('🗑️ Removing user from users list:', friendId);
+          const updatedUsers = { ...prevUsers };
+          delete updatedUsers[friendId];
+          return updatedUsers;
+        }
+
+        return prevUsers;
+      });
+
+      console.log('🗑️ Deletion completed successfully');
+      setLastDeleteTime(Date.now()); // Mark deletion time to prevent immediate reload
+      
+      // Show a brief success message without an alert dialog
+      console.log(`✅ Conversation with ${selectedFriend.name} has been deleted`);
+      
+      // You could add a toast notification here instead of Alert.alert
+      Alert.alert('Success', `Conversation with ${selectedFriend.name} deleted successfully`);
+      
+    } catch (error) {
+      console.error('🗑️ Error deleting conversation:', error);
+      Alert.alert('Error', 'Failed to delete conversation. Please try again.');
+      
+      // Revert the conversation back to the list on error
+      setConversations(prevConversations => {
+        if (!prevConversations.find(conv => conv.$id === conversationId)) {
+          console.log('🗑️ Reverting conversation back to list');
+          return [...prevConversations, selectedConversation];
+        }
+        return prevConversations;
+      });
+    } finally {
+      setDeletingConversations(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(conversationId);
+        return newSet;
+      });
+      setSelectedConversation(null);
+      setSelectedFriend(null);
+    }
+  };
+
+  const handleLongPress = (conversation) => {
+    const friendId = conversation.participant1 === currentUserId 
+      ? conversation.participant2 
+      : conversation.participant1;
+    const friend = users[friendId] || { name: "Unknown User" };
+
+    setSelectedConversation(conversation);
+    setSelectedFriend(friend);
+    setShowOptionsModal(true);
+    
+    // Animate modal in
+    Animated.parallel([
+      Animated.timing(modalOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(modalScale, {
+        toValue: 1,
+        speed: 12,
+        bounciness: 8,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const closeOptionsModal = () => {
+    Animated.parallel([
+      Animated.timing(modalOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalScale, {
+        toValue: 0.8,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setShowOptionsModal(false);
+      setSelectedConversation(null);
+      setSelectedFriend(null);
+    });
+  };
+
+  const openDeleteModal = () => {
+    setShowOptionsModal(false);
+    setShowDeleteModal(true);
+    
+    // Reset and animate delete modal
+    modalScale.setValue(0.8);
+    modalOpacity.setValue(0);
+    
+    Animated.parallel([
+      Animated.timing(modalOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(modalScale, {
+        toValue: 1,
+        speed: 12,
+        bounciness: 8,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
+  const closeDeleteModal = () => {
+    Animated.parallel([
+      Animated.timing(modalOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalScale, {
+        toValue: 0.8,
+        duration: 200,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setShowDeleteModal(false);
+      setSelectedConversation(null);
+      setSelectedFriend(null);
+    });
+  };
+
+  const handleOpenChat = () => {
+    if (selectedConversation) {
+      closeOptionsModal();
+      navigateToChat(selectedConversation);
+    }
   };
 
   const handlePressIn = () => {
@@ -268,6 +543,8 @@ export default function FindFriendScreen({ navigation }) {
       avatar: DEFAULT_AVATAR 
     };
     
+    const isDeleting = deletingConversations.has(item.$id);
+    
     return (
       <Animated.View
         style={[
@@ -283,16 +560,21 @@ export default function FindFriendScreen({ navigation }) {
         ]}
       >
         <TouchableOpacity 
-          style={styles.conversationCard}
+          style={[
+            styles.conversationCard,
+            isDeleting && styles.deletingCard
+          ]}
           onPress={() => navigateToChat(item)}
+          onLongPress={() => handleLongPress(item)}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
+          disabled={isDeleting}
         >
           <View style={styles.conversationContent}>
             <View style={styles.avatarContainer}>
               <Image 
                 source={typeof friend.avatar === 'string' ? { uri: friend.avatar } : friend.avatar}
-                style={styles.avatarImage}
+                style={[styles.avatarImage, isDeleting && styles.deletingAvatar]}
                 defaultSource={DEFAULT_AVATAR}
               />
               <View style={[
@@ -303,18 +585,21 @@ export default function FindFriendScreen({ navigation }) {
             
             <View style={styles.conversationInfo}>
               <View style={styles.nameRow}>
-                <Text style={styles.friendName}>{friend.name}</Text>
-                <Text style={styles.timeText}>
+                <Text style={[styles.friendName, isDeleting && styles.deletingText]}>
+                  {friend.name}
+                </Text>
+                <Text style={[styles.timeText, isDeleting && styles.deletingText]}>
                   {formatLastMessageTime(item.lastMessageAt)}
                 </Text>
               </View>
               <View style={styles.messageRow}>
-                <Text style={styles.lastMessage} numberOfLines={1}>
-                  {item.lastMessage || "Start a conversation"}
+                <Text style={[styles.lastMessage, isDeleting && styles.deletingText]} numberOfLines={1}>
+                  {isDeleting ? "Deleting conversation..." : (item.lastMessage || "Start a conversation")}
                 </Text>
                 <View style={[
                   styles.statusBadge,
-                  { backgroundColor: friend.status === 'online' ? '#00FF94' : 'rgba(255, 255, 255, 0.3)' }
+                  { backgroundColor: friend.status === 'online' ? '#00FF94' : 'rgba(255, 255, 255, 0.3)' },
+                  isDeleting && styles.deletingBadge
                 ]}>
                   <Text style={[
                     styles.statusBadgeText,
@@ -328,7 +613,11 @@ export default function FindFriendScreen({ navigation }) {
           </View>
           
           <View style={styles.cardArrow}>
-            <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+            {isDeleting ? (
+              <ActivityIndicator size="small" color="rgba(255, 255, 255, 0.6)" />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.6)" />
+            )}
           </View>
         </TouchableOpacity>
       </Animated.View>
@@ -416,6 +705,13 @@ export default function FindFriendScreen({ navigation }) {
             </View>
           </Animated.View>
 
+          {/* Instructions */}
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsText}>
+              💡 Tap to open chat • Long press for options
+            </Text>
+          </View>
+
           {/* Conversations List */}
           {error ? (
             <View style={styles.errorContainer}>
@@ -425,7 +721,7 @@ export default function FindFriendScreen({ navigation }) {
                 <Text style={styles.errorText}>{error}</Text>
                 <TouchableOpacity 
                   style={styles.retryButton}
-                  onPress={() => window.location.reload()}
+                  onPress={handleForceRefresh}
                 >
                   <Text style={styles.retryButtonText}>Try Again</Text>
                 </TouchableOpacity>
@@ -470,10 +766,166 @@ export default function FindFriendScreen({ navigation }) {
                 renderItem={renderConversationItem}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
+                refreshing={isLoading}
+                onRefresh={handleForceRefresh}
+                ListEmptyComponent={() => (
+                  <View style={styles.emptyListMessage}>
+                    <Text style={styles.emptyListText}>
+                      {searchQuery ? 'No matching conversations' : 'Pull down to refresh'}
+                    </Text>
+                  </View>
+                )}
               />
             </View>
           )}
         </Animated.View>
+
+        {/* Options Modal */}
+        <Modal
+          visible={showOptionsModal}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closeOptionsModal}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={closeOptionsModal}
+            />
+            <Animated.View
+              style={[
+                styles.optionsModal,
+                {
+                  opacity: modalOpacity,
+                  transform: [{ scale: modalScale }]
+                }
+              ]}
+            >
+              <TouchableOpacity activeOpacity={1}>
+                {/* Modal Header */}
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalUserInfo}>
+                    {selectedFriend && (
+                      <>
+                        <Image 
+                          source={typeof selectedFriend.avatar === 'string' ? { uri: selectedFriend.avatar } : selectedFriend.avatar}
+                          style={styles.modalAvatar}
+                          defaultSource={DEFAULT_AVATAR}
+                        />
+                        <View>
+                          <Text style={styles.modalUserName}>{selectedFriend.name}</Text>
+                          <Text style={styles.modalSubtitle}>Conversation Options</Text>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                </View>
+
+                {/* Modal Actions */}
+                <View style={styles.modalActions}>
+                  <TouchableOpacity 
+                    style={styles.modalActionButton}
+                    onPress={handleOpenChat}
+                  >
+                    <View style={styles.modalActionIcon}>
+                      <Ionicons name="chatbubble-outline" size={24} color={Colors.primary} />
+                    </View>
+                    <View style={styles.modalActionText}>
+                      <Text style={styles.modalActionTitle}>Open Chat</Text>
+                      <Text style={styles.modalActionSubtitle}>Continue conversation</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255, 255, 255, 0.4)" />
+                  </TouchableOpacity>
+
+                  <View style={styles.modalDivider} />
+
+                  <TouchableOpacity 
+                    style={[styles.modalActionButton, styles.deleteActionButton]}
+                    onPress={openDeleteModal}
+                  >
+                    <View style={[styles.modalActionIcon, styles.deleteActionIcon]}>
+                      <Ionicons name="trash-outline" size={24} color="#FF6B6B" />
+                    </View>
+                    <View style={styles.modalActionText}>
+                      <Text style={[styles.modalActionTitle, styles.deleteActionTitle]}>Delete Conversation</Text>
+                      <Text style={styles.modalActionSubtitle}>Remove all messages</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="rgba(255, 107, 107, 0.6)" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Cancel Button */}
+                <TouchableOpacity 
+                  style={styles.modalCancelButton}
+                  onPress={closeOptionsModal}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          visible={showDeleteModal}
+          transparent={true}
+          animationType="none"
+          onRequestClose={closeDeleteModal}
+        >
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity 
+              style={styles.modalBackdrop}
+              activeOpacity={1}
+              onPress={closeDeleteModal}
+            />
+            <Animated.View
+              style={[
+                styles.deleteModal,
+                {
+                  opacity: modalOpacity,
+                  transform: [{ scale: modalScale }]
+                }
+              ]}
+            >
+              <TouchableOpacity activeOpacity={1}>
+                {/* Warning Icon */}
+                <View style={styles.deleteModalHeader}>
+                  <View style={styles.warningIconContainer}>
+                    <Ionicons name="warning" size={48} color="#FF6B6B" />
+                  </View>
+                  <Text style={styles.deleteModalTitle}>Delete Conversation</Text>
+                  <Text style={styles.deleteModalMessage}>
+                    Are you sure you want to delete your conversation with{' '}
+                    <Text style={styles.deleteModalUserName}>{selectedFriend?.name}</Text>?
+                  </Text>
+                  <Text style={styles.deleteModalWarning}>
+                    This action cannot be undone. All messages will be permanently deleted.
+                  </Text>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.deleteModalActions}>
+                  <TouchableOpacity 
+                    style={styles.deleteModalCancelButton}
+                    onPress={closeDeleteModal}
+                  >
+                    <Text style={styles.deleteModalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.deleteModalConfirmButton}
+                    onPress={deleteConversation}
+                  >
+                    <Ionicons name="trash" size={20} color="white" />
+                    <Text style={styles.deleteModalConfirmText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -538,7 +990,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchContainer: {
-    marginBottom: 25,
+    marginBottom: 15,
   },
   searchInputContainer: {
     flexDirection: 'row',
@@ -557,6 +1009,20 @@ const styles = StyleSheet.create({
     flex: 1,
     color: Colors.textPrimary,
     fontSize: 16,
+  },
+  instructionsContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  instructionsText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 15,
+    overflow: 'hidden',
   },
   sectionTitle: {
     color: Colors.textPrimary,
@@ -585,6 +1051,10 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
+  deletingCard: {
+    opacity: 0.6,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
   conversationContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -600,6 +1070,9 @@ const styles = StyleSheet.create({
     borderRadius: 27.5,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  deletingAvatar: {
+    opacity: 0.5,
   },
   statusIndicator: {
     position: 'absolute',
@@ -626,6 +1099,9 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     flex: 1,
   },
+  deletingText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
   timeText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.6)',
@@ -648,6 +1124,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     minWidth: 60,
     alignItems: 'center',
+  },
+  deletingBadge: {
+    opacity: 0.5,
   },
   statusBadgeText: {
     fontSize: 11,
@@ -738,5 +1217,221 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)', // Much darker overlay
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backdropFilter: 'blur(10px)', // Blur effect (iOS)
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
+  optionsModal: {
+    backgroundColor: 'rgba(20, 25, 35, 0.95)', // Darker, more opaque background
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 350,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 10,
+    },
+    shadowOpacity: 0.8,
+    shadowRadius: 25,
+    elevation: 15,
+    // Add backdrop blur for better separation
+    backdropFilter: 'blur(20px)',
+  },
+  modalHeader: {
+    padding: 25,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalUserInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalAvatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  modalUserName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  modalActions: {
+    padding: 20,
+  },
+  modalActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginBottom: 10,
+  },
+  deleteActionButton: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+  },
+  modalActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  deleteActionIcon: {
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+  },
+  modalActionText: {
+    flex: 1,
+  },
+  modalActionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginBottom: 2,
+  },
+  deleteActionTitle: {
+    color: '#FF6B6B',
+  },
+  modalActionSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  modalDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 5,
+  },
+  modalCancelButton: {
+    marginTop: 10,
+    paddingVertical: 15,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  deleteModal: {
+    backgroundColor: 'rgba(25, 20, 20, 0.95)', // Darker background with red tint
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 350,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.5)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 15,
+    },
+    shadowOpacity: 0.8,
+    shadowRadius: 25,
+    elevation: 15,
+    backdropFilter: 'blur(20px)',
+  },
+  deleteModalHeader: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  warningIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  deleteModalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  deleteModalMessage: {
+    fontSize: 16,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 15,
+  },
+  deleteModalUserName: {
+    fontWeight: 'bold',
+    color: Colors.primary,
+  },
+  deleteModalWarning: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+    textAlign: 'center',
+    lineHeight: 20,
+    fontStyle: 'italic',
+  },
+  deleteModalActions: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  deleteModalCancelButton: {
+    flex: 1,
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  deleteModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  deleteModalConfirmButton: {
+    flex: 1,
+    paddingVertical: 18,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+  },
+  deleteModalConfirmText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF6B6B',
+    marginLeft: 8,
+  },
+  emptyListMessage: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyListText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+    textAlign: 'center',
   },
 });

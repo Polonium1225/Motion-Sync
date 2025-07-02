@@ -17,13 +17,21 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PostItem from './PostItem';
-import { getPostsWithUsers } from '../lib/AppwriteService';
+import { getPostsWithUsers, databases, Query, DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { createPost, getUserId, uploadPostImage } from '../lib/AppwriteService';
 import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 import backgroundImage from '../assets/sfgsdh.png';
+
+// Add your Appwrite project configurations (should match PostItem.js)
+const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Main project ID
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Main endpoint
+
+// Comment system seems to use different Appwrite instance
+const COMMENT_PROJECT_ID = '685ebdb90007d578e80d'; // From comment avatar URLs
+const COMMENT_API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // From comment avatar URLs
 
 const PostsScreen = ({ navigation }) => {
   const [posts, setPosts] = useState([]);
@@ -106,6 +114,66 @@ const PostsScreen = ({ navigation }) => {
       console.error('Error loading posts:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to navigate to current user's profile
+  const handleProfileNavigation = async () => {
+    try {
+      const currentUserId = await getUserId();
+      
+      if (!currentUserId) {
+        Alert.alert('Error', 'Unable to load your profile');
+        return;
+      }
+
+      // Try to get current user's profile information
+      let userName = 'Your Profile';
+      let userAvatar = null;
+
+      try {
+        const profileResponse = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.USER_PROFILES,
+          [Query.equal('userId', currentUserId)]
+        );
+
+        if (profileResponse.documents.length > 0) {
+          const profile = profileResponse.documents[0];
+          userName = profile.name || 'Your Profile';
+          
+          // If avatar exists, construct the proper URL
+          if (profile.avatar) {
+            // Try multiple possible avatar URL constructions
+            const avatarId = profile.avatar;
+            console.log('Raw avatar ID from profile:', avatarId);
+            
+            // Check if it's already a full URL
+            if (typeof avatarId === 'string' && avatarId.startsWith('http')) {
+              userAvatar = avatarId;
+            } else {
+              // Try the comment project endpoint first (since posts show they're using this)
+              userAvatar = `${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatarId}/view?project=${COMMENT_PROJECT_ID}`;
+            }
+            
+            console.log('Constructed avatar URL:', userAvatar);
+          }
+        }
+      } catch (profileError) {
+        console.log('Could not load profile details:', profileError);
+        // Continue with default values
+      }
+
+      // Navigate to UserProfileScreen with current user's data
+      navigation.navigate('UserProfileScreen', {
+        userId: currentUserId,
+        userName: userName,
+        userAvatar: userAvatar
+      });
+
+    } catch (error) {
+      console.error('Error navigating to profile:', error);
+      Alert.alert('Error', 'Failed to open your profile');
     }
   };
 
@@ -265,8 +333,15 @@ const PostsScreen = ({ navigation }) => {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Community Feed</Text>
-            <TouchableOpacity style={styles.filterButton}>
-              <Ionicons name="options-outline" size={24} color="white" />
+            <TouchableOpacity 
+              style={styles.profileButton} 
+              onPress={handleProfileNavigation}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+            >
+              <Animated.View style={[{ transform: [{ scale: buttonScale }] }]}>
+                <Ionicons name="person-outline" size={24} color="white" />
+              </Animated.View>
             </TouchableOpacity>
           </View>
 
@@ -482,7 +557,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.textPrimary,
   },
-  filterButton: {
+  profileButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
