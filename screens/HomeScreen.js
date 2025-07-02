@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ImageBackground, Animated, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Alert, ImageBackground, Animated, ScrollView, ActivityIndicator } from 'react-native';
 import BadgesMilestoneCard from '../components/BadgesMilestoneCard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { account, userProfiles, getUserConversations } from '../lib/AppwriteService';
@@ -10,6 +10,14 @@ import { useUserData, useUserProgress } from '../hooks/useUserData';
 import backgroundImage from '../assets/sfgsdh.png';
 
 const DEFAULT_AVATAR = require('../assets/icon.png');
+
+// Add both Appwrite project configurations (matching your other components)
+const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Main project ID
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Main endpoint
+
+// Comment system seems to use different Appwrite instance
+const COMMENT_PROJECT_ID = '685ebdb90007d578e80d'; // From comment avatar URLs
+const COMMENT_API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // From comment avatar URLs
 
 export default function HomeScreen({ navigation, setIsLoggedIn }) {
   const {
@@ -37,6 +45,10 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     hasNewContent: false
   });
 
+  // Avatar loading states
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+
   // Scroll indicator state
   const [showScrollIndicator, setShowScrollIndicator] = useState(true);
   const [scrollY, setScrollY] = useState(0);
@@ -60,9 +72,6 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     navigation1.navigate('Notifications');
   };
 
-  const PROJECT_ID = '685ebdb90007d578e80d';
-  const API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1';
-
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -72,6 +81,68 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
   // Scroll indicator animations
   const scrollIndicatorOpacity = useRef(new Animated.Value(1)).current;
   const scrollIndicatorBounce = useRef(new Animated.Value(0)).current;
+
+  // Enhanced avatar loading function with multiple endpoint support
+  const loadAvatarUrl = async (avatarId) => {
+    if (!avatarId || avatarId === 'avatar.png') {
+      setAvatarUrl(null);
+      return;
+    }
+
+    setAvatarLoading(true);
+    console.log('Loading avatar for ID:', avatarId);
+    
+    const generateAvatarUrls = (avatar) => {
+      const urls = [];
+      
+      // If it's already a full URL, try it first
+      if (typeof avatar === 'string' && avatar.startsWith('http')) {
+        urls.push(avatar);
+        
+        // Also try constructing with main project credentials
+        const fileIdMatch = avatar.match(/files\/([^\/]+)\//);
+        if (fileIdMatch) {
+          const fileId = fileIdMatch[1];
+          urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`);
+          urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${COMMENT_PROJECT_ID}`);
+        }
+      } else {
+        // If it's just an ID, try both projects
+        urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${PROJECT_ID}`);
+        urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${COMMENT_PROJECT_ID}`);
+        // Also try with mode=admin parameter
+        urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${COMMENT_PROJECT_ID}&mode=admin`);
+      }
+      
+      return urls;
+    };
+
+    const possibleUrls = generateAvatarUrls(avatarId);
+    
+    // Try each URL until one works
+    for (let i = 0; i < possibleUrls.length; i++) {
+      const url = possibleUrls[i];
+      console.log(`Trying avatar URL ${i + 1}/${possibleUrls.length}:`, url);
+      
+      try {
+        // Test if the URL is accessible
+        const response = await fetch(url, { method: 'HEAD' });
+        if (response.ok) {
+          console.log('✅ Avatar URL works:', url);
+          setAvatarUrl(url);
+          setAvatarLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.log(`❌ Avatar URL ${i + 1} failed:`, error.message);
+        continue;
+      }
+    }
+    
+    console.log('❌ All avatar URLs failed, using default');
+    setAvatarUrl(null);
+    setAvatarLoading(false);
+  };
 
   // Function to get unread message count
   const getUnreadMessageCount = async (userId) => {
@@ -122,22 +193,6 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
     }
   };
 
-  // Function to construct profile image URI
-  const getProfileImageUri = (avatar) => {
-    if (!avatar || avatar === 'avatar.png') {
-      return DEFAULT_AVATAR;
-    }
-    
-    try {
-      // Construct the direct file view URL
-      const imageUri = `${API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${PROJECT_ID}&mode=admin`;
-      return { uri: imageUri };
-    } catch (error) {
-      console.error('Error constructing image URI:', error);
-      return DEFAULT_AVATAR;
-    }
-  };
-
   // Load profile data and notifications when component mounts
   useEffect(() => {
     const loadProfileData = async () => {
@@ -163,19 +218,29 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
           const profile = userData.profile;
           let newProfileData = {
             fullName: profile.name || user.name || 'Name',
-            profileImage: getProfileImageUri(profile.avatar),
+            profileImage: DEFAULT_AVATAR, // Will be updated by loadAvatarUrl
           };
 
           setProfileData(newProfileData);
+          
+          // Load avatar URL with enhanced logic
+          if (profile.avatar) {
+            await loadAvatarUrl(profile.avatar);
+          }
         } else {
           // Fallback: Try to get profile directly from Appwrite
           try {
             const profile = await userProfiles.getProfileByUserId(userId);
             const newProfileData = {
               fullName: profile.name || user.name || 'Name',
-              profileImage: getProfileImageUri(profile.avatar),
+              profileImage: DEFAULT_AVATAR, // Will be updated by loadAvatarUrl
             };
             setProfileData(newProfileData);
+            
+            // Load avatar URL with enhanced logic
+            if (profile.avatar) {
+              await loadAvatarUrl(profile.avatar);
+            }
           } catch (profileError) {
             console.log('Error getting profile, using defaults:', profileError);
             // Use default values
@@ -205,8 +270,12 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
           
           setProfileData({
             fullName: savedProfileName || 'Name',
-            profileImage: savedProfileAvatar ? getProfileImageUri(savedProfileAvatar) : DEFAULT_AVATAR,
+            profileImage: DEFAULT_AVATAR,
           });
+          
+          if (savedProfileAvatar) {
+            await loadAvatarUrl(savedProfileAvatar);
+          }
         } catch (storageError) {
           console.error('Failed to load from AsyncStorage:', storageError);
         }
@@ -488,15 +557,24 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
             </View>
             <TouchableOpacity onPress={handleNotifications}>
               <Animated.View style={[styles.profileImageContainer, { transform: [{ scale: notifications.hasNewContent ? notificationPulse : 1 }] }]}>
-                <Image 
-                  source={profileData.profileImage} 
-                  style={styles.profileImage}
-                  defaultSource={DEFAULT_AVATAR}
-                  onError={() => {
-                    console.log('Image load error, falling back to default');
-                    setProfileData(prev => ({ ...prev, profileImage: DEFAULT_AVATAR }));
-                  }}
-                />
+                {avatarLoading ? (
+                  <View style={styles.avatarPlaceholder}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  </View>
+                ) : (
+                  <Image 
+                    source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
+                    style={styles.profileImage}
+                    defaultSource={DEFAULT_AVATAR}
+                    onError={(e) => {
+                      console.log('Avatar failed to load:', e.nativeEvent.error);
+                      setAvatarUrl(null);
+                    }}
+                    onLoad={() => {
+                      console.log('✅ Avatar loaded successfully:', avatarUrl);
+                    }}
+                  />
+                )}
                 {(notifications.messages > 0 || notifications.news > 0) && (
                   <View style={styles.notificationBadge}>
                     <Text style={styles.notificationText}>
@@ -551,7 +629,7 @@ export default function HomeScreen({ navigation, setIsLoggedIn }) {
                 </View>
               </TouchableOpacity>
               
-              <TouchableOpacity style={styles.notificationItem} onPress={() => navigation1.navigate('FindFriendScreen')}>
+              <TouchableOpacity style={styles.notificationItem} onPress={() => navigation1.navigate('Community')}>
                 <Text style={styles.notificationIcon}>💬</Text>
                 <View>
                   <Text style={styles.notificationItemTitle}>Messages</Text>
@@ -684,6 +762,17 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.primary,
   },
+  avatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
   notificationBadge: {
     position: 'absolute',
     top: -5,
@@ -698,6 +787,22 @@ const styles = StyleSheet.create({
   notificationText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: 'bold',
+  },
+  messageNotificationBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: '#ff4c48',
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  messageNotificationText: {
+    color: '#fff',
+    fontSize: 10,
     fontWeight: 'bold',
   },
   // Scroll Indicator Styles
@@ -874,6 +979,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 15,
     marginHorizontal: 5,
+    position: 'relative',
   },
   notificationIcon: {
     fontSize: 24,
