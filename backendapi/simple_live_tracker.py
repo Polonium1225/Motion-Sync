@@ -30,12 +30,13 @@ async def tracking_page(
                 width: 100%;
                 height: 100%;
                 overflow: hidden;
-                background-color: transparent;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f1419 100%);
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }}
+            
             .container {{
                 width: 100%;
                 height: 100%;
@@ -45,124 +46,352 @@ async def tracking_page(
                 max-width: 100vw;
                 max-height: 100vh;
                 margin: 0 auto;
+                border-radius: 20px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
             }}
+            
             #videoElement {{
                 width: 100%;
                 height: 100%;
                 object-fit: contain;
-                transform: scaleX(-1);
+                border-radius: 20px;
             }}
+            
             #canvasOverlay {{
                 position: absolute;
                 top: 0;
                 left: 0;
                 width: 100%;
                 height: 100%;
-                transform: scaleX(-1);
                 pointer-events: none;
                 background: transparent;
+                border-radius: 20px;
             }}
+            
+            /* Mirror effect for front camera only */
+            .mirror {{
+                transform: scaleX(-1);
+            }}
+            
             .controls {{
                 position: absolute;
-                top: 10px;
-                left: 10px;
+                top: 20px;
+                left: 20px;
+                margin-top:60px;
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
-                z-index: 100;
+                gap: 12px;
+                z-index: 150;
             }}
+            
             .control-row {{
                 display: flex;
-                gap: 8px;
+                gap: 12px;
                 align-items: center;
             }}
+            
             button {{
-                background-color: rgba(0,0,0,0.7);
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
                 color: white;
-                border: none;
-                padding: 8px 12px;
-                border-radius: 5px;
-                font-size: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                padding: 12px 16px;
+                width:105px;
+                outline:none;
+                hight:70px;
+                border-radius: 15px;
+                font-size: 13px;
+                font-weight: 600;
                 cursor: pointer;
-                transition: all 0.3s;
-                font-weight: 500;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                min-width: 80px;
+                text-align: center;
             }}
+            
             button:hover {{
-                background-color: rgba(0,0,0,0.9);
-                transform: translateY(-1px);
+                background: rgba(255, 76, 72, 0.2);
+                border-color: #ff4c48;
+                transform: translateY(-2px);
+                box-shadow: 0 8px 16px rgba(255, 76, 72, 0.3);
             }}
+            
+            button:active {{
+                transform: translateY(0);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            }}
+            
             button:disabled {{
                 opacity: 0.5;
                 cursor: not-allowed;
                 transform: none;
+                background: rgba(255, 255, 255, 0.05);
             }}
+            
+            button:disabled:hover {{
+                transform: none;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                background: rgba(255, 255, 255, 0.05);
+                border-color: rgba(255, 255, 255, 0.2);
+            }}
+            
             .performance-panel {{
                 position: absolute;
-                top: 10px;
-                right: 10px;
-                background-color: rgba(0,0,0,0.7);
+                bottom: 110px;
+                left: 20px;
+                right: 20px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
                 color: white;
-                padding: 8px;
-                border-radius: 5px;
+                padding: 15px;
+                border-radius: 15px;
                 font-size: 11px;
-                font-family: monospace;
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
                 z-index: 100;
-                min-width: 120px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                text-align: center;
             }}
-            .status-bar {{
-                position: absolute;
-                bottom: 10px;
-                left: 10px;
-                right: 10px;
-                background-color: rgba(0,0,0,0.5);
-                color: white;
-                padding: 8px;
-                border-radius: 5px;
+            
+            .performance-panel div:first-child {{
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                padding-bottom: 8px;
+                margin-bottom: 8px;
+                color: #ff4c48;
+                font-weight: 700;
+                text-align: center;
                 font-size: 12px;
-                z-index: 100;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
             }}
+            
+            .performance-panel span {{
+                color: #ff4c48;
+                font-weight: 600;
+                margin-left: 8px;
+            }}
+            
+            /* Moved metrics-panel to bottom, replacing status-bar */
+            .metrics-panel {{
+                position: absolute;
+                bottom: 20px;
+                left: 20px;
+                right: 20px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                color: white;
+                padding: 15px;
+                border-radius: 15px;
+                font-size: 13px;
+                z-index: 120;
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            }}
+            
+            .metric-item {{
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 5px;
+                min-width: 80px;
+            }}
+            
+            .metric-value {{
+                font-size: 18px;
+                font-weight: 700;
+                color: #ff4c48;
+                text-shadow: 0 0 8px rgba(255, 76, 72, 0.3);
+            }}
+            
+            .metric-label {{
+                font-size: 11px;
+                font-weight: 500;
+                color: rgba(255, 255, 255, 0.8);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }}
+            
+            /* Hide the old status-bar */
+            .status-bar {{
+                display: none;
+            }}
+            
             .quality-indicator {{
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 10px;
+                font-weight: 600;
             }}
+            
             .quality-dot {{
-                width: 8px;
-                height: 8px;
+                width: 10px;
+                height: 10px;
                 border-radius: 50%;
-                transition: all 0.3s;
+                transition: all 0.3s ease;
+                box-shadow: 0 0 8px currentColor;
             }}
-            .quality-excellent {{ background-color: #4ade80; }}
-            .quality-good {{ background-color: #fbbf24; }}
-            .quality-fair {{ background-color: #f97316; }}
-            .quality-poor {{ background-color: #ef4444; }}
+            
+            .quality-excellent {{ 
+                background-color: #4ade80;
+                color: #4ade80;
+            }}
+            
+            .quality-good {{ 
+                background-color: #fbbf24;
+                color: #fbbf24;
+            }}
+            
+            .quality-fair {{ 
+                background-color: #f97316;
+                color: #f97316;
+            }}
+            
+            .quality-poor {{ 
+                background-color: #ef4444;
+                color: #ef4444;
+            }}
+            
             .loading {{
                 position: absolute;
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
                 color: white;
-                background-color: rgba(0,0,0,0.7);
-                padding: 20px;
-                border-radius: 10px;
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                padding: 30px;
+                border-radius: 20px;
                 text-align: center;
                 z-index: 200;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+                min-width: 200px;
             }}
+            
             .loading-spinner {{
-                border: 3px solid #f3f3f3;
-                border-top: 3px solid #3498db;
+                border: 3px solid rgba(255, 255, 255, 0.3);
+                border-top: 3px solid #ff4c48;
                 border-radius: 50%;
-                width: 30px;
-                height: 30px;
+                width: 40px;
+                height: 40px;
                 animation: spin 1s linear infinite;
-                margin: 0 auto 10px;
+                margin: 0 auto 15px;
             }}
+            
+            .loading div {{
+                font-size: 16px;
+                font-weight: 600;
+                margin-top: 10px;
+            }}
+            
             @keyframes spin {{
                 0% {{ transform: rotate(0deg); }}
                 100% {{ transform: rotate(360deg); }}
+            }}
+            
+            /* Specialized button styles */
+            .primary-button {{
+                background: rgba(255, 76, 72, 0.2);
+                border-color: #ff4c48;
+                color: #ff4c48;
+            }}
+            
+            .primary-button:hover {{
+                background: rgba(255, 76, 72, 0.3);
+                color: white;
+            }}
+            
+            .secondary-button {{
+                background: rgba(255, 255, 255, 0.05);
+            }}
+            
+            .secondary-button:hover {{
+                background: rgba(255, 255, 255, 0.15);
+            }}
+            
+            /* Status text styling */
+            #statusText {{
+                font-weight: 600;
+                color: white;
+                opacity: 0.9;
+            }}
+            
+            #confidenceText {{
+                color: #ff4c48;
+                font-weight: 600;
+            }}
+            
+            /* Responsive adjustments */
+            @media (max-width: 768px) {{
+                .controls {{
+                    top: 15px;
+                    left: 15px;
+                    gap: 8px;
+                }}
+                
+                .performance-panel {{
+                    bottom: 90px;
+                    left: 15px;
+                    right: 15px;
+                    padding: 12px;
+                    font-size: 10px;
+                }}
+                
+                .metrics-panel {{
+                    bottom: 15px;
+                    left: 15px;
+                    right: 15px;
+                    padding: 12px;
+                    font-size: 11px;
+                }}
+                
+                .metric-value {{
+                    font-size: 16px;
+                }}
+                
+                .metric-label {{
+                    font-size: 10px;
+                }}
+                
+                .metric-item {{
+                    min-width: 60px;
+                }}
+                
+                button {{
+                    padding: 10px 14px;
+                    font-size: 12px;
+                    min-width: 70px;
+                }}
+                
+                .loading {{
+                    padding: 20px;
+                    min-width: 160px;
+                }}
+            }}
+            
+            /* Additional utility classes */
+            .glass-effect {{
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }}
+            
+            .accent-glow {{
+                box-shadow: 0 0 20px rgba(255, 76, 72, 0.3);
+            }}
+            
+            /* Enhanced button states for pose tracking controls */
+            button[id*="toggle"]:hover,
+            button[id*="Btn"]:hover {{
+                color: white;
+                text-shadow: 0 0 8px rgba(255, 76, 72, 0.5);
             }}
         </style>
     </head>
@@ -178,24 +407,49 @@ async def tracking_page(
             
             <div class="controls">
                 <div class="control-row">
-                    <button id="flipCameraBtn">📷 Flip</button>
-                    <button id="toggleSkeletonBtn">🦴 Skeleton ✓</button>
-                    <button id="qualityBtn">⚡ Auto</button>
+                    <button id="flipCameraBtn" class="secondary-button">Flip</button>
+                    <button id="toggleSkeletonBtn" class="primary-button">Skeleton ✓</button>
+                    <button id="qualityBtn" class="secondary-button">Auto</button>
                 </div>
                 <div class="control-row">
-                    <button id="gpuBtn">🖥️ GPU</button>
-                    <button id="smoothBtn">✨ Smooth ✓</button>
-                    <button id="roiBtn">🎯 ROI</button>
+                    <button id="gpuBtn" class="secondary-button">🖥️ GPU</button>
+                    <button id="smoothBtn" class="secondary-button">✨ Smooth ✓</button>
+                    <button id="roiBtn" class="secondary-button">🎯 ROI</button>
                 </div>
             </div>
             
             <div class="performance-panel" id="performancePanel">
-                <div>FPS: <span id="fpsDisplay">--</span></div>
-                <div>Process: <span id="processTimeDisplay">--</span>ms</div>
-                <div>Quality: <span id="qualityDisplay">--</span></div>
-                <div>Mode: <span id="modeDisplay">Loading...</span></div>
+                <div>Pose Tracking Status</div>
+                <div style="display: flex; justify-content: space-around; margin-top: 8px;">
+                    <span>Mode: <span id="modeDisplay">Loading...</span></span>
+                    <span>Quality: <span id="qualityDisplay">--</span></span>
+                </div>
             </div>
             
+            <!-- Moved metrics panel to bottom -->
+            <div class="metrics-panel" id="metricsPanel">
+                <div class="metric-item">
+                    <div class="metric-value" id="fpsDisplay">--</div>
+                    <div class="metric-label">FPS</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="processTimeDisplay">--</div>
+                    <div class="metric-label">Process (ms)</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value" id="confidenceDisplay">--</div>
+                    <div class="metric-label">Confidence</div>
+                </div>
+                <div class="metric-item">
+                    <div class="quality-indicator">
+                        <div class="quality-dot" id="qualityDot"></div>
+                        <span id="confidenceText">--</span>
+                    </div>
+                    <div class="metric-label">Quality</div>
+                </div>
+            </div>
+            
+            <!-- Hidden status bar -->
             <div class="status-bar">
                 <div id="statusText">Initializing...</div>
                 <div class="quality-indicator">
@@ -246,6 +500,7 @@ async def tracking_page(
                     this.statusText = document.getElementById('statusText');
                     this.qualityDot = document.getElementById('qualityDot');
                     this.confidenceText = document.getElementById('confidenceText');
+                    this.confidenceDisplay = document.getElementById('confidenceDisplay');
                 }}
                 
                 initializeSettings() {{
@@ -268,7 +523,7 @@ async def tracking_page(
                     
                     // Initialize button states
                     this.smoothBtn.textContent = '✨ Smooth ✓';
-                    this.toggleSkeletonBtn.textContent = '🦴 Skeleton ✓';
+                    this.toggleSkeletonBtn.textContent = 'Skeleton ✓';
                     
                     // Processing modes based on device capability
                     this.modes = {{
@@ -616,6 +871,15 @@ async def tracking_page(
                             console.log('Video metadata loaded:', this.video.videoWidth, 'x', this.video.videoHeight);
                             this.updateCanvasSize();
                             
+                            // Apply initial mirror state based on camera
+                            if (this.currentFacingMode === 'user') {{
+                                this.video.classList.add('mirror');
+                                this.canvas.classList.add('mirror');
+                            }} else {{
+                                this.video.classList.remove('mirror');
+                                this.canvas.classList.remove('mirror');
+                            }}
+                            
                             // Wait a bit more for the video to be fully ready
                             this.video.onloadeddata = () => {{
                                 console.log('Video data loaded, calculating content rect');
@@ -898,25 +1162,15 @@ async def tracking_page(
                         // Update video content rectangle for current frame
                         this.calculateVideoContentRect();
                         
-                        // Debug: Draw video content area border (optional)
-                        if (this.videoContentRect && false) {{ // Set to true to debug
-                            this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-                            this.ctx.lineWidth = 2;
-                            this.ctx.strokeRect(
-                                this.videoContentRect.x, 
-                                this.videoContentRect.y, 
-                                this.videoContentRect.width, 
-                                this.videoContentRect.height
-                            );
-                        }}
-                        
                         // Transform all landmarks to screen coordinates
                         const transformedLandmarks = landmarks.map(landmark => this.transformLandmarkCoordinates(landmark));
                         
                         // Draw connections first
-                        this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
-                        this.ctx.lineWidth = 3;
+                        this.ctx.strokeStyle = 'rgb(255, 76, 72, 1)';
+                        this.ctx.lineWidth = 5;
                         this.ctx.lineCap = 'round';
+                        this.ctx.shadowColor = 'rgba(255, 76, 72, 0.1)';
+                        this.ctx.shadowBlur = 5;
                         
                         let drawnConnections = 0;
                         this.connections.forEach(([startIdx, endIdx]) => {{
@@ -950,6 +1204,9 @@ async def tracking_page(
                             }}
                         }});
                         
+                        // Reset shadow for landmarks
+                        this.ctx.shadowBlur = 0;
+                        
                         console.log('Drew', drawnConnections, 'connections');
                         
                         // Draw landmarks as circles using transformed coordinates
@@ -967,7 +1224,7 @@ async def tracking_page(
                                     if (x >= 0 && y >= 0 && x <= this.canvas.width && y <= this.canvas.height) {{
                                         // Different colors for different body parts
                                         if (idx < 11) {{
-                                            this.ctx.fillStyle = '#FF6B6B'; // Face - red
+                                            this.ctx.fillStyle = '#ff4c48'; // Face - accent red
                                         }} else if (idx < 23) {{
                                             this.ctx.fillStyle = '#4ECDC4'; // Arms - teal
                                         }} else {{
@@ -978,10 +1235,13 @@ async def tracking_page(
                                         this.ctx.arc(x, y, idx < 11 ? 4 : 6, 0, Math.PI * 2);
                                         this.ctx.fill();
                                         
-                                        // Add a white border
-                                        this.ctx.strokeStyle = 'white';
-                                        this.ctx.lineWidth = 1;
+                                        // Add a white border with glow
+                                        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                                        this.ctx.lineWidth = 2;
+                                        this.ctx.shadowColor = this.ctx.fillStyle;
+                                        this.ctx.shadowBlur = 8;
                                         this.ctx.stroke();
+                                        this.ctx.shadowBlur = 0;
                                         
                                         drawnLandmarks++;
                                     }}
@@ -990,17 +1250,6 @@ async def tracking_page(
                         }});
                         
                         console.log('Drew', drawnLandmarks, 'landmarks');
-                        console.log('Video content area:', this.videoContentRect);
-                        
-                        // Debug: Show first landmark transformation
-                        if (landmarks.length > 0 && transformedLandmarks.length > 0) {{
-                            const original = landmarks[0];
-                            const transformed = transformedLandmarks[0];
-                            console.log('First landmark transform:', 
-                                'original:', original.x.toFixed(3), ',', original.y.toFixed(3),
-                                'transformed:', transformed.x.toFixed(1), ',', transformed.y.toFixed(1)
-                            );
-                        }}
                         
                         if (drawnLandmarks === 0 && drawnConnections === 0) {{
                             console.warn('No landmarks or connections were drawn - check landmark data and video content rect');
@@ -1009,7 +1258,7 @@ async def tracking_page(
                     }} catch (error) {{
                         console.error('Error drawing pose results:', error);
                         // Draw a simple indicator to show the system is working
-                        this.ctx.fillStyle = 'red';
+                        this.ctx.fillStyle = '#ff4c48';
                         this.ctx.fillRect(10, 10, 20, 20);
                     }}
                 }}
@@ -1044,6 +1293,7 @@ async def tracking_page(
                 
                 updateQualityIndicator(confidence, quality) {{
                     this.qualityDisplay.textContent = quality;
+                    this.confidenceDisplay.textContent = `${{Math.round(confidence * 100)}}%`;
                     this.confidenceText.textContent = `${{Math.round(confidence * 100)}}%`;
                     
                     this.qualityDot.className = `quality-dot quality-${{quality}}`;
@@ -1090,6 +1340,16 @@ async def tracking_page(
                         this.flipCameraBtn.textContent = this.currentFacingMode === 'user' ? '📷 Flip' : '📱 Flip';
                         
                         await this.startCamera();
+                        
+                        // Apply mirror effect only for front camera
+                        if (this.currentFacingMode === 'user') {{
+                            this.video.classList.add('mirror');
+                            this.canvas.classList.add('mirror');
+                        }} else {{
+                            this.video.classList.remove('mirror');
+                            this.canvas.classList.remove('mirror');
+                        }}
+                        
                         this.updateStatus('Camera switched successfully');
                     }} catch (error) {{
                         this.updateStatus(`Camera switch failed: ${{error.message}}`);
@@ -1102,7 +1362,8 @@ async def tracking_page(
                 
                 toggleSkeleton() {{
                     this.showSkeleton = !this.showSkeleton;
-                    this.toggleSkeletonBtn.textContent = this.showSkeleton ? '🦴 Skeleton ✓' : '🦴 Skeleton';
+                    this.toggleSkeletonBtn.textContent = this.showSkeleton ? 'Skeleton ✓' : 'Skeleton';
+                    this.toggleSkeletonBtn.className = this.showSkeleton ? 'primary-button' : 'secondary-button';
                     
                     console.log('Skeleton toggled:', this.showSkeleton ? 'ON' : 'OFF');
                     
@@ -1141,11 +1402,13 @@ async def tracking_page(
                 toggleGPU() {{
                     this.settings.useGPU = !this.settings.useGPU;
                     this.gpuBtn.textContent = this.settings.useGPU ? '🖥️ GPU ✓' : '🖥️ CPU';
+                    this.gpuBtn.className = this.settings.useGPU ? 'primary-button' : 'secondary-button';
                 }}
                 
                 toggleSmoothing() {{
                     this.settings.useSmoothing = !this.settings.useSmoothing;
                     this.smoothBtn.textContent = this.settings.useSmoothing ? '✨ Smooth ✓' : '✨ Smooth';
+                    this.smoothBtn.className = this.settings.useSmoothing ? 'primary-button' : 'secondary-button';
                     
                     if (!this.settings.useSmoothing) {{
                         this.landmarkHistory = [];
@@ -1155,6 +1418,7 @@ async def tracking_page(
                 toggleROI() {{
                     this.settings.useROI = !this.settings.useROI;
                     this.roiBtn.textContent = this.settings.useROI ? '🎯 ROI ✓' : '🎯 ROI';
+                    this.roiBtn.className = this.settings.useROI ? 'primary-button' : 'secondary-button';
                     
                     if (!this.settings.useROI) {{
                         this.roi = null;

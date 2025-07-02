@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,8 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  ImageBackground, // 👈 Updated import
+  ImageBackground,
+  ActivityIndicator,
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,31 +18,74 @@ import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../constants/Colors';
 
-// 👈 Import the background image
-import backgroundImage from '../assets/sfgsdh.png'; // Adjust the path to your image
+// Import the background image
+import backgroundImage from '../assets/sfgsdh.png';
 
 export default function SignIn({ setIsLoggedIn }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAutoLogging, setIsAutoLogging] = useState(false);
   const navigation = useNavigation();
 
-  const handleLogin = async () => {
-    try {
-      if (!email || !password) {
-        Alert.alert("Error", "Please enter both email and password");
-        return;
-      }
+  // Check for saved credentials on component mount
+  useEffect(() => {
+    checkSavedCredentials();
+  }, []);
 
+  const checkSavedCredentials = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem('saved_email');
+      const savedPassword = await AsyncStorage.getItem('saved_password');
+      const savedRememberMe = await AsyncStorage.getItem('remember_me');
+
+      if (savedEmail && savedPassword && savedRememberMe === 'true') {
+        setEmail(savedEmail);
+        setPassword(savedPassword);
+        setRememberMe(true);
+        // Automatically sign in
+        setIsAutoLogging(true);
+        await performLogin(savedEmail, savedPassword, false);
+      }
+    } catch (error) {
+      console.error("Error checking saved credentials:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveCredentials = async (email, password, remember) => {
+    try {
+      if (remember) {
+        await AsyncStorage.setItem('saved_email', email);
+        await AsyncStorage.setItem('saved_password', password);
+        await AsyncStorage.setItem('remember_me', 'true');
+      } else {
+        await AsyncStorage.removeItem('saved_email');
+        await AsyncStorage.removeItem('saved_password');
+        await AsyncStorage.removeItem('remember_me');
+      }
+    } catch (error) {
+      console.error("Error saving credentials:", error);
+    }
+  };
+
+  const performLogin = async (loginEmail, loginPassword, showAlert = true) => {
+    try {
       // Clear existing sessions
       await account.deleteSessions().catch(() => {});
 
       // Create new session
-      await account.createEmailPasswordSession(email, password);
+      await account.createEmailPasswordSession(loginEmail, loginPassword);
       const user = await account.get();
 
       // Update status to online (silently fail if it doesn't work)
       await userProfiles.safeUpdateStatus(user.$id, 'online');
+
+      // Save credentials if remember me is checked
+      await saveCredentials(loginEmail, loginPassword, rememberMe);
 
       // Complete login
       await AsyncStorage.setItem('profile_name', user.name);
@@ -54,31 +98,65 @@ export default function SignIn({ setIsLoggedIn }) {
         type: error.type
       });
 
-      let errorMessage = "Invalid email or password";
-      if (error.code === 401) {
-        errorMessage = "Invalid credentials";
-      } else if (error.code === 404) {
-        errorMessage = "Account not found";
+      // Clear saved credentials if auto-login fails
+      if (isAutoLogging) {
+        await saveCredentials('', '', false);
+        setIsAutoLogging(false);
       }
 
-      Alert.alert("Login Error", errorMessage);
+      if (showAlert) {
+        let errorMessage = "Invalid email or password";
+        if (error.code === 401) {
+          errorMessage = "Invalid credentials";
+        } else if (error.code === 404) {
+          errorMessage = "Account not found";
+        }
+
+        Alert.alert("Login Error", errorMessage);
+      }
     }
+  };
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password");
+      return;
+    }
+
+    await performLogin(email, password, true);
   };
 
   const handleNavigateToSignUp = () => {
     navigation.navigate("SignUp");
   };
 
+  // Show loading spinner while checking saved credentials
+  if (isLoading || isAutoLogging) {
+    return (
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>
+            {isAutoLogging ? "Signing you in..." : "Loading..."}
+          </Text>
+        </View>
+      </ImageBackground>
+    );
+  }
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
     >
-      {/* 👈 Replace View with ImageBackground */}
       <ImageBackground
-        source={backgroundImage} // 👈 Set the background image
+        source={backgroundImage}
         style={styles.container}
-        resizeMode="cover" // 👈 Ensure the image covers the screen
+        resizeMode="cover"
       >
         <View colors={["#ff4c48", "#04032d"]} style={styles.topSection}>
           <Text style={styles.welcomeText}>Welcome Back</Text>
@@ -131,6 +209,21 @@ export default function SignIn({ setIsLoggedIn }) {
             </View>
           </View>
 
+          {/* Remember Me Checkbox */}
+          <View style={styles.checkboxContainer}>
+            <TouchableOpacity 
+              style={styles.checkboxWrapper}
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && (
+                  <Ionicons name="checkmark" size={16} color={Colors.textPrimary} />
+                )}
+              </View>
+              <Text style={styles.checkboxText}>Remember Me</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Buttons */}
           <View style={styles.buttonWrapper}>
             <TouchableOpacity>
@@ -142,7 +235,7 @@ export default function SignIn({ setIsLoggedIn }) {
             </TouchableOpacity>
           </View>
 
-          {/* Fixed Login Button with pointerEvents */}
+          {/* Login Button */}
           <LinearGradient
             colors={['#ff4c48', '#0b0a1f']}
             start={{ x: 0, y: 0 }}
@@ -166,7 +259,16 @@ export default function SignIn({ setIsLoggedIn }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    // 👈 Remove backgroundColor since the image will be the background
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: Colors.textPrimary,
+    fontSize: 16,
+    marginTop: 10,
   },
   topSection: {
     height: "50%",
@@ -216,6 +318,31 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 16,
     marginBottom: 10,
+  },
+  checkboxContainer: {
+    width: "90%",
+    marginBottom: 10,
+  },
+  checkboxWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: "#ff4c48",
+    borderRadius: 4,
+    marginRight: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: "#ff4c48",
+  },
+  checkboxText: {
+    color: Colors.textPrimary,
+    fontSize: 14,
   },
   forgotPassword: {
     color: Colors.textPrimary,

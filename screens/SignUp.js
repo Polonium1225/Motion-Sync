@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   ImageBackground,
-  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
@@ -124,28 +125,31 @@ export default function SignUp({ setIsLoggedIn }) {
   };
 
   return (
-    <ImageBackground
-      source={backgroundImage}
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={{ flex: 1 }}
-      resizeMode="cover"
     >
-      <SafeAreaView style={{ flex: 1 }}>
+      <ImageBackground
+        source={backgroundImage}
+        style={styles.container}
+        resizeMode="cover"
+      >
         <ScrollView 
-          style={styles.container}
           contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
         >
-          <LinearGradient colors={[Colors.primary, Colors.background]} style={styles.topSection}>
+          <View style={styles.topSection}>
             <Text style={styles.welcomeText}>Create Account</Text>
-          </LinearGradient>
+          </View>
 
           <View style={styles.formContainer}>
             <Text style={styles.signUpText}>Sign Up</Text>
 
-            <View style={styles.inputContainer}>
+            {/* Name Input */}
+            <View>
               <Text style={styles.inputText}>Name</Text>
               <View style={styles.inputWrapper}>
-                <Octicons name="person" size={20} color={Colors.primary} />
+                <Octicons name="person" size={20} color="#ff4c48" />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter Your Name"
@@ -157,10 +161,11 @@ export default function SignUp({ setIsLoggedIn }) {
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
+            {/* Email Input */}
+            <View>
               <Text style={styles.inputText}>Email</Text>
               <View style={styles.inputWrapper}>
-                <Octicons name="mail" size={20} color={Colors.primary} />
+                <Octicons name="mail" size={20} color="#ff4c48" />
                 <TextInput
                   style={styles.input}
                   placeholder="Enter Your Email"
@@ -174,10 +179,11 @@ export default function SignUp({ setIsLoggedIn }) {
               </View>
             </View>
 
-            <View style={styles.inputContainer}>
+            {/* Password Input */}
+            <View>
               <Text style={styles.inputText}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Octicons name="lock" size={20} color={Colors.primary} />
+                <Octicons name="lock" size={20} color="#ff4c48" />
                 <TextInput
                   style={[styles.input]}
                   placeholder="Enter Your Password"
@@ -200,43 +206,47 @@ export default function SignUp({ setIsLoggedIn }) {
               </View>
             </View>
 
+            {/* Google Sign In Button */}
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={() => promptAsync()}
+            >
+              <Ionicons name="logo-google" size={20} color={Colors.textPrimary} style={styles.googleIcon} />
+              <Text style={styles.googleButtonText}>Sign up with Google</Text>
+            </TouchableOpacity>
+
+            {/* Navigation Buttons */}
             <View style={styles.buttonWrapper}>
+              <Text style={styles.alreadyHaveAccount}>Already have an account?</Text>
               <TouchableOpacity onPress={() => navigation.navigate("SignIn")}>
                 <Text style={[styles.signInText]}>Sign In</Text>
               </TouchableOpacity>
             </View>
 
+            {/* Sign Up Button */}
             <LinearGradient
-              colors={[Colors.primary, Colors.background]}
+              colors={['#ff4c48', '#0b0a1f']}
               start={{ x: 0, y: 0 }}
-              end={{ x: 0.2, y: 1 }}
-              style={[styles.loginButton, styles.androidShadow]}
+              end={{ x: 0.3, y: 1 }}
+              style={[styles.signUpButton, styles.androidShadow]}
             >
               <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
                 <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
               </TouchableOpacity>
             </LinearGradient>
-
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={() => promptAsync()}
-            >
-              <Text style={styles.googleButtonText}>Sign in with Google</Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
-      </SafeAreaView>
-    </ImageBackground>
+      </ImageBackground>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
   },
   topSection: {
-    height: 300, // Fixed height instead of percentage
+    height: "50%",
     justifyContent: 'center',
   },
   welcomeText: {
@@ -244,42 +254,36 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: "bold",
     textAlign: "center",
-    marginTop: 60,
+    marginTop: "40%",
   },
   formContainer: {
     flex: 1,
-    backgroundColor: Colors.surfaceDark,
+    backgroundColor: "#0b0a1f",
     marginTop: -80,
     alignItems: "center",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     padding: 20,
-    paddingBottom: 40, // Extra padding at bottom
-    minHeight: 500, // Minimum height to ensure all content fits
+    paddingBottom: 40,
   },
   signUpText: {
-    color: Colors.primary,
+    color: "#ff4c48",
     fontSize: 24,
     fontWeight: "bold",
     marginTop: 35,
     marginBottom: 20,
-    alignSelf: 'flex-start',
-    marginLeft: 20,
-  },
-  inputContainer: {
-    width: '100%',
-    marginBottom: 15,
+    marginLeft: -210
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    width: "100%",
-    backgroundColor: Colors.surfaceDark,
-    borderColor: Colors.primary,
+    width: "90%",
+    backgroundColor: "#1F2229",
+    borderColor: "#ff4c48",
     borderWidth: 2,
     borderRadius: 30,
     paddingLeft: 10,
-    marginBottom: 5,
+    marginBottom: 20,
   },
   input: {
     flex: 1,
@@ -291,16 +295,45 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: 16,
     marginBottom: 10,
-    marginLeft: 10,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: "#1F2229",
+    borderColor: "#ff4c48",
+    borderWidth: 2,
+    padding: 15,
+    borderRadius: 30,
+    width: '90%',
+    marginBottom: 20,
+  },
+  googleIcon: {
+    marginRight: 10,
+  },
+  googleButtonText: {
+    color: Colors.textPrimary,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   buttonWrapper: {
-    width: '100%',
-    alignItems: 'flex-end',
-    paddingRight: 20,
-    marginBottom: 20, // Reduced space since arrow button is back to top position
+    marginTop: 15,
+    width: '90%',
+    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  loginButton: {
-    position: "absolute",
+  alreadyHaveAccount: {
+    color: Colors.textPrimary,
+    fontSize: 14,
+  },
+  signInText: {
+    color: "#ff4c48",
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  signUpButton: {
+    position: 'absolute',
     top: -30,
     right: 40,
     backgroundColor: Colors.primaryDeep,
@@ -310,34 +343,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   buttonInner: {
-    width: "100%",
+    width: 50,
+    height: 50,
     alignItems: "center",
-  },
-  buttonText: {
-    color: Colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "bold",
+    justifyContent: "center",
   },
   androidShadow: {
     elevation: 10,
-  },
-  signInText: {
-    color: Colors.primary,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  googleButton: {
-    backgroundColor: Colors.accentBlue,
-    padding: 15,
-    borderRadius: 30,
-    alignItems: 'center',
-    marginTop: 20,
-    width: '100%',
-    marginBottom: 20, // Extra margin at bottom
-  },
-  googleButtonText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
