@@ -21,6 +21,7 @@ import { Video } from 'expo-av';
 import { saveHistory, getUserId } from '../lib/AppwriteService';
 import { API_CONFIG } from './config';
 import { useUserData, useUserProgress } from '../hooks/useUserData';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -178,7 +179,7 @@ export default function PerformanceScreen() {
       setLoadingMessage('Uploading New Video...');
       const newUrl = await uploadVideo(videoUri);
   
-      setLoadingMessage('Analyzing performance...');
+      setLoadingMessage('Analyzing performance with AI...');
       
       const compareUrl = `${API_CONFIG.BASE_URL}/compare`;
       console.log('Making compare request to:', compareUrl);
@@ -217,11 +218,15 @@ export default function PerformanceScreen() {
         }
       }
 
+      // Navigate to comparison screen with the processed video URLs that include pose estimation
       navigation.navigate('PerformanceComparisonScreen', {
-        videoUri: newUrl,
-        pastVideoUri: pastUrl,
+        videoUri: compareResult.new_video_url || newUrl, // Use processed video URL if available
+        pastVideoUri: compareResult.past_video_url || pastUrl, // Use processed video URL if available
         similarity: compareResult.similarity,
         smoothness: compareResult.smoothness,
+        speed: compareResult.speed,
+        cohesion: compareResult.cohesion,
+        accuracy: compareResult.accuracy,
         improvements: compareResult.improvements,
         regressions: compareResult.regressions,
       });
@@ -345,7 +350,7 @@ export default function PerformanceScreen() {
 
   return (
     <ImageBackground
-      source={require('../assets/backalso2.png')}
+      source={require('../assets/sfgsdh.png')}
       style={styles.container}
       resizeMode="cover"
     >
@@ -412,7 +417,7 @@ export default function PerformanceScreen() {
           <View style={styles.titleSection}>
             <Text style={styles.sectionTitle}>Compare Performance</Text>
             <Text style={styles.sectionSubtitle}>
-              Upload two videos to analyze your improvement and earn XP
+              Upload two videos to analyze your improvement with AI pose estimation
             </Text>
           </View>
 
@@ -425,33 +430,41 @@ export default function PerformanceScreen() {
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
             >
-              <View style={styles.cardContent}>
-                <View style={styles.cardIconContainer}>
-                  <Text style={styles.cardIcon}>📹</Text>
+              <LinearGradient
+                colors={['rgba(255, 76, 72, 0.1)', 'rgba(11, 10, 31, 0.7)']}
+                style={styles.cardGradient}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.cardIconContainer}>
+                    <Ionicons name="videocam" size={28} color="#ff4c48" />
+                  </View>
+                  <View style={styles.cardTextContainer}>
+                    <Text style={styles.cardTitle}>Past Performance</Text>
+                    <Text style={styles.cardSubtitle}>
+                      {pastVideoUri ? 'Video selected ✓' : 'Tap to select reference video'}
+                    </Text>
+                  </View>
+                  <View style={styles.cardArrow}>
+                    <Ionicons name="chevron-forward" size={20} color="#ff4c48" />
+                  </View>
                 </View>
-                <View style={styles.cardTextContainer}>
-                  <Text style={styles.cardTitle}>Past Performance</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {pastVideoUri ? 'Video selected ✓' : 'Tap to select video'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.cardArrow}>
-                <Text style={styles.arrowText}>→</Text>
-              </View>
-              {pastVideoUri && (
-                <View style={styles.checkmark}>
-                  <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
-                </View>
-              )}
+                {pastVideoUri && (
+                  <View style={styles.checkmark}>
+                    <Ionicons name="checkmark-circle" size={24} color="#00FF94" />
+                  </View>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
 
             {/* VS Indicator */}
             <View style={styles.vsContainer}>
-              <View style={styles.vsCircle}>
+              <LinearGradient
+                colors={['#ff4c48', '#0b0a1f']}
+                style={styles.vsCircle}
+              >
                 <Text style={styles.vsText}>VS</Text>
-              </View>
-              <Text style={styles.vsSubtext}>Compare & Earn XP</Text>
+              </LinearGradient>
+              <Text style={styles.vsSubtext}>AI Pose Analysis</Text>
             </View>
 
             {/* New Video Card */}
@@ -461,25 +474,30 @@ export default function PerformanceScreen() {
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
             >
-              <View style={styles.cardContent}>
-                <View style={styles.cardIconContainer}>
-                  <Text style={styles.cardIcon}>🎬</Text>
+              <LinearGradient
+                colors={['rgba(255, 76, 72, 0.1)', 'rgba(11, 10, 31, 0.7)']}
+                style={styles.cardGradient}
+              >
+                <View style={styles.cardContent}>
+                  <View style={styles.cardIconContainer}>
+                    <Ionicons name="camera" size={28} color="#ff4c48" />
+                  </View>
+                  <View style={styles.cardTextContainer}>
+                    <Text style={styles.cardTitle}>New Performance</Text>
+                    <Text style={styles.cardSubtitle}>
+                      {videoUri ? 'Video selected ✓' : 'Tap to select current video'}
+                    </Text>
+                  </View>
+                  <View style={styles.cardArrow}>
+                    <Ionicons name="chevron-forward" size={20} color="#ff4c48" />
+                  </View>
                 </View>
-                <View style={styles.cardTextContainer}>
-                  <Text style={styles.cardTitle}>New Performance</Text>
-                  <Text style={styles.cardSubtitle}>
-                    {videoUri ? 'Video selected ✓' : 'Tap to select video'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.cardArrow}>
-                <Text style={styles.arrowText}>→</Text>
-              </View>
-              {videoUri && (
-                <View style={styles.checkmark}>
-                  <Ionicons name="checkmark-circle" size={20} color="#00FF94" />
-                </View>
-              )}
+                {videoUri && (
+                  <View style={styles.checkmark}>
+                    <Ionicons name="checkmark-circle" size={24} color="#00FF94" />
+                  </View>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
           </View>
 
@@ -499,13 +517,18 @@ export default function PerformanceScreen() {
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
             >
-              <View style={styles.compareButtonContent}>
-                <Ionicons name="analytics-outline" size={24} color="white" />
-                <Text style={styles.compareButtonText}>ANALYZE & EARN XP</Text>
-                {isInitialized && (
-                  <Text style={styles.xpHint}>+50-100 XP</Text>
-                )}
-              </View>
+              <LinearGradient
+                colors={(!pastVideoUri || !videoUri) ? ['#666', '#333'] : ['#ff4c48', '#0b0a1f']}
+                style={styles.compareButtonGradient}
+              >
+                <View style={styles.compareButtonContent}>
+                  <Ionicons name="analytics-outline" size={28} color="white" />
+                  <Text style={styles.compareButtonText}>ANALYZE WITH AI</Text>
+                  {isInitialized && (
+                    <Text style={styles.xpHint}>+50-100 XP • Pose Estimation</Text>
+                  )}
+                </View>
+              </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
 
@@ -515,15 +538,25 @@ export default function PerformanceScreen() {
               style={styles.quickActionButton}
               onPress={navigateToProgress}
             >
-              <Ionicons name="trending-up" size={20} color="#ff4c48" />
-              <Text style={styles.quickActionText}>View Progress</Text>
+              <LinearGradient
+                colors={['rgba(255, 76, 72, 0.1)', 'rgba(11, 10, 31, 0.7)']}
+                style={styles.quickActionGradient}
+              >
+                <Ionicons name="trending-up" size={24} color="#ff4c48" />
+                <Text style={styles.quickActionText}>View Progress</Text>
+              </LinearGradient>
             </TouchableOpacity>
             <TouchableOpacity 
               style={styles.quickActionButton}
               onPress={navigateToAchievements}
             >
-              <Ionicons name="trophy" size={20} color="#ff4c48" />
-              <Text style={styles.quickActionText}>Achievements</Text>
+              <LinearGradient
+                colors={['rgba(255, 76, 72, 0.1)', 'rgba(11, 10, 31, 0.7)']}
+                style={styles.quickActionGradient}
+              >
+                <Ionicons name="trophy" size={24} color="#ff4c48" />
+                <Text style={styles.quickActionText}>Achievements</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -532,46 +565,57 @@ export default function PerformanceScreen() {
         <Modal animationType="fade" transparent={true} visible={modalVisible}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Upload New Performance</Text>
-                <TouchableOpacity 
-                  style={styles.closeButton} 
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Ionicons name="close" size={24} color="white" />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.modalBody}>
-                {videoUri ? (
-                  <Video
-                    source={{ uri: videoUri }}
-                    style={styles.modalVideoPreview}
-                    useNativeControls
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <View style={styles.modalPlaceholder}>
-                    <Ionicons name="videocam-outline" size={80} color="rgba(255,255,255,0.5)" />
-                    <Text style={styles.modalPlaceholderText}>No video selected</Text>
-                  </View>
-                )}
+              <LinearGradient
+                colors={['rgba(11, 10, 31, 0.95)', 'rgba(31, 41, 55, 0.95)']}
+                style={styles.modalContent}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Upload New Performance</Text>
+                  <TouchableOpacity 
+                    style={styles.closeButton} 
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={24} color="white" />
+                  </TouchableOpacity>
+                </View>
                 
-                <TouchableOpacity 
-                  style={styles.modalButton}
-                  onPress={() => pickVideo(setVideoUri)}
-                >
-                  <Ionicons name="cloud-upload-outline" size={20} color="white" />
-                  <Text style={styles.modalButtonText}>Select Video</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.modalSecondaryButton}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.modalSecondaryButtonText}>Done</Text>
-                </TouchableOpacity>
-              </View>
+                <View style={styles.modalBody}>
+                  {videoUri ? (
+                    <Video
+                      source={{ uri: videoUri }}
+                      style={styles.modalVideoPreview}
+                      useNativeControls
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.modalPlaceholder}>
+                      <Ionicons name="videocam-outline" size={80} color="rgba(255,255,255,0.5)" />
+                      <Text style={styles.modalPlaceholderText}>No video selected</Text>
+                      <Text style={styles.modalPlaceholderSubtext}>Select a video to analyze with AI</Text>
+                    </View>
+                  )}
+                  
+                  <TouchableOpacity 
+                    style={styles.modalButton}
+                    onPress={() => pickVideo(setVideoUri)}
+                  >
+                    <LinearGradient
+                      colors={['#ff4c48', '#0b0a1f']}
+                      style={styles.modalButtonGradient}
+                    >
+                      <Ionicons name="cloud-upload-outline" size={20} color="white" />
+                      <Text style={styles.modalButtonText}>Select Video</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.modalSecondaryButton}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Text style={styles.modalSecondaryButtonText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
             </View>
           </View>
         </Modal>
@@ -580,46 +624,57 @@ export default function PerformanceScreen() {
         <Modal animationType="fade" transparent={true} visible={pastModalVisible}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Upload Past Performance</Text>
-                <TouchableOpacity 
-                  style={styles.closeButton} 
-                  onPress={() => setPastModalVisible(false)}
-                >
-                  <Ionicons name="close" size={24} color="white" />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={styles.modalBody}>
-                {pastVideoUri ? (
-                  <Video
-                    source={{ uri: pastVideoUri }}
-                    style={styles.modalVideoPreview}
-                    useNativeControls
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <View style={styles.modalPlaceholder}>
-                    <Ionicons name="videocam-outline" size={80} color="rgba(255,255,255,0.5)" />
-                    <Text style={styles.modalPlaceholderText}>No video selected</Text>
-                  </View>
-                )}
+              <LinearGradient
+                colors={['rgba(11, 10, 31, 0.95)', 'rgba(31, 41, 55, 0.95)']}
+                style={styles.modalContent}
+              >
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Upload Past Performance</Text>
+                  <TouchableOpacity 
+                    style={styles.closeButton} 
+                    onPress={() => setPastModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={24} color="white" />
+                  </TouchableOpacity>
+                </View>
                 
-                <TouchableOpacity 
-                  style={styles.modalButton}
-                  onPress={() => pickVideo(setPastVideoUri)}
-                >
-                  <Ionicons name="cloud-upload-outline" size={20} color="white" />
-                  <Text style={styles.modalButtonText}>Select Video</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.modalSecondaryButton}
-                  onPress={() => setPastModalVisible(false)}
-                >
-                  <Text style={styles.modalSecondaryButtonText}>Done</Text>
-                </TouchableOpacity>
-              </View>
+                <View style={styles.modalBody}>
+                  {pastVideoUri ? (
+                    <Video
+                      source={{ uri: pastVideoUri }}
+                      style={styles.modalVideoPreview}
+                      useNativeControls
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.modalPlaceholder}>
+                      <Ionicons name="videocam-outline" size={80} color="rgba(255,255,255,0.5)" />
+                      <Text style={styles.modalPlaceholderText}>No video selected</Text>
+                      <Text style={styles.modalPlaceholderSubtext}>Select a reference video for comparison</Text>
+                    </View>
+                  )}
+                  
+                  <TouchableOpacity 
+                    style={styles.modalButton}
+                    onPress={() => pickVideo(setPastVideoUri)}
+                  >
+                    <LinearGradient
+                      colors={['#ff4c48', '#0b0a1f']}
+                      style={styles.modalButtonGradient}
+                    >
+                      <Ionicons name="cloud-upload-outline" size={20} color="white" />
+                      <Text style={styles.modalButtonText}>Select Video</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.modalSecondaryButton}
+                    onPress={() => setPastModalVisible(false)}
+                  >
+                    <Text style={styles.modalSecondaryButtonText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
             </View>
           </View>
         </Modal>
@@ -628,29 +683,37 @@ export default function PerformanceScreen() {
         <Modal animationType="fade" transparent={true} visible={loading}>
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingContainer}>
-              <Animated.View
-                style={[
-                  styles.loadingIcon,
-                  {
-                    transform: [{
-                      rotate: rotateAnimation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['0deg', '360deg']
-                      })
-                    }]
-                  }
-                ]}
+              <LinearGradient
+                colors={['rgba(11, 10, 31, 0.95)', 'rgba(31, 41, 55, 0.95)']}
+                style={styles.loadingContent}
               >
-                <Ionicons name="analytics-outline" size={48} color={Colors.primary} />
-              </Animated.View>
-              <Text style={styles.loadingTitle}>Processing Analysis</Text>
-              <Text style={styles.loadingMessage}>{loadingMessage}</Text>
-              {isInitialized && (
-                <Text style={styles.loadingXP}>Earning XP for your analysis...</Text>
-              )}
-              <View style={styles.loadingBar}>
-                <View style={styles.loadingBarFill} />
-              </View>
+                <Animated.View
+                  style={[
+                    styles.loadingIcon,
+                    {
+                      transform: [{
+                        rotate: rotateAnimation.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '360deg']
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  <Ionicons name="analytics-outline" size={48} color="#ff4c48" />
+                </Animated.View>
+                <Text style={styles.loadingTitle}>AI Analysis in Progress</Text>
+                <Text style={styles.loadingMessage}>{loadingMessage}</Text>
+                {isInitialized && (
+                  <Text style={styles.loadingXP}>Earning XP for your analysis...</Text>
+                )}
+                <View style={styles.loadingBar}>
+                  <LinearGradient
+                    colors={['#ff4c48', '#0b0a1f']}
+                    style={styles.loadingBarFill}
+                  />
+                </View>
+              </LinearGradient>
             </View>
           </View>
         </Modal>
@@ -685,12 +748,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
   },
   headerTitle: {
     flex: 1,
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: 'white',
     textAlign: 'center',
     marginLeft: 15,
   },
@@ -701,19 +766,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
   },
   progressOverview: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
+    backgroundColor: 'rgba(11, 10, 31, 0.8)',
+    borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: 'rgba(255, 76, 72, 0.3)',
   },
   overviewTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: 'white',
     marginBottom: 15,
     textAlign: 'center',
   },
@@ -726,26 +793,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   levelNumber: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#ff4c48',
   },
   levelXP: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
   userStreak: {
     alignItems: 'center',
   },
   streakNumber: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#ff4c48',
   },
   streakLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
   progressBarContainer: {
@@ -753,19 +820,20 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     width: '100%',
-    height: 6,
+    height: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 3,
+    borderRadius: 4,
     marginBottom: 8,
+    overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
     backgroundColor: '#ff4c48',
-    borderRadius: 3,
+    borderRadius: 4,
   },
   progressText: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
   },
   titleSection: {
@@ -773,200 +841,178 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionTitle: {
-    color: Colors.textPrimary,
-    fontSize: 24,
+    color: 'white',
+    fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 10,
     textAlign: 'center',
   },
   sectionSubtitle: {
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
     textAlign: 'center',
-    opacity: 0.8,
+    lineHeight: 20,
   },
   videoContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
+    marginBottom: 30,
   },
   videoCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 15,
-    padding: 15,
+    borderRadius: 20,
     marginBottom: 15,
-    minHeight: 80,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    overflow: 'hidden',
     borderWidth: 2,
-    borderColor: Colors.primary,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
+  },
+  cardGradient: {
+    padding: 20,
     position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
   cardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   cardIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 76, 72, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
-  },
-  cardIcon: {
-    fontSize: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 76, 72, 0.5)',
   },
   cardTextContainer: {
     flex: 1,
   },
   cardTitle: {
-    color: Colors.textPrimary,
-    fontSize: 16,
+    color: 'white',
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: 5,
   },
   cardSubtitle: {
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 13,
-    opacity: 0.8,
+    lineHeight: 18,
   },
   cardArrow: {
-    width: 35,
-    height: 35,
-    borderRadius: 17.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 76, 72, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 10,
   },
-  arrowText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   checkmark: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 15,
+    top: 15,
+    right: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 20,
     padding: 5,
   },
   vsContainer: {
     alignItems: 'center',
-    marginVertical: 10,
+    marginVertical: 20,
   },
   vsCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: Colors.primary,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowColor: '#ff4c48',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   vsText: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   vsSubtext: {
     color: '#ff4c48',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    marginTop: 5,
+    marginTop: 8,
   },
   compareButton: {
-    backgroundColor: 'rgba(255, 76, 72, 0.1)',
+    borderRadius: 20,
+    marginBottom: 30,
+    overflow: 'hidden',
     borderWidth: 2,
-    borderColor: Colors.primary,
-    borderRadius: 15,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    marginBottom: 20,
+    borderColor: 'rgba(255, 76, 72, 0.5)',
   },
   compareButtonDisabled: {
-    opacity: 0.5,
     borderColor: '#666',
+  },
+  compareButtonGradient: {
+    padding: 25,
+    alignItems: 'center',
   },
   compareButtonContent: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   compareButtonText: {
-    color: Colors.textPrimary,
-    fontSize: 18,
+    color: 'white',
+    fontSize: 20,
+    width:'80vw',
     fontWeight: 'bold',
-    marginTop: 8,
+    marginTop: 10,
+    letterSpacing: 1,
   },
   xpHint: {
     color: '#ff4c48',
     fontSize: 12,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 6,
+    textAlign: 'center',
   },
   quickActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
   quickActionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 15,
-    alignItems: 'center',
-    width: '45%',
+    width: '48%',
+    borderRadius: 15,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 76, 72, 0.2)',
+    borderColor: 'rgba(255, 76, 72, 0.3)',
+  },
+  quickActionGradient: {
+    padding: 20,
+    alignItems: 'center',
   },
   quickActionText: {
-    color: Colors.textPrimary,
-    fontSize: 14,
+    color: 'white',
+    fontSize: 16,
     fontWeight: '600',
-    marginTop: 5,
+    marginTop: 8,
   },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
   modalContainer: {
     width: width * 0.9,
     maxHeight: height * 0.8,
-    backgroundColor: 'rgba(31, 41, 55, 0.95)',
-    borderRadius: 15,
+    borderRadius: 20,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
+  },
+  modalContent: {
+    padding: 0,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -974,12 +1020,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 76, 72, 0.3)',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: 'white',
   },
   closeButton: {
     width: 35,
@@ -997,32 +1043,41 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 15,
     marginBottom: 20,
+    backgroundColor: '#000',
   },
   modalPlaceholder: {
     height: 200,
     borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 76, 72, 0.3)',
     borderStyle: 'dashed',
   },
   modalPlaceholderText: {
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     marginTop: 10,
   },
+  modalPlaceholderSubtext: {
+    color: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 12,
+    marginTop: 5,
+    textAlign: 'center',
+  },
   modalButton: {
+    borderRadius: 15,
+    marginBottom: 15,
+    overflow: 'hidden',
+  },
+  modalButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
     paddingVertical: 15,
-    borderRadius: 15,
-    marginBottom: 15,
   },
   modalButtonText: {
     color: 'white',
@@ -1034,12 +1089,12 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
     borderRadius: 15,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'rgba(255, 76, 72, 0.3)',
   },
   modalSecondaryButtonText: {
-    color: Colors.textPrimary,
+    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -1047,16 +1102,18 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
   },
   loadingContainer: {
-    backgroundColor: 'rgba(31, 41, 55, 0.95)',
-    borderRadius: 15,
+    borderRadius: 20,
+    minWidth: 300,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
+    overflow: 'hidden',
+  },
+  loadingContent: {
     padding: 40,
     alignItems: 'center',
-    minWidth: 280,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   loadingIcon: {
     marginBottom: 20,
@@ -1064,12 +1121,12 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: Colors.textPrimary,
+    color: 'white',
     marginBottom: 10,
   },
   loadingMessage: {
     fontSize: 16,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.8)',
     textAlign: 'center',
     marginBottom: 10,
   },
@@ -1082,15 +1139,14 @@ const styles = StyleSheet.create({
   },
   loadingBar: {
     width: 200,
-    height: 4,
+    height: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   loadingBarFill: {
     height: '100%',
     width: '70%',
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
+    borderRadius: 3,
   },
 });

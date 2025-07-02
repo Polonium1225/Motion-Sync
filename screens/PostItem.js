@@ -1,15 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Animated, TextInput, FlatList, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId } from '../lib/AppwriteService';
+import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId, getPostById, addComment } from '../lib/AppwriteService';
 import { DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
 import DEFAULT_AVATAR from '../assets/avatar.png';
 import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 
 // Add your Appwrite project ID and endpoint (should match AppwriteService.js)
-const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Replace with your actual project ID
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Replace if different
+const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Main project ID
+const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Main endpoint
+
+// Comment system seems to use different Appwrite instance
+const COMMENT_PROJECT_ID = '685ebdb90007d578e80d'; // From comment avatar URLs
+const COMMENT_API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // From comment avatar URLs
 
 const PostItem = ({ post, navigation, index = 0 }) => {
   const [isLiked, setIsLiked] = useState(false);
@@ -17,6 +21,13 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   const [commentCount, setCommentCount] = useState(0);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [loadingAvatar, setLoadingAvatar] = useState(false);
+  
+  // Comment expansion state
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [commentLoading, setCommentLoading] = useState(false);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -24,6 +35,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   const likeScale = useRef(new Animated.Value(1)).current;
   const heartBeat = useRef(new Animated.Value(1)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
+  const commentsOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Staggered animation for posts
@@ -67,6 +79,20 @@ const PostItem = ({ post, navigation, index = 0 }) => {
       }
     } catch (error) {
       console.error('Error loading post data:', error);
+    }
+  };
+
+  const loadComments = async () => {
+    if (comments.length > 0) return; // Don't reload if already loaded
+    
+    try {
+      setLoadingComments(true);
+      const postData = await getPostById(post.$id);
+      setComments(postData.comments || []);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    } finally {
+      setLoadingComments(false);
     }
   };
 
@@ -119,6 +145,59 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     }
   };
 
+  const handleCommentToggle = async () => {
+    if (!commentsExpanded) {
+      // Expanding comments
+      setCommentsExpanded(true);
+      await loadComments();
+      
+      Animated.timing(commentsOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      // Collapsing comments
+      Animated.timing(commentsOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        setCommentsExpanded(false);
+      });
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    
+    try {
+      setCommentLoading(true);
+      const userId = await getUserId();
+      const commentData = await addComment(post.$id, userId, newComment);
+      
+      if (commentData) {
+        const newCommentWithUser = {
+          ...commentData,
+          $createdAt: new Date().toISOString(),
+          user: commentData.user
+        };
+        
+        setComments(prev => [...prev, newCommentWithUser]);
+        setCommentCount(prev => prev + 1);
+        setNewComment('');
+        
+        // Show success feedback
+        console.log('Comment added successfully');
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert('Error', 'Failed to add comment');
+    } finally {
+      setCommentLoading(false);
+    }
+  };
+
   const handlePressIn = () => {
     Animated.spring(buttonScale, {
       toValue: 0.95,
@@ -155,6 +234,74 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     if (diffHours < 24) return `${diffHours}h`;
     if (diffDays < 7) return `${diffDays}d`;
     return date.toLocaleDateString();
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const [failedAvatars, setFailedAvatars] = useState(new Set());
+
+  const renderComment = ({ item }) => {
+    const getCommentAvatarUrl = (user) => {
+      if (!user?.avatar) return null;
+      
+      // If avatar is already a full URL and hasn't failed before, use it
+      if (typeof user.avatar === 'string' && user.avatar.startsWith('http')) {
+        // If this URL has failed before, try constructing with main project
+        if (failedAvatars.has(user.avatar)) {
+          // Extract file ID from the failed URL
+          const fileIdMatch = user.avatar.match(/files\/([^\/]+)\//);
+          if (fileIdMatch) {
+            const fileId = fileIdMatch[1];
+            return `${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`;
+          }
+        }
+        return user.avatar;
+      }
+      
+      // If it's just an ID, construct with main project
+      return `${API_ENDPOINT}/storage/buckets/profile_images/files/${user.avatar}/view?project=${PROJECT_ID}`;
+    };
+
+    const avatarUrl = getCommentAvatarUrl(item.user);
+
+    return (
+      <View style={styles.commentContainer}>
+        <Image 
+          source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
+          style={styles.commentAvatar}
+          defaultSource={DEFAULT_AVATAR}
+          onError={(e) => {
+            console.log('❌ Comment avatar failed for URL:', avatarUrl);
+            
+            // Mark this URL as failed for future fallback
+            if (item.user?.avatar && typeof item.user.avatar === 'string' && item.user.avatar.startsWith('http')) {
+              setFailedAvatars(prev => new Set([...prev, item.user.avatar]));
+            }
+          }}
+          onLoad={() => {
+            console.log('✅ Comment avatar loaded successfully:', avatarUrl);
+          }}
+        />
+        <View style={styles.commentContent}>
+          <View style={styles.commentHeader}>
+            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+            <Text style={styles.commentDate}>
+              {formatDate(item.$createdAt)}
+            </Text>
+          </View>
+          <Text style={styles.commentText}>{item.content}</Text>
+        </View>
+      </View>
+    );
   };
 
   return (
@@ -209,10 +356,6 @@ const PostItem = ({ post, navigation, index = 0 }) => {
       {post.imageUrl && (
         <TouchableOpacity 
           style={styles.imageContainer}
-          onPress={() => navigation.navigate('PostDetail', {
-            postId: post.$id,
-            onGoBack: loadData
-          })}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
         >
@@ -264,21 +407,20 @@ const PostItem = ({ post, navigation, index = 0 }) => {
           {/* Comment Button */}
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => navigation.navigate('PostDetail', {
-              postId: post.$id,
-              onGoBack: loadData
-            })}
+            onPress={handleCommentToggle}
             onPressIn={handlePressIn}
             onPressOut={handlePressOut}
           >
             <View style={styles.actionIconContainer}>
               <Ionicons 
-                name="chatbubble-outline" 
+                name={commentsExpanded ? "chatbubble" : "chatbubble-outline"} 
                 size={22} 
-                color="rgba(255, 255, 255, 0.7)" 
+                color={commentsExpanded ? Colors.primary : "rgba(255, 255, 255, 0.7)"} 
               />
             </View>
-            <Text style={styles.actionText}>{formatCount(commentCount)}</Text>
+            <Text style={[styles.actionText, commentsExpanded && { color: Colors.primary }]}>
+              {formatCount(commentCount)}
+            </Text>
           </TouchableOpacity>
 
           {/* Share Button */}
@@ -308,6 +450,79 @@ const PostItem = ({ post, navigation, index = 0 }) => {
           </View>
         )}
       </View>
+
+      {/* Comments Section */}
+      {commentsExpanded && (
+        <Animated.View 
+          style={[
+            styles.commentsSection,
+            {
+              opacity: commentsOpacity,
+            }
+          ]}
+        >
+          {/* Hide Comments Button */}
+          <TouchableOpacity 
+            style={styles.hideCommentsButton}
+            onPress={handleCommentToggle}
+          >
+            <Ionicons name="chevron-up" size={20} color={Colors.primary} />
+            <Text style={styles.hideCommentsText}>Hide Comments</Text>
+          </TouchableOpacity>
+
+          {/* Comments List */}
+          <View style={styles.commentsContainer}>
+            {loadingComments ? (
+              <View style={styles.loadingCommentsContainer}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.loadingCommentsText}>Loading comments...</Text>
+              </View>
+            ) : comments.length > 0 ? (
+              <FlatList
+                data={comments}
+                renderItem={renderComment}
+                keyExtractor={item => item.$id}
+                style={styles.commentsList}
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+              />
+            ) : (
+              <Text style={styles.noCommentsText}>No comments yet. Be the first to comment!</Text>
+            )}
+          </View>
+
+          {/* Comment Input */}
+          <View style={styles.commentInputContainer}>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Write a comment..."
+              placeholderTextColor="rgba(255, 255, 255, 0.5)"
+              value={newComment}
+              onChangeText={setNewComment}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity 
+              onPress={handleAddComment} 
+              disabled={commentLoading || !newComment.trim()}
+              style={[
+                styles.sendButton,
+                (!newComment.trim() || commentLoading) && styles.sendButtonDisabled
+              ]}
+            >
+              {commentLoading ? (
+                <ActivityIndicator size="small" color="rgba(255, 255, 255, 0.5)" />
+              ) : (
+                <Ionicons 
+                  name="send" 
+                  size={20} 
+                  color={newComment.trim() ? Colors.primary : "rgba(255, 255, 255, 0.5)"} 
+                />
+              )}
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
     </Animated.View>
   );
 };
@@ -455,6 +670,118 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
+  },
+  commentsSection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  hideCommentsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  hideCommentsText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  commentsContainer: {
+    flex: 1,
+    maxHeight: 250,
+  },
+  loadingCommentsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  loadingCommentsText: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.6)',
+  },
+  commentsList: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  commentContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+    paddingVertical: 8,
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  commentAuthor: {
+    fontWeight: 'bold',
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  commentDate: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  commentText: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.8)',
+    lineHeight: 18,
+  },
+  noCommentsText: {
+    textAlign: 'center',
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    paddingVertical: 20,
+    fontStyle: 'italic',
+  },
+  commentInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  commentInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 10,
+    color: Colors.textPrimary,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  sendButton: {
+    padding: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 40,
+    minHeight: 40,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
 });
 
