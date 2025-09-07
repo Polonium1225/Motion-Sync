@@ -178,6 +178,7 @@ export default function PerformanceScreen() {
       
       setLoadingMessage('Uploading New Video...');
       const newUrl = await uploadVideo(videoUri);
+      console.log('New video URL:', newUrl);
   
       setLoadingMessage('Analyzing performance with AI...');
       
@@ -197,17 +198,27 @@ export default function PerformanceScreen() {
       });
   
       const compareResult = await compareResponse.json();
+      
+      console.log('Compare response:', compareResult);
   
-      if (!compareResponse.ok) throw new Error(compareResult.detail || 'Comparison failed');
+      if (!compareResponse.ok) {
+        const errorMessage = compareResult.detail || compareResult.message || 'Comparison failed';
+        throw new Error(errorMessage);
+      }
+
+      // Verify that processed videos were created
+      if (!compareResult.past_video_url || !compareResult.new_video_url) {
+        throw new Error('Processed videos were not created successfully');
+      }
   
       // Record this as a workout session in UserDataManager
       if (isInitialized) {
         try {
           const sessionData = {
             exerciseType: 'performance_comparison',
-            motionScore: Math.round((compareResult.similarity || 0) * 100),
+            motionScore: Math.round((compareResult.similarity || 0)),
             duration: 300, // Assume 5 minute analysis session
-            perfectForms: compareResult.improvements ? compareResult.improvements.length : 0,
+            perfectForms: compareResult.improvements ? compareResult.improvements : 0,
             date: new Date().toISOString()
           };
 
@@ -220,8 +231,8 @@ export default function PerformanceScreen() {
 
       // Navigate to comparison screen with the processed video URLs that include pose estimation
       navigation.navigate('PerformanceComparisonScreen', {
-        videoUri: compareResult.new_video_url || newUrl, // Use processed video URL if available
-        pastVideoUri: compareResult.past_video_url || pastUrl, // Use processed video URL if available
+        videoUri: compareResult.new_video_url, // Use processed video URL
+        pastVideoUri: compareResult.past_video_url, // Use processed video URL
         similarity: compareResult.similarity,
         smoothness: compareResult.smoothness,
         speed: compareResult.speed,
@@ -232,30 +243,59 @@ export default function PerformanceScreen() {
       });
 
     } catch (error) {
+      console.error('Comparison error:', error);
       Alert.alert(
-        'Error',
-        'Failed to upload or compare videos. Please try again.',
-        [{ text: 'OK', style: 'cancel' }],
+        'Analysis Error',
+        `Failed to analyze videos: ${error.message}\n\nThis could be due to:\n• Video format compatibility\n• Server connectivity issues\n• Video processing limitations\n\nPlease try with different videos or check your connection.`,
+        [
+          { text: 'Try Again', style: 'default' },
+          { text: 'Cancel', style: 'cancel' }
+        ],
         { cancelable: true }
       );
-      console.error(error);
     } finally {
       setLoading(false);
     }
   }, [pastVideoUri, videoUri, buttonScale, isInitialized, addWorkoutSession]);
 
   const pickVideo = async (setVideoFunction) => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
-      quality: 1,
-    });
-    if (!result.canceled) {
-      setVideoFunction(result.assets[0].uri);
+    try {
+      let result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        quality: 1,
+        videoMaxDuration: 60, // Limit to 60 seconds for processing efficiency
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        
+        // Basic validation
+        if (asset.duration && asset.duration > 120000) { // 2 minutes in milliseconds
+          Alert.alert(
+            'Video Too Long',
+            'Please select a video shorter than 2 minutes for optimal processing.',
+            [{ text: 'OK', style: 'default' }]
+          );
+          return;
+        }
+        
+        console.log('Video selected:', asset.uri);
+        setVideoFunction(asset.uri);
+      }
+    } catch (error) {
+      console.error('Error picking video:', error);
+      Alert.alert(
+        'Selection Error',
+        'Failed to select video. Please try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
     }
   };
 
   const uploadVideo = async (uri) => {
+    console.log('Starting upload for:', uri);
+    
     const filename = uri.split('/').pop();
     const match = /\.(\w+)$/.exec(filename);
     const type = match ? `video/${match[1]}` : 'video/mp4';
@@ -268,7 +308,10 @@ export default function PerformanceScreen() {
     });
 
     try {
-      const response = await fetch(`${API_CONFIG.BASE_URL}/uploads`, {
+      const uploadUrl = `${API_CONFIG.BASE_URL}/uploads`;
+      console.log('Uploading to:', uploadUrl);
+      
+      const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
         headers: {
@@ -276,10 +319,12 @@ export default function PerformanceScreen() {
         },
       });
 
+      console.log('Upload response status:', response.status);
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Upload API error response:', errorText);
-        throw new Error(errorText || 'Upload failed');
+        throw new Error(`Upload failed: HTTP ${response.status}`);
       }
       
       const responseText = await response.text();
@@ -318,6 +363,7 @@ export default function PerformanceScreen() {
         throw new Error('Server response missing URL');
       }
       
+      console.log('Upload successful:', result.url);
       return result.url;
     } catch (error) {
       console.error('Upload error:', error);
@@ -513,7 +559,7 @@ export default function PerformanceScreen() {
                 (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
               ]}
               onPress={handleCompare}
-              disabled={!pastVideoUri || !videoUri}
+              disabled={!pastVideoUri || !videoUri || loading}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
             >

@@ -6,6 +6,7 @@ import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+
 // Import all your screens
 import HomeScreen from '../screens/HomeScreen';
 import test from '../screens/test';
@@ -18,6 +19,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import CameraScreen from '../screens/camera';
 import SignIn from '../screens/SignIn';
 import SignUp from '../screens/SignUp';
+
 import PerformanceScreen from '../screens/PerformanceScreen';
 import PerformanceComparisonScreen from '../screens/PerformanceComparisonScreen';
 import ChatScreen from '../screens/ChatScreen';
@@ -25,12 +27,18 @@ import SearchFriendsScreen from '../screens/SearchFriendsScreen';
 import NoConversationScreen from '../screens/NoConversationScreen';
 import FindFriendScreen from '../screens/FindFriendScreen';
 import image_analyser3d from '../screens/image_analyser3d';
-import aichatscreen from '../screens/aichatscreen.js'
-import BadgesAndMilestonesScreen from '../screens/BadgesAndMilestonesScreen.js'
-import GymFinder from '../screens/GymFinder.js'
-import image3dplot from '../screens/image3dplot.js'
+import aichatscreen from '../screens/aichatscreen'
+import BadgesAndMilestonesScreen from '../screens/BadgesAndMilestonesScreen'
+import GymFinder from '../screens/GymFinder'
+import image3dplot from '../screens/image3dplot'
 import DemoSessionScreen from '../screens/DemoSessionScreen';
 import UserProfileScreen from '../screens/UserProfileScreen';
+
+
+import UpdatedPoseEstimationSelectionScreen from '../screens/UpdatedPoseEstimationSelectionScreen';
+
+
+import MovementAnalysisScreen from '../screens/MovementAnalysisScreen.js';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -127,6 +135,7 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             name="PostDetail"
             component={PostDetailScreen}
           />
+          
           <Stack.Screen
             name="BadgesAndMilestonesScreen"
             component={BadgesAndMilestonesScreen}
@@ -152,6 +161,30 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             component={DemoSessionScreen}
             options={{ headerShown: false }}
           />
+          <Stack.Screen 
+            name="MovementAnalysis" 
+            component={MovementAnalysisScreen}
+            options={{ 
+              headerShown: false,
+              cardStyle: { backgroundColor: 'transparent' }
+            }}
+          />
+
+          {/* POSE ESTIMATION SCREENS - Original System */}
+          
+          
+          
+          
+
+          {/* NEW SIMPLE MULTI-PHONE SYSTEM SCREENS - ADD THESE */}
+          <Stack.Screen 
+            name="UpdatedPoseEstimationSelectionScreen" 
+            component={UpdatedPoseEstimationSelectionScreen}
+            options={{ headerShown: false }}
+          />
+          
+          
+          
 
           {/* Existing screens */}
           <Stack.Screen

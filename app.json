@@ -16,7 +16,13 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs location access to find nearby gyms and fitness facilities.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to find nearby gyms and fitness facilities."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs location access to find nearby gyms and fitness facilities.",
+        "NSCameraUsageDescription": "Camera access is required for pose analysis and multi-phone 3D capture",
+        "NSMicrophoneUsageDescription": "Microphone access is required for video recording during pose analysis",
+        "NSPhotoLibraryUsageDescription": "Photo library access is required to analyze poses from existing images",
+        "NSLocalNetworkUsageDescription": "Local network access is required for multi-phone communication and synchronized capture",
+        "NSBluetoothAlwaysUsageDescription": "Bluetooth access is required for multi-phone communication",
+        "NSBluetoothPeripheralUsageDescription": "Bluetooth access is required for device discovery and communication"
       }
     },
     "android": {
@@ -29,7 +35,17 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.NEARBY_WIFI_DEVICES"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -44,7 +60,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for pose detection."
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera for pose detection and multi-phone 3D capture.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone for video recording during pose analysis"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos for pose analysis from existing images"
         }
       ],
       [

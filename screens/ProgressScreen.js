@@ -85,19 +85,22 @@ export default function ProgressScreen() {
     }
   };
 
-  const navigateToPoseEstimation = async () => {
-    try {
-      navigation.navigate('image3dplot');
-      
-      // Track usage for potential badge unlocks
-      if (isInitialized) {
-        // Could add a "usage" metric to track how often users use different features
-        console.log('Pose estimation accessed');
-      }
-    } catch (error) {
-      Alert.alert('Navigation Error', 'Pose estimation screen not found');
+  // Updated navigateToPoseEstimation function in ProgressScreen.js
+
+const navigateToPoseEstimation = async () => {
+  try {
+    // Navigate to the new pose estimation selection screen
+    navigation.navigate('UpdatedPoseEstimationSelectionScreen');
+    
+    // Track usage for potential badge unlocks
+    if (isInitialized) {
+      console.log('Pose estimation feature accessed');
+      // You could add analytics or badge tracking here
     }
-  };
+  } catch (error) {
+    Alert.alert('Navigation Error', 'Pose estimation screen not found');
+  }
+};
 
   const navigateToVideoAnalysis = () => {
     try {
@@ -120,6 +123,14 @@ export default function ProgressScreen() {
       navigation.navigate('aichatscreen'); // Use AI assistant for form correction
     } catch (error) {
       Alert.alert('Coming Soon', 'Form correction feature will be available soon!');
+    }
+  };
+
+  const navigateToWorkoutPrograms = async () => {
+    try {
+      navigation.navigate('WorkoutPrograms');
+    } catch (error) {
+      Alert.alert('Navigation Error', 'Workout programs screen not found');
     }
   };
 
@@ -164,6 +175,18 @@ export default function ProgressScreen() {
       Alert.alert('Error', 'Failed to start demo session');
     }
   };
+
+  // Add this function in ProgressScreen.js:
+const navigateToVideoMovementAnalysis = async () => {
+  try {
+    navigation.navigate('MovementAnalysis');
+  } catch (error) {
+    Alert.alert('Navigation Error', 'Movement analysis screen not found');
+  }
+};
+
+// Add this card to your analysis tools section:
+
 
   // Analysis Card Component with enhanced interactivity
   const AnalysisCard = ({ 
@@ -384,6 +407,15 @@ export default function ProgressScreen() {
                   onPress={navigateToPoseEstimation}
                   usageCount={Math.floor((progress?.totalSessions || 0) * 0.7)}
                 />
+                <AnalysisCard
+                  title="Video Movement Analysis"
+                  description="Upload workout videos for comprehensive biomechanical analysis"
+                  icon="videocam"
+                  color={["#ff4c48", "#c44569", "#8b2635"]}
+                  onPress={navigateToVideoMovementAnalysis}
+                  isHighlighted={true}
+                  isNew={true}
+                />
 
                 <AnalysisCard
                   title="Video Analysis"
@@ -408,6 +440,16 @@ export default function ProgressScreen() {
                   icon="chatbubbles"
                   color={["#3a3a3a", "#252525", "#1a1a1a"]}
                   onPress={navigateToFormCorrection}
+                />
+
+                <AnalysisCard
+                  title="Workout Programs"
+                  description="Create weekly or monthly workout programs with progress tracking and analytics"
+                  icon="calendar"
+                  color={["#6a4c93", "#9c27b0", "#673ab7"]}
+                  onPress={navigateToWorkoutPrograms}
+                  isHighlighted={true}
+                  usageCount={0}
                 />
 
                 <AnalysisCard

@@ -40,11 +40,37 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
   const [radarChartHeight, setRadarChartHeight] = useState(300);
   const [pieChartHeight, setPieChartHeight] = useState(300);
 
+  // Video loading states
+  const [pastVideoStatus, setPastVideoStatus] = useState('loading');
+  const [newVideoStatus, setNewVideoStatus] = useState('loading');
+  const [pastVideoError, setPastVideoError] = useState(null);
+  const [newVideoError, setNewVideoError] = useState(null);
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
 
   useEffect(() => {
+    // Debug: Log the received video URLs
+    console.log('PerformanceComparisonScreen - Video URLs received:');
+    console.log('Past Video URI:', pastVideoUri);
+    console.log('New Video URI:', videoUri);
+    
+    // Validate URLs
+    if (!pastVideoUri || !videoUri) {
+      console.error('Missing video URIs');
+      Alert.alert(
+        "Missing Videos",
+        "One or more videos are missing. Please go back and try again.",
+        [{ text: "Go Back", onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+
+    // Check if URLs are accessible
+    checkVideoAccessibility(pastVideoUri, 'past');
+    checkVideoAccessibility(videoUri, 'new');
+
     // Start animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -61,15 +87,56 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
     ]).start();
   }, []);
 
-  // Handle missing videos
-  if (!videoUri || !pastVideoUri) {
-    Alert.alert(
-      "Missing Videos",
-      "One or more videos are missing. Please go back and try again.",
-      [{ text: "Go Back", onPress: () => navigation.goBack() }]
-    );
-    return null;
-  }
+  const checkVideoAccessibility = async (uri, type) => {
+    try {
+      console.log(`Checking accessibility for ${type} video:`, uri);
+      
+      // First check if URL is properly formatted
+      if (!uri || !uri.startsWith('http')) {
+        throw new Error(`Invalid URL format: ${uri}`);
+      }
+      
+      const response = await fetch(uri, { method: 'HEAD' });
+      console.log(`${type} video response status:`, response.status);
+      console.log(`${type} video content-type:`, response.headers.get('content-type'));
+      console.log(`${type} video content-length:`, response.headers.get('content-length'));
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.startsWith('video/')) {
+        console.warn(`${type} video: Unexpected content type:`, contentType);
+      }
+      
+      const contentLength = response.headers.get('content-length');
+      if (!contentLength || parseInt(contentLength) === 0) {
+        console.warn(`${type} video: Empty or no content-length`);
+      }
+      
+      // If we get here, the video should be accessible
+      console.log(`✅ ${type} video is accessible`);
+      
+    } catch (error) {
+      console.error(`${type} video accessibility check failed:`, error);
+      if (type === 'past') {
+        setPastVideoError(error.message);
+      } else {
+        setNewVideoError(error.message);
+      }
+      
+      // For debugging: try to get more info about the server
+      try {
+        const serverBaseUrl = uri.split('/uploads/')[0];
+        const healthResponse = await fetch(`${serverBaseUrl}/test-files`);
+        const healthData = await healthResponse.json();
+        console.log('Server file list:', healthData);
+      } catch (serverError) {
+        console.log('Could not fetch server file list:', serverError.message);
+      }
+    }
+  };
 
   const togglePlayback = async () => {
     try {
@@ -83,6 +150,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
       setIsPlaying(!isPlaying);
     } catch (error) {
       console.error("Video playback error:", error);
+      Alert.alert("Playback Error", "Could not control video playback.");
     }
   };
 
@@ -98,7 +166,67 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
     }
   };
 
-  // Sanitize data
+  const handleVideoLoad = (type) => {
+    console.log(`${type} video loaded successfully`);
+    if (type === 'past') {
+      setPastVideoStatus('loaded');
+    } else {
+      setNewVideoStatus('loaded');
+    }
+  };
+
+  const handleVideoError = (error, type) => {
+    console.error(`Video loading error (${type}):`, error);
+    const errorMessage = error?.error?.message || error?.nativeEvent?.error?.message || 'Unknown video error';
+    
+    if (type === 'past') {
+      setPastVideoStatus('error');
+      setPastVideoError(errorMessage);
+    } else {
+      setNewVideoStatus('error');
+      setNewVideoError(errorMessage);
+    }
+    
+    Alert.alert(
+      "Video Error", 
+      `Could not load ${type} performance video.\nError: ${errorMessage}\n\nThis might be due to video format compatibility. Please try different videos.`,
+      [
+        { text: "Retry", onPress: () => {
+          // Reset error state and try again
+          if (type === 'past') {
+            setPastVideoStatus('loading');
+            setPastVideoError(null);
+          } else {
+            setNewVideoStatus('loading');
+            setNewVideoError(null);
+          }
+        }},
+        { text: "Go Back", onPress: () => navigation.goBack() }
+      ]
+    );
+  };
+
+  const renderVideoStatus = (status, error, type) => {
+    if (status === 'loading') {
+      return (
+        <View style={styles.videoStatusOverlay}>
+          <Ionicons name="refresh" size={24} color="white" style={{ opacity: 0.7 }} />
+          <Text style={styles.videoStatusText}>Loading {type} video...</Text>
+        </View>
+      );
+    } else if (status === 'error') {
+      return (
+        <View style={styles.videoStatusOverlay}>
+          <Ionicons name="warning" size={24} color="#ff6b6b" />
+          <Text style={styles.videoStatusText}>Failed to load {type} video</Text>
+          <Text style={styles.videoErrorText}>{error}</Text>
+        </View>
+      );
+    }
+    return null;
+  };
+
+  // Sanitize data with better validation
   const sanitizedSimilarity = Math.min(100, Math.max(0, similarity ?? 75));
   const sanitizedSmoothness = Math.min(100, Math.max(0, smoothness ?? 60));
   const sanitizedSpeed = Math.min(100, Math.max(0, speed ?? 65));
@@ -413,11 +541,19 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 style={styles.video}
                 resizeMode="contain"
                 isLooping
-                onError={(error) => {
-                  console.error("Video loading error (past):", error);
-                  Alert.alert("Video Error", "Could not load past performance video.");
+                shouldPlay={false}
+                onLoad={() => handleVideoLoad('past')}
+                onError={(error) => handleVideoError(error, 'past')}
+                onLoadStart={() => {
+                  console.log('Past video loading started');
+                  setPastVideoStatus('loading');
+                }}
+                onReadyForDisplay={() => {
+                  console.log('Past video ready for display');
+                  setPastVideoStatus('loaded');
                 }}
               />
+              {renderVideoStatus(pastVideoStatus, pastVideoError, 'past')}
               <LinearGradient
                 colors={['rgba(0,0,0,0.7)', 'transparent']}
                 style={styles.videoLabel}
@@ -445,11 +581,19 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 style={styles.video}
                 resizeMode="contain"
                 isLooping
-                onError={(error) => {
-                  console.error("Video loading error (new):", error);
-                  Alert.alert("Video Error", "Could not load current performance video.");
+                shouldPlay={false}
+                onLoad={() => handleVideoLoad('new')}
+                onError={(error) => handleVideoError(error, 'new')}
+                onLoadStart={() => {
+                  console.log('New video loading started');
+                  setNewVideoStatus('loading');
+                }}
+                onReadyForDisplay={() => {
+                  console.log('New video ready for display');
+                  setNewVideoStatus('loaded');
                 }}
               />
+              {renderVideoStatus(newVideoStatus, newVideoError, 'new')}
               <LinearGradient
                 colors={['rgba(0,0,0,0.7)', 'transparent']}
                 style={styles.videoLabel}
@@ -458,6 +602,36 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
                 <Text style={styles.videoSubLabel}>With pose landmarks</Text>
               </LinearGradient>
             </View>
+          </View>
+
+          {/* Debug Info (remove in production) */}
+          <View style={styles.debugContainer}>
+            <Text style={styles.debugTitle}>Debug Info</Text>
+            <Text style={styles.debugText}>Past Video: {pastVideoStatus}</Text>
+            <Text style={styles.debugText}>New Video: {newVideoStatus}</Text>
+            <Text style={styles.debugText}>Past URI: {pastVideoUri?.substring(0, 50)}...</Text>
+            <Text style={styles.debugText}>New URI: {videoUri?.substring(0, 50)}...</Text>
+            {pastVideoError && <Text style={[styles.debugText, {color: '#ff6b6b'}]}>Past Error: {pastVideoError}</Text>}
+            {newVideoError && <Text style={[styles.debugText, {color: '#ff6b6b'}]}>New Error: {newVideoError}</Text>}
+            <TouchableOpacity 
+              style={styles.debugButton}
+              onPress={async () => {
+                try {
+                  if (pastVideoUri) {
+                    const serverBaseUrl = pastVideoUri.split('/uploads/')[0];
+                    const response = await fetch(`${serverBaseUrl}/test-files`);
+                    const data = await response.json();
+                    console.log('Server files:', data);
+                    Alert.alert('Server Files', `Found ${data.file_count} files on server`);
+                  }
+                } catch (e) {
+                  console.error('Debug fetch failed:', e);
+                  Alert.alert('Debug Error', e.message);
+                }
+              }}
+            >
+              <Text style={styles.debugButtonText}>Test Server</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Analysis Section */}
@@ -609,6 +783,7 @@ export default function PerformanceComparisonScreen({ route, navigation }) {
             <TouchableOpacity 
               style={styles.playButtonInner}
               onPress={togglePlayback}
+              disabled={pastVideoStatus === 'error' || newVideoStatus === 'error'}
             >
               <Ionicons 
                 name={isPlaying ? "pause" : "play"} 
@@ -691,10 +866,36 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     borderWidth: 2,
     borderColor: 'rgba(255, 76, 72, 0.5)',
+    position: 'relative',
   },
   video: {
     width: '100%',
     height: '100%',
+  },
+  videoStatusOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  videoStatusText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  videoErrorText: {
+    color: '#ff6b6b',
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   videoLabel: {
     position: 'absolute',
@@ -733,6 +934,38 @@ const styles = StyleSheet.create({
   vsText: {
     color: 'white',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  debugContainer: {
+    backgroundColor: 'rgba(11, 10, 31, 0.7)',
+    marginHorizontal: 20,
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  debugTitle: {
+    color: '#ff4c48',
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  debugText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  debugButton: {
+    backgroundColor: 'rgba(255, 76, 72, 0.2)',
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    alignItems: 'center',
+  },
+  debugButtonText: {
+    color: '#ff4c48',
+    fontSize: 12,
     fontWeight: 'bold',
   },
   analysisContainer: {
