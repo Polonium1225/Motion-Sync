@@ -179,7 +179,7 @@ const navigateToPoseEstimation = async () => {
   // Add this function in ProgressScreen.js:
 const navigateToVideoMovementAnalysis = async () => {
   try {
-    navigation.navigate('MovementAnalysis');
+    navigation.navigate('FormCorrectionModeScreen');
   } catch (error) {
     Alert.alert('Navigation Error', 'Movement analysis screen not found');
   }
@@ -399,16 +399,9 @@ const navigateToVideoMovementAnalysis = async () => {
               <Text style={styles.sectionTitle}>🔬 Analysis Tools</Text>
               
               <View style={styles.analysisGrid}>
+                
                 <AnalysisCard
-                  title="Pose Estimation"
-                  description="Analyze movement from photos and detect 33 key pose landmarks"
-                  icon="body"
-                  color={["#2c2c2c", "#1a1a1a", "#000000"]}
-                  onPress={navigateToPoseEstimation}
-                  usageCount={Math.floor((progress?.totalSessions || 0) * 0.7)}
-                />
-                <AnalysisCard
-                  title="Video Movement Analysis"
+                  title="Form Correction Mode"
                   description="Upload workout videos for comprehensive biomechanical analysis"
                   icon="videocam"
                   color={["#ff4c48", "#c44569", "#8b2635"]}
@@ -417,23 +410,9 @@ const navigateToVideoMovementAnalysis = async () => {
                   isNew={true}
                 />
 
-                <AnalysisCard
-                  title="Video Analysis"
-                  description="Frame-by-frame breakdown of recorded workout videos"
-                  icon="videocam"
-                  color={["#3c3c3c", "#2a2a2a", "#1c1c1c"]}
-                  onPress={navigateToVideoAnalysis}
-                />
+                
 
-                <AnalysisCard
-                  title="Performance Metrics"
-                  description="Detailed statistics and progress tracking over time"
-                  icon="analytics"
-                  color={["#232526", "#414345"]}
-                  onPress={navigateToPerformanceMetrics}
-                  usageCount={badges?.earned?.length || 0}
-                />
-
+                
                 <AnalysisCard
                   title="AI Form Coach"
                   description="AI-powered suggestions for improving exercise technique"

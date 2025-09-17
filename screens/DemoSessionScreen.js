@@ -10,12 +10,14 @@ import {
   ImageBackground,
   SafeAreaView,
   Animated,
-  BackHandler
+  BackHandler,
+  Platform
 } from 'react-native';
 import WebView from 'react-native-webview';
 import { Camera, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av'; // Add this import for audio
 import { API_CONFIG } from './config';
 import Colors from '../constants/Colors';
 import backgroundImage from '../assets/sfgsdh.png';
@@ -34,13 +36,140 @@ export default function DemoSessionScreen() {
   const [webViewKey, setWebViewKey] = useState(1);
   const [sessionStartTime] = useState(Date.now());
   const [completedSteps, setCompletedSteps] = useState([]);
-  const [currentStep, setCurrentStep] = useState(null);
+  const [currentStep, setCurrentStep] = useState('Get Ready');
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
   
   // Camera permissions
   const [permission, requestPermission] = useCameraPermissions();
+  const [cameraReady, setCameraReady] = useState(false);
   
   // Animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const successOverlayAnim = useRef(new Animated.Value(0)).current;
+  const webViewRef = useRef(null);
+  
+  // Audio
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const audioRefs = useRef({
+    success: null,
+    tick: null,
+    start: null,
+    complete: null
+  });
+
+  // Initialize audio on component mount
+  useEffect(() => {
+    setupAudio();
+    return () => {
+      // Cleanup audio on unmount
+      Object.values(audioRefs.current).forEach(audio => {
+        if (audio) {
+          audio.unloadAsync().catch(e => console.log('Audio cleanup error:', e));
+        }
+      });
+    };
+  }, []);
+
+  const setupAudio = async () => {
+    try {
+      // Set audio mode for better mobile compatibility
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        interruptionModeIOS: Audio.InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: Audio.InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Create simple audio objects without external files for now
+      // Using system sounds or creating simple audio programmatically
+      const audioFiles = {
+        success: { uri: 'data:audio/wav;base64,UklGRl4GAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YToGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2+LDcSUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCSCG3/DHeyMFMIzP8OCRRAI+ytjmhkQSClc=' },
+        tick: { uri: 'data:audio/wav;base64,UklGRkoFAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSYFAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2+LDcSUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCSCG3/DHeyMFMIzP8OCRRA' },
+        start: { uri: 'data:audio/wav;base64,UklGRjIEAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ4EAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2+LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCVqFhYKfHzNgOpOhpJFfNSxdo9vdqmEWAjiV2fLLeSEFKnnC8eGNP' },
+        complete: { uri: 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCSCG3/DHeyMFMIzP8OCRR' },
+      };
+
+      // Load all audio files
+      for (const [key, source] of Object.entries(audioFiles)) {
+        try {
+          const { sound } = await Audio.Sound.createAsync(source, {
+            shouldPlay: false,
+            volume: 1.0,
+          });
+          audioRefs.current[key] = sound;
+        } catch (error) {
+          console.log(`Failed to load ${key} audio:`, error);
+        }
+      }
+
+      setAudioEnabled(true);
+      console.log('Audio setup completed successfully');
+    } catch (error) {
+      console.error('Audio setup failed:', error);
+      // Continue without audio if setup fails
+      setAudioEnabled(false);
+      
+      // Create a simple fallback audio system using native device sounds
+      audioRefs.current = {
+        success: { fallback: true },
+        tick: { fallback: true },
+        start: { fallback: true },
+        complete: { fallback: true }
+      };
+      setAudioEnabled(true);
+    }
+  };
+
+  const playSound = async (soundType) => {
+    if (!audioEnabled || !audioRefs.current[soundType]) {
+      console.log(`Audio not available for: ${soundType}`);
+      return;
+    }
+
+    try {
+      const sound = audioRefs.current[soundType];
+      
+      // If it's a fallback, just log the sound that would play
+      if (sound.fallback) {
+        console.log(`🔊 Playing ${soundType} sound (fallback mode)`);
+        return;
+      }
+      
+      await sound.replayAsync();
+      console.log(`🔊 Played sound: ${soundType}`);
+    } catch (error) {
+      console.log(`Error playing sound ${soundType}:`, error);
+    }
+  };
+
+  const showSuccessOverlay = () => {
+    console.log('Showing success overlay animation');
+    
+    // Reset animation
+    successOverlayAnim.setValue(0);
+    
+    // Start success animation
+    Animated.sequence([
+      Animated.timing(successOverlayAnim, {
+        toValue: 0.7,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+      Animated.timing(successOverlayAnim, {
+        toValue: 0.7,
+        duration: 400,
+        useNativeDriver: false,
+      }),
+      Animated.timing(successOverlayAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  };
 
   useEffect(() => {
     async function getCameraPermission() {
@@ -59,6 +188,8 @@ export default function DemoSessionScreen() {
         }
       }
       
+      setCameraReady(true);
+      
       // Start fade in animation
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -75,10 +206,14 @@ export default function DemoSessionScreen() {
     const backAction = () => {
       Alert.alert(
         'Exit Demo Session?',
-        'Are you sure you want to exit the demo session?',
+        'Your progress will be lost. Are you sure you want to exit?',
         [
           { text: 'Continue Demo', style: 'cancel' },
-          { text: 'Exit', style: 'destructive', onPress: () => navigation.goBack() }
+          { 
+            text: 'Exit', 
+            style: 'destructive', 
+            onPress: () => navigation.goBack() 
+          }
         ]
       );
       return true;
@@ -88,53 +223,170 @@ export default function DemoSessionScreen() {
     return () => backHandler.remove();
   }, []);
 
-  // WebView configuration
+  // Build the demo URL with proper parameters
   const demoUrl = `${DEMO_API}?token=${API_CONFIG.API_KEY}&width=${width}&height=${height}&skeleton=true`;
 
+  // Enhanced JavaScript bridge with better error handling
   const jsBridge = `
-    window.addEventListener('message', function(event) {
-      window.ReactNativeWebView.postMessage(JSON.stringify(event.data));
-    });
-
-    window.webViewCallback = function(data) {
-      window.ReactNativeWebView.postMessage(JSON.stringify(data));
-    };
-
-    // Handle demo completion
-    window.addEventListener('load', function() {
-      window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'demo_ready',
-        message: 'Demo session loaded'
-      }));
-    });
-
+    (function() {
+      // Set up message bridge
+      window.ReactNativeWebView = window.ReactNativeWebView || {};
+      
+      // Override console for debugging
+      const originalLog = console.log;
+      const originalError = console.error;
+      
+      console.log = function(...args) {
+        originalLog.apply(console, args);
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'console',
+          level: 'log',
+          message: args.join(' ')
+        }));
+      };
+      
+      console.error = function(...args) {
+        originalError.apply(console, args);
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'console',
+          level: 'error',
+          message: args.join(' ')
+        }));
+      };
+      
+      // Set up message handling
+      window.addEventListener('message', function(event) {
+        if (event.data && window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(event.data));
+        }
+      });
+      
+      // Set up callback
+      window.webViewCallback = function(data) {
+        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(data));
+        }
+      };
+      
+      // Handle errors
+      window.addEventListener('error', function(event) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'error',
+          message: event.error ? event.error.message : 'Unknown error',
+          stack: event.error ? event.error.stack : ''
+        }));
+      });
+      
+      // Notify when ready
+      setTimeout(function() {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'webview_ready',
+          message: 'WebView initialized'
+        }));
+      }, 100);
+    })();
+    
     true;
   `;
 
+  // Handle messages from WebView
   const onMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
+      
+      // Console logging for debugging
+      if (data.type === 'console') {
+        console.log(`[WebView ${data.level}]:`, data.message);
+        return;
+      }
+      
       console.log('Demo message:', data);
       
-      if (data.type === 'demo_ready') {
-        setIsLoading(false);
-      } else if (data.type === 'demo_complete') {
-        handleDemoCompletion(data);
-      } else if (data.type === 'demo_step_complete') {
-        handleStepCompletion(data);
-      } else if (data.type === 'demo_status') {
-        setCurrentStep(data.step);
+      switch (data.type) {
+        case 'webview_ready':
+          console.log('WebView ready');
+          break;
+          
+        case 'demo_ready':
+          setIsLoading(false);
+          setCurrentStep('Stand Naturally');
+          break;
+
+        // Handle audio/visual feedback messages from WebView
+        case 'pose_detected':
+          console.log('Pose detected - playing start sound');
+          playSound('start');
+          break;
+
+        case 'pose_tick':
+          console.log('Pose tick - playing tick sound');
+          playSound('tick');
+          break;
+
+        case 'pose_success':
+          console.log('Pose success - showing success feedback');
+          playSound('success');
+          showSuccessOverlay();
+          break;
+
+        case 'countdown_tick':
+          console.log('Countdown tick');
+          playSound('tick');
+          break;
+
+        case 'countdown_go':
+          console.log('Countdown GO - playing start sound');
+          playSound('start');
+          break;
+
+        case 'demo_completion_success':
+          console.log('Demo completion - playing complete sound');
+          playSound('complete');
+          showSuccessOverlay();
+          break;
+          
+        case 'demo_step_complete':
+          handleStepCompletion(data);
+          break;
+          
+        case 'demo_status':
+          handleStatusUpdate(data);
+          break;
+          
+        case 'demo_complete':
+          handleDemoCompletion(data);
+          break;
+          
+        case 'error':
+          console.error('WebView error:', data.message);
+          if (data.stack) console.error('Stack:', data.stack);
+          break;
+          
+        default:
+          console.log('Unknown message type:', data.type);
       }
       
     } catch (error) {
-      console.error('Error processing demo message:', error);
+      console.log('Raw message:', event.nativeEvent.data);
+    }
+  };
+
+  const handleStatusUpdate = (data) => {
+    if (data.step) {
+      const stepNames = {
+        'idle': 'Stand Naturally',
+        't_pose': 'T-Pose',
+        'hands_up': 'Hands Up!'
+      };
+      
+      setCurrentStep(stepNames[data.step] || data.step);
+      setCurrentStepIndex(data.step_index || 0);
     }
   };
 
   const handleStepCompletion = (data) => {
     console.log('Step completed:', data);
     
-    // Update completed steps array
     setCompletedSteps(prev => {
       const newSteps = [...prev];
       if (!newSteps.includes(data.step_index)) {
@@ -146,19 +398,16 @@ export default function DemoSessionScreen() {
 
   const handleDemoCompletion = async (data) => {
     const totalDuration = Date.now() - sessionStartTime;
-    const stepsCompleted = data.steps_completed || 5;
+    const stepsCompleted = data.steps_completed || 3;
     
     try {
-      // Calculate demo session metrics
-      const averageScore = 85; // Base score for completing demo
-      const bonusScore = Math.min(stepsCompleted * 3, 15); // Bonus for each step
-      const finalScore = Math.min(averageScore + bonusScore, 100);
+      const finalScore = Math.min(80 + (stepsCompleted * 5), 100);
       
       const demoData = {
         exerciseType: 'demo_session',
         motionScore: finalScore,
         duration: Math.floor(totalDuration / 1000),
-        perfectForms: Math.floor(stepsCompleted * 0.8), // Estimate perfect forms
+        perfectForms: stepsCompleted,
         date: new Date().toISOString(),
         stepsCompleted: stepsCompleted,
         isDemoSession: true
@@ -166,48 +415,35 @@ export default function DemoSessionScreen() {
 
       const xpGained = await addWorkoutSession(demoData);
       
-      // Show completion dialog
       Alert.alert(
-        '🎉 Demo Session Complete!',
-        `Congratulations! You've experienced AI motion tracking!\n\n` +
-        `✅ Steps Completed: ${stepsCompleted}/5\n` +
-        `📊 Demo Score: ${finalScore}%\n` +
-        `⏱️ Duration: ${Math.floor(totalDuration / 60000)}m ${Math.floor((totalDuration % 60000) / 1000)}s\n` +
-        `🏆 XP Gained: ${xpGained}\n\n` +
-        `Ready to try live motion tracking?`,
+        '🎉 Demo Complete!',
+        `Great job! You've completed the AI motion tracking demo!\n\n` +
+        `✅ Steps: ${stepsCompleted}/3\n` +
+        `📊 Score: ${finalScore}%\n` +
+        `🆙 XP Gained: ${xpGained}`,
         [
           { 
-            text: 'View Progress', 
-            onPress: () => navigation.navigate('Performance') 
-          },
-          { 
             text: 'Try Live Tracking', 
-            onPress: () => navigation.navigate('CameraScreen'),
-            style: 'default'
+            onPress: () => navigation.navigate('CameraScreen')
           },
           { 
             text: 'Done', 
-            onPress: () => navigation.goBack(),
-            style: 'cancel'
+            onPress: () => navigation.goBack()
           }
         ]
       );
     } catch (error) {
-      console.error('Error saving demo session:', error);
-      Alert.alert(
-        'Demo Complete!',
-        'Great job completing the demo session! You\'re ready for live motion tracking.',
-        [
-          { text: 'Try Live Tracking', onPress: () => navigation.navigate('CameraScreen') },
-          { text: 'Done', onPress: () => navigation.goBack() }
-        ]
-      );
+      console.error('Error saving demo:', error);
+      Alert.alert('Demo Complete!', 'Ready for live tracking!');
     }
   };
 
   const handleReload = () => {
     setWebViewError(null);
     setIsLoading(true);
+    setCurrentStep('Get Ready');
+    setCurrentStepIndex(0);
+    setCompletedSteps([]);
     setWebViewKey(prevKey => prevKey + 1);
   };
 
@@ -219,10 +455,10 @@ export default function DemoSessionScreen() {
             <Ionicons name="camera" size={64} color="#ff4c48" />
             <Text style={styles.permissionTitle}>Camera Permission Required</Text>
             <Text style={styles.permissionText}>
-              The demo session needs camera access to track your movements and provide real-time feedback.
+              The demo session needs camera access to track your movements.
             </Text>
             <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
-              <Text style={styles.permissionButtonText}>Grant Camera Permission</Text>
+              <Text style={styles.permissionButtonText}>Grant Permission</Text>
             </TouchableOpacity>
             <TouchableOpacity 
               style={[styles.permissionButton, styles.cancelButton]} 
@@ -235,6 +471,25 @@ export default function DemoSessionScreen() {
       </ImageBackground>
     );
   }
+
+  // WebView specific configuration for camera access
+  const webViewProps = Platform.select({
+    ios: {
+      allowsInlineMediaPlaybook: true,
+      mediaPlaybackRequiresUserAction: false,
+      allowsAirPlayForMediaPlayback: true,
+    },
+    android: {
+      javaScriptEnabled: true,
+      domStorageEnabled: true,
+      androidHardwareAccelerationDisabled: false,
+      mixedContentMode: 'always',
+      onPermissionRequest: (request) => {
+        console.log('Permission requested:', request);
+        request.grant();
+      },
+    },
+  });
 
   return (
     <ImageBackground source={backgroundImage} style={styles.container} resizeMode="cover">
@@ -251,102 +506,105 @@ export default function DemoSessionScreen() {
             </TouchableOpacity>
             
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>Demo Session</Text>
+              <Text style={styles.headerTitle}>AI Demo Session</Text>
               <Text style={styles.headerSubtitle}>
-                {currentStep ? `Current: ${currentStep.replace('_', ' ')}` : 'AI Motion Analysis Demo'}
+                {currentStep} • Step {currentStepIndex + 1}/3
               </Text>
             </View>
             
             <View style={styles.headerRight}>
-              <Text style={styles.stepCounter}>{completedSteps.length}/5</Text>
+              <Text style={styles.stepCounter}>{completedSteps.length}/3</Text>
             </View>
           </View>
 
           {/* WebView Container */}
           <View style={styles.webViewContainer}>
-            {webViewError ? (
-              <View style={styles.errorContainer}>
-                <Ionicons name="warning" size={48} color="#ff4c48" />
-                <Text style={styles.errorTitle}>Connection Error</Text>
-                <Text style={styles.errorText}>{webViewError}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={handleReload}>
-                  <Text style={styles.retryText}>Retry</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
+            {cameraReady ? (
               <WebView
+                ref={webViewRef}
                 key={webViewKey}
                 source={{ uri: demoUrl }}
                 style={styles.webView}
                 javaScriptEnabled={true}
                 domStorageEnabled={true}
-                allowsInlineMediaPlaybook={true}
-                mediaPlaybackRequiresUserAction={false}
-                androidHardwareAccelerationDisabled={true}
                 injectedJavaScript={jsBridge}
                 onMessage={onMessage}
-                onError={(error) => {
-                  console.error('WebView error:', error);
-                  setWebViewError('Failed to load demo session');
-                }}
-                onLoadingError={(error) => {
-                  console.error('WebView loading error:', error);
-                  setWebViewError('Could not connect to demo server');
+                onError={(syntheticEvent) => {
+                  const { nativeEvent } = syntheticEvent;
+                  console.error('WebView error:', nativeEvent);
+                  setWebViewError(nativeEvent.description);
                 }}
                 onLoadStart={() => setIsLoading(true)}
-                onLoad={() => setIsLoading(false)}
+                onLoadEnd={() => {
+                  console.log('WebView loaded');
+                  setTimeout(() => setIsLoading(false), 1000);
+                }}
                 startInLoadingState={true}
                 renderLoading={() => (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#ff4c48" />
-                    <Text style={styles.loadingText}>Loading demo session...</Text>
-                    <Text style={styles.loadingSubtext}>
-                      This may take a moment to initialize the camera and AI
-                    </Text>
+                    <Text style={styles.loadingText}>Initializing Demo...</Text>
                   </View>
                 )}
-                renderError={() => (
-                  <View style={styles.errorContainer}>
-                    <Ionicons name="warning" size={48} color="#ff4c48" />
-                    <Text style={styles.errorTitle}>Failed to Load</Text>
-                    <Text style={styles.errorText}>Could not load the demo session</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={handleReload}>
-                      <Text style={styles.retryText}>Try Again</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                {...webViewProps}
               />
+            ) : (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#ff4c48" />
+                <Text style={styles.loadingText}>Setting up camera...</Text>
+              </View>
             )}
             
+            {/* Success Overlay - Handled in React Native */}
+            <Animated.View 
+              style={[
+                styles.successOverlay, 
+                { 
+                  opacity: successOverlayAnim,
+                  pointerEvents: 'none' 
+                }
+              ]}
+            />
+            
             {/* Loading Overlay */}
-            {isLoading && !webViewError && (
+            {isLoading && cameraReady && (
               <View style={styles.loadingOverlay}>
                 <View style={styles.loadingCard}>
                   <ActivityIndicator size="large" color="#ff4c48" />
-                  <Text style={styles.loadingTitle}>Preparing Demo Session</Text>
+                  <Text style={styles.loadingTitle}>Loading Demo</Text>
                   <Text style={styles.loadingDescription}>
-                    • Initializing AI motion detection{'\n'}
-                    • Setting up camera interface{'\n'}
-                    • Loading guided instructions
+                    Preparing pose detection...
                   </Text>
                 </View>
+              </View>
+            )}
+            
+            {/* Error display */}
+            {webViewError && (
+              <View style={styles.errorOverlay}>
+                <Text style={styles.errorText}>Error: {webViewError}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={handleReload}>
+                  <Text style={styles.retryText}>Retry</Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Progress Indicator */}
           <View style={styles.progressContainer}>
-            <Text style={styles.progressLabel}>Demo Progress</Text>
+            <Text style={styles.progressLabel}>Progress</Text>
             <View style={styles.progressDots}>
-              {[1, 2, 3, 4, 5].map((step, index) => (
-                <View
-                  key={step}
-                  style={[
-                    styles.progressDot,
-                    index < completedSteps.length && styles.progressDotCompleted,
-                    index === completedSteps.length && styles.progressDotActive
-                  ]}
-                />
+              {['Stand', 'T-Pose', 'Hands'].map((step, index) => (
+                <View key={index} style={styles.progressItem}>
+                  <View
+                    style={[
+                      styles.progressDot,
+                      completedSteps.includes(index) && styles.progressDotCompleted,
+                      index === currentStepIndex && styles.progressDotActive
+                    ]}
+                  />
+                  <Text style={styles.progressStepName}>{step}</Text>
+                </View>
               ))}
             </View>
           </View>
@@ -450,30 +708,32 @@ const styles = StyleSheet.create({
   webViewContainer: {
     flex: 1,
     position: 'relative',
+    backgroundColor: '#000',
   },
   webView: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: 'transparent',
+  },
+  successOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#4CAF50',
+    zIndex: 1000,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 40,
   },
   loadingText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
     marginTop: 20,
-    textAlign: 'center',
-  },
-  loadingSubtext: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    marginTop: 10,
-    textAlign: 'center',
   },
   loadingOverlay: {
     position: 'absolute',
@@ -491,44 +751,32 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 30,
     alignItems: 'center',
-    maxWidth: '80%',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 76, 72, 0.3)',
   },
   loadingTitle: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
     marginTop: 15,
-    marginBottom: 15,
-    textAlign: 'center',
+    marginBottom: 10,
   },
   loadingDescription: {
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'left',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  errorOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: 20,
+    borderRadius: 15,
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 40,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 15,
-    marginBottom: 10,
   },
   errorText: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: '#fff',
     fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 25,
-    lineHeight: 22,
+    marginBottom: 15,
   },
   retryButton: {
     backgroundColor: '#ff4c48',
@@ -543,7 +791,7 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingVertical: 15,
+    paddingVertical: 20,
     paddingHorizontal: 20,
     alignItems: 'center',
   },
@@ -551,26 +799,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   progressDots: {
     flexDirection: 'row',
     justifyContent: 'center',
+    gap: 25,
+  },
+  progressItem: {
     alignItems: 'center',
   },
   progressDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    marginHorizontal: 6,
+    marginBottom: 5,
   },
   progressDotCompleted: {
     backgroundColor: '#4CAF50',
-    transform: [{ scale: 1.2 }],
   },
   progressDotActive: {
     backgroundColor: '#ff4c48',
-    transform: [{ scale: 1.3 }],
+    transform: [{ scale: 1.2 }],
+  },
+  progressStepName: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 11,
   },
 });

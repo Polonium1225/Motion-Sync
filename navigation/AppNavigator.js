@@ -38,7 +38,12 @@ import UserProfileScreen from '../screens/UserProfileScreen';
 import UpdatedPoseEstimationSelectionScreen from '../screens/UpdatedPoseEstimationSelectionScreen';
 
 
-import MovementAnalysisScreen from '../screens/MovementAnalysisScreen.js';
+import FormCorrectionModeScreen from '../screens/FormCorrectionModeScreen.js';
+
+import AnalysisLoadingScreen from '../screens/AnalysisLoadingScreen.js';
+import AnalysisResultsScreen from '../screens/AnalysisResultsScreen.js';
+import MovementSelectionScreen from '../screens/MovementSelectionScreen.js';
+import VideoUploadScreen from '../screens/VideoUploadScreen.js';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -162,14 +167,47 @@ export default function AppNavigator({ isLoggedIn, setIsLoggedIn }) {
             options={{ headerShown: false }}
           />
           <Stack.Screen 
-            name="MovementAnalysis" 
-            component={MovementAnalysisScreen}
+            name="FormCorrectionModeScreen" 
+            component={FormCorrectionModeScreen}
+            options={{ 
+              headerShown: false,
+              cardStyle: { backgroundColor: 'transparent' }
+            }}
+          />
+          <Stack.Screen 
+            name="AnalysisLoadingScreen" 
+            component={AnalysisLoadingScreen}
+            options={{ 
+              headerShown: false,
+              cardStyle: { backgroundColor: 'transparent' }
+            }}
+          />
+          
+          <Stack.Screen 
+            name="AnalysisResultsScreen" 
+            component={AnalysisResultsScreen}
+            options={{ 
+              headerShown: false,
+              cardStyle: { backgroundColor: 'transparent' }
+            }}
+          />
+          <Stack.Screen 
+            name="VideoUploadScreen" 
+            component={VideoUploadScreen}
             options={{ 
               headerShown: false,
               cardStyle: { backgroundColor: 'transparent' }
             }}
           />
 
+          <Stack.Screen 
+            name="MovementSelectionScreen" 
+            component={MovementSelectionScreen}
+            options={{ 
+              headerShown: false,
+              cardStyle: { backgroundColor: 'transparent' }
+            }}
+          />
           {/* POSE ESTIMATION SCREENS - Original System */}
           
           

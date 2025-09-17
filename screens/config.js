@@ -1,13 +1,15 @@
-// config.js - Updated with Movement Analysis Support
+// Add this to your existing config.js file to extend the MOVEMENT_ANALYSIS section
+
+// Update your existing MOVEMENT_ANALYSIS object with these additional properties:
 export const API_CONFIG = {
-  BASE_URL: 'https://8735895bb1da.ngrok-free.app', // Replace with your backend URL
-  API_KEY: 'b747416a-bf1b-4417-af5a-25c2996507af', // API key for pose tracker
-  PROTOCOL: 'https', // Change to 'https' for production
+  BASE_URL: 'https://dd6b03e2284d.ngrok-free.app', // Your existing URL
+  API_KEY: 'b747416a-bf1b-4417-af5a-25c2996507af', // Your existing API key
+  PROTOCOL: 'https',
   
   // Timeout for API requests (in milliseconds)
   TIMEOUT: 30000, // 30 seconds
   
-  // Movement Analysis specific configuration
+  // Enhanced Movement Analysis configuration
   MOVEMENT_ANALYSIS: {
     // Maximum video file size (in bytes) - 100MB
     MAX_FILE_SIZE: 100 * 1024 * 1024,
@@ -21,56 +23,84 @@ export const API_CONFIG = {
     // Analysis endpoints
     ENDPOINTS: {
       UPLOAD: '/movement-analysis/upload',
-      ANALYZE: '/movement-analysis/analyze',
+      STATUS: '/movement-analysis/status',
       RESULTS: '/movement-analysis/results',
+      ANALYZE: '/movement-analysis/analyze',
       LIST: '/movement-analysis/list',
-      DASHBOARD: '/movement-analysis/dashboard'
-    }
+      DASHBOARD: '/movement-analysis/dashboard',
+      SUPPORTED_MOVEMENTS: '/movement-analysis/supported-movements',
+      DELETE: '/movement-analysis'
+    },
+    
+    // Analysis configuration
+    POLLING_INTERVAL: 2000, // 2 seconds
+    MAX_POLLING_ATTEMPTS: 30, // 1 minute total
+    SUPPORTED_MOVEMENTS: ['squats'], // Will be expanded
+    
+    // File validation rules
+    MIN_DURATION: 5, // Minimum 5 seconds
+    MAX_FILE_SIZE_MB: 100,
+    ALLOWED_EXTENSIONS: ['mp4', 'mov', 'avi', 'webm']
   },
   
-  // Existing pose tracking configuration
+  // Your existing configurations...
   POSE_TRACKING: {
     ENDPOINT: '/pose_tracker/tracking'
   },
   
-  // Video comparison endpoints
   VIDEO_COMPARISON: {
     UPLOAD: '/uploads',
     COMPARE: '/compare'
   },
   
-  // 3D Pose estimation endpoints
   POSE_3D: {
     UPLOAD: '/uploads',
     PROCESS: '/process-multi-view-poses'
   }
 };
 
-// Utility function to get full API URL
-export const getApiUrl = (endpoint) => {
-  return `${API_CONFIG.BASE_URL}${endpoint}`;
-};
-
-// Utility function to get movement analysis URL
+// Enhanced utility function to get movement analysis URL
 export const getMovementAnalysisUrl = (endpoint) => {
-  return `${API_CONFIG.BASE_URL}${API_CONFIG.MOVEMENT_ANALYSIS.ENDPOINTS[endpoint]}`;
+  const endpointPath = API_CONFIG.MOVEMENT_ANALYSIS.ENDPOINTS[endpoint.toUpperCase()];
+  if (!endpointPath) {
+    throw new Error(`Unknown movement analysis endpoint: ${endpoint}`);
+  }
+  return `${API_CONFIG.BASE_URL}${endpointPath}`;
 };
 
-// Helper function to validate video file
+// Enhanced helper function to validate video file
 export const validateVideoFile = (file) => {
   const errors = [];
   
-  // Check file size
-  if (file.size && file.size > API_CONFIG.MOVEMENT_ANALYSIS.MAX_FILE_SIZE) {
-    errors.push('File size exceeds 100MB limit');
+  if (!file) {
+    return { isValid: false, errors: ['No file selected'] };
   }
   
-  // Check duration
-  if (file.duration && file.duration > API_CONFIG.MOVEMENT_ANALYSIS.MAX_DURATION * 1000) {
-    errors.push('Video duration exceeds 5 minute limit');
+  // Check file size
+  if (file.size && file.size > API_CONFIG.MOVEMENT_ANALYSIS.MAX_FILE_SIZE) {
+    errors.push(`File size exceeds ${API_CONFIG.MOVEMENT_ANALYSIS.MAX_FILE_SIZE_MB}MB limit`);
+  }
+  
+  // Check duration if available
+  if (file.duration) {
+    const durationInSeconds = file.duration / 1000; // Convert from milliseconds
+    if (durationInSeconds > API_CONFIG.MOVEMENT_ANALYSIS.MAX_DURATION) {
+      errors.push(`Video duration exceeds ${API_CONFIG.MOVEMENT_ANALYSIS.MAX_DURATION / 60} minute limit`);
+    }
+    if (durationInSeconds < API_CONFIG.MOVEMENT_ANALYSIS.MIN_DURATION) {
+      errors.push(`Video must be at least ${API_CONFIG.MOVEMENT_ANALYSIS.MIN_DURATION} seconds long`);
+    }
   }
   
   // Check format
+  if (file.name) {
+    const extension = file.name.split('.').pop().toLowerCase();
+    if (!API_CONFIG.MOVEMENT_ANALYSIS.ALLOWED_EXTENSIONS.includes(extension)) {
+      errors.push(`Unsupported format. Supported: ${API_CONFIG.MOVEMENT_ANALYSIS.ALLOWED_EXTENSIONS.join(', ')}`);
+    }
+  }
+  
+  // Check MIME type if available
   if (file.type && !API_CONFIG.MOVEMENT_ANALYSIS.SUPPORTED_FORMATS.includes(file.type)) {
     errors.push('Unsupported video format');
   }
@@ -81,43 +111,52 @@ export const validateVideoFile = (file) => {
   };
 };
 
-// Helper function to log API calls in development
-export const logApiCall = (method, url, data = null) => {
-  if (__DEV__) {
-    console.log(`🌐 API ${method.toUpperCase()}: ${url}`);
-    if (data) {
-      console.log('📤 Request data:', data);
+// Helper function to get status endpoint URL
+export const getStatusUrl = (analysisId) => {
+  return `${API_CONFIG.BASE_URL}${API_CONFIG.MOVEMENT_ANALYSIS.ENDPOINTS.STATUS}/${analysisId}`;
+};
+
+// Helper function to get results endpoint URL
+export const getResultsUrl = (analysisId) => {
+  return `${API_CONFIG.BASE_URL}${API_CONFIG.MOVEMENT_ANALYSIS.ENDPOINTS.RESULTS}/${analysisId}`;
+};
+
+// Helper function to check if movement analysis backend is available
+export const checkMovementAnalysisHealth = async () => {
+  try {
+    const response = await fetch(`${API_CONFIG.BASE_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+      },
+      timeout: 5000
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      return {
+        available: true,
+        status: result.status,
+        message: result.message
+      };
     }
+    
+    return { available: false, message: 'Health check failed' };
+  } catch (error) {
+    console.error('Health check error:', error);
+    return { 
+      available: false, 
+      message: error.message || 'Connection failed' 
+    };
   }
 };
 
-// Helper function to handle API errors
-export const handleApiError = (error, context = '') => {
+// Helper function to log API calls in development
+export const logApiCall = (method, url, data = null) => {
   if (__DEV__) {
-    console.error(`❌ API Error ${context}:`, error);
-  }
-  
-  // Return user-friendly error message
-  if (error.response) {
-    // Server responded with error status
-    return {
-      message: error.response.data?.detail || error.response.data?.message || 'Server error occurred',
-      status: error.response.status,
-      type: 'server_error'
-    };
-  } else if (error.request) {
-    // Network error
-    return {
-      message: 'Network error. Please check your connection.',
-      status: 0,
-      type: 'network_error'
-    };
-  } else {
-    // Other error
-    return {
-      message: error.message || 'An unexpected error occurred',
-      status: 0,
-      type: 'unknown_error'
-    };
+    console.log(`🌐 Movement Analysis API ${method.toUpperCase()}: ${url}`);
+    if (data) {
+      console.log('📤 Request data:', data);
+    }
   }
 };

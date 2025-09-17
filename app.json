@@ -80,7 +80,8 @@
           "isAndroidBackgroundLocationEnabled": false
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {
