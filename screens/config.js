@@ -2,7 +2,7 @@
 
 // Update your existing MOVEMENT_ANALYSIS object with these additional properties:
 export const API_CONFIG = {
-  BASE_URL: 'https://dd6b03e2284d.ngrok-free.app', // Your existing URL
+  BASE_URL: 'https://3da4fc1eca95.ngrok-free.app', // Your existing URL
   API_KEY: 'b747416a-bf1b-4417-af5a-25c2996507af', // Your existing API key
   PROTOCOL: 'https',
   

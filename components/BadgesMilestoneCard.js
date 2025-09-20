@@ -265,7 +265,7 @@ export default function BadgesMilestoneCard({ navigation }) {
           />
 
           <ListItem
-            icon="target"
+            icons ="target"
             text="Daily & Weekly Goals"
             subtitle={`${stats.goalsCompleted} completed`}
             onPress={handleNavigateToGoals}

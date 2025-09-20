@@ -13,32 +13,25 @@ import {
   FlatList
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { databases, Query, DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
+import { auth, userProfiles, posts, likes, comments, conversations, getProfileImageUrl, storage } from '../lib/SupabaseService';
 import Colors from '../constants/Colors';
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import backgroundImage from '../assets/sfgsdh.png';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
 
-// Add your Appwrite project configurations (should match PostItem.js)
-const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Main project ID
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Main endpoint
-
-// Comment system seems to use different Appwrite instance
-const COMMENT_PROJECT_ID = '685ebdb90007d578e80d'; // From comment avatar URLs
-const COMMENT_API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // From comment avatar URLs
-
 const UserProfileScreen = ({ route, navigation }) => {
   const { userId, userName, userAvatar } = route.params;
   
   const [user, setUser] = useState(null);
-  const [posts, setPosts] = useState([]);
+  const [userPosts, setUserPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [postsLoading, setPostsLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
   const [stats, setStats] = useState({
     postsCount: 0,
     followersCount: 0,
@@ -66,7 +59,6 @@ const UserProfileScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     console.log('UserProfileScreen params:', { userId, userName, userAvatar });
-    console.log('userId type:', typeof userId, 'value:', userId);
     
     if (!userId) {
       console.error('No userId provided to UserProfileScreen');
@@ -75,11 +67,21 @@ const UserProfileScreen = ({ route, navigation }) => {
       return;
     }
     
+    loadCurrentUser();
     loadUserProfile();
     loadUserPosts();
     checkIfFollowing();
     loadAvatarUrl();
   }, [userId, userAvatar]);
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await auth.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error getting current user:', error);
+    }
+  };
 
   const loadAvatarUrl = async () => {
     if (!userAvatar) {
@@ -89,58 +91,25 @@ const UserProfileScreen = ({ route, navigation }) => {
 
     setAvatarLoading(true);
     
-    const generateAvatarUrls = (avatar) => {
-      const urls = [];
-      
-      // If it's already a full URL, try it first
-      if (typeof avatar === 'string' && avatar.startsWith('http')) {
-        urls.push(avatar);
-        
-        // Also try constructing with main project credentials
-        const fileIdMatch = avatar.match(/files\/([^\/]+)\//);
-        if (fileIdMatch) {
-          const fileId = fileIdMatch[1];
-          urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`);
-          urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${COMMENT_PROJECT_ID}`);
-        }
+    try {
+      // If it's already a full URL, use it directly
+      if (typeof userAvatar === 'string' && userAvatar.startsWith('http')) {
+        setAvatarUrl(userAvatar);
       } else {
-        // If it's just an ID, try both projects
-        urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${PROJECT_ID}`);
-        urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${COMMENT_PROJECT_ID}`);
+        // Use the helper function from SupabaseService
+        const profileUrl = getProfileImageUrl(userAvatar);
+        setAvatarUrl(profileUrl);
       }
-      
-      return urls;
-    };
-
-    const possibleUrls = generateAvatarUrls(userAvatar);
-    
-    // Try each URL until one works
-    for (let i = 0; i < possibleUrls.length; i++) {
-      const url = possibleUrls[i];
-      console.log(`Trying avatar URL ${i + 1}/${possibleUrls.length}:`, url);
-      
-      try {
-        // Test if the URL is accessible
-        const response = await fetch(url, { method: 'HEAD' });
-        if (response.ok) {
-          console.log('✅ Avatar URL works:', url);
-          setAvatarUrl(url);
-          setAvatarLoading(false);
-          return;
-        }
-      } catch (error) {
-        console.log(`❌ Avatar URL ${i + 1} failed:`, error.message);
-        continue;
-      }
+    } catch (error) {
+      console.log('Error loading avatar:', error);
+      setAvatarUrl(null);
+    } finally {
+      setAvatarLoading(false);
     }
-    
-    console.log('❌ All avatar URLs failed, using default');
-    setAvatarUrl(null);
-    setAvatarLoading(false);
   };
 
   const loadUserProfile = async () => {
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+    if (!userId) {
       console.error('Invalid userId for loading profile:', userId);
       setLoading(false);
       return;
@@ -149,88 +118,32 @@ const UserProfileScreen = ({ route, navigation }) => {
     try {
       setLoading(true);
       
-      // Load user profile from database
-      const profileResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USER_PROFILES,
-        [Query.equal('userId', userId.trim())]
-      );
-
-      let userData;
+      // Load user profile from Supabase
+      const profile = await userProfiles.getProfileByUserId(userId);
       
-      if (profileResponse.documents.length > 0) {
-        const profile = profileResponse.documents[0];
-        userData = {
-          $id: userId,
-          name: profile.name || userName,
-          avatar: profile.avatar,
-          bio: profile.bio || 'Fitness enthusiast and workout lover! 💪',
-          location: profile.location || null,
-          joinedDate: profile.$createdAt
-        };
-      } else {
-        // Fallback to navigation params if no profile found
-        console.log('No profile found in database, using navigation params');
-        userData = {
-          $id: userId,
-          name: userName,
-          avatar: userAvatar,
-          bio: 'Fitness enthusiast and workout lover! 💪',
-          location: null,
-          joinedDate: new Date().toISOString()
-        };
-      }
+      const userData = {
+        id: userId, // Supabase uses 'id' instead of '$id'
+        name: profile.name || userName,
+        avatar: profile.avatar,
+        bio: profile.bio || 'Fitness enthusiast and workout lover! 💪',
+        location: profile.location || null,
+        joinedDate: profile.created_at || new Date().toISOString()
+      };
 
       setUser(userData);
       
-      // Load follower/following counts (only if FOLLOWS collection exists)
-      try {
-        // Check if FOLLOWS collection exists in your COLLECTIONS constant
-        if (COLLECTIONS.FOLLOWS) {
-          const followersResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.FOLLOWS,
-            [Query.equal('followedUserId', userId.trim())]
-          );
-
-          const followingResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.FOLLOWS,
-            [Query.equal('followerUserId', userId.trim())]
-          );
-
-          setStats(prev => ({
-            ...prev,
-            followersCount: followersResponse.total || 0,
-            followingCount: followingResponse.total || 0
-          }));
-        } else {
-          console.log('FOLLOWS collection not defined in COLLECTIONS');
-          setStats(prev => ({
-            ...prev,
-            followersCount: 0,
-            followingCount: 0
-          }));
-        }
-      } catch (error) {
-        console.log('Follow system not available:', error.message);
-        setStats(prev => ({
-          ...prev,
-          followersCount: 0,
-          followingCount: 0
-        }));
-      }
+      // Load stats - you'll need to create these tables in Supabase if you want follower functionality
+      await loadUserStats(userId);
 
     } catch (error) {
       console.error('Error loading user profile:', error);
-      console.error('Error details:', error.message);
       
       // Fallback to navigation params
       const userData = {
-        $id: userId,
+        id: userId,
         name: userName,
         avatar: userAvatar,
-        bio: 'User profile',
+        bio: 'Fitness enthusiast and workout lover! 💪',
         location: null,
         joinedDate: new Date().toISOString()
       };
@@ -240,8 +153,34 @@ const UserProfileScreen = ({ route, navigation }) => {
     }
   };
 
+  const loadUserStats = async (userId) => {
+    try {
+      // Get posts count by fetching user's posts
+      const userPostsResponse = await posts.getPostsWithUsers();
+      const userPostsCount = userPostsResponse.filter(post => 
+        post.user_id === userId || post.user_profiles?.user_id === userId
+      ).length;
+      
+      setStats(prev => ({
+        ...prev,
+        postsCount: userPostsCount,
+        // For now, set follower counts to 0 since we don't have a follows table yet
+        followersCount: 0,
+        followingCount: 0
+      }));
+    } catch (error) {
+      console.log('Error loading stats:', error);
+      setStats(prev => ({
+        ...prev,
+        postsCount: 0,
+        followersCount: 0,
+        followingCount: 0
+      }));
+    }
+  };
+
   const loadUserPosts = async () => {
-    if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+    if (!userId) {
       console.error('Invalid userId for loading posts:', userId);
       setPostsLoading(false);
       return;
@@ -250,54 +189,48 @@ const UserProfileScreen = ({ route, navigation }) => {
     try {
       setPostsLoading(true);
       console.log('Loading posts for user:', userId);
-      console.log('Using query: Query.equal("UserId", "' + userId.trim() + '")');
       
-      // Query posts by the specific user - note: using "UserId" not "userId"
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.POSTS,
-        [
-          Query.equal('UserId', userId.trim()), // Capital U to match your schema
-          Query.orderDesc('$createdAt'),
-          Query.limit(20)
-        ]
-      );
-
-      console.log('Raw posts response:', response);
-      console.log('Posts found:', response.documents.length);
+      // Get all posts and filter by user
+      const allPosts = await posts.getPostsWithUsers();
       
-      if (response.documents.length === 0) {
+      // Filter posts by this specific user
+      const filteredPosts = allPosts.filter(post => {
+        // Handle both direct user_id and nested user_profiles structure
+        return post.user_id === userId || post.user_profiles?.user_id === userId;
+      });
+      
+      console.log('Posts found for user:', filteredPosts.length);
+      
+      if (filteredPosts.length === 0) {
         console.log('No posts found for user:', userId);
-        setPosts([]);
-        setStats(prev => ({ ...prev, postsCount: 0 }));
+        setUserPosts([]);
         return;
       }
       
-      // Transform posts to include like and comment counts
+      // Transform posts to include like and comment counts (they should already be included from getPostsWithUsers)
       const postsWithCounts = await Promise.all(
-        response.documents.map(async (post) => {
+        filteredPosts.map(async (post) => {
           try {
-            // Get like count
-            const likesResponse = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.LIKES,
-              [Query.equal('postId', post.$id)]
-            );
-
-            // Get comment count  
-            const commentsResponse = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.COMMENTS,
-              [Query.equal('postId', post.$id)]
-            );
+            // Get additional counts if not already included
+            let likeCount = post.likes?.count || 0;
+            let commentCount = post.comments?.count || 0;
+            
+            // If counts aren't included, fetch them separately
+            if (typeof likeCount !== 'number') {
+              likeCount = await likes.getLikeCount(post.id);
+            }
+            
+            if (typeof commentCount !== 'number') {
+              commentCount = await comments.getCommentsCount(post.id);
+            }
 
             return {
               ...post,
-              likes: likesResponse.total || 0,
-              comments: commentsResponse.total || 0
+              likes: likeCount,
+              comments: commentCount
             };
           } catch (error) {
-            console.log('Error loading counts for post:', post.$id, error);
+            console.log('Error loading counts for post:', post.id, error);
             return {
               ...post,
               likes: 0,
@@ -307,24 +240,13 @@ const UserProfileScreen = ({ route, navigation }) => {
         })
       );
 
-      console.log('Posts with counts:', postsWithCounts);
-      setPosts(postsWithCounts);
-      
-      // Update posts count in stats
-      setStats(prev => ({
-        ...prev,
-        postsCount: response.total || 0
-      }));
+      console.log('Posts with counts:', postsWithCounts.length);
+      setUserPosts(postsWithCounts);
 
     } catch (error) {
       console.error('Error loading user posts:', error);
-      console.error('Error details:', error.message);
-      // Don't show alert for empty results
-      if (!error.message.includes('Invalid query')) {
-        Alert.alert('Error', 'Failed to load user posts');
-      }
-      setPosts([]); // Set empty array on error
-      setStats(prev => ({ ...prev, postsCount: 0 }));
+      Alert.alert('Error', 'Failed to load user posts');
+      setUserPosts([]);
     } finally {
       setPostsLoading(false);
     }
@@ -332,29 +254,57 @@ const UserProfileScreen = ({ route, navigation }) => {
 
   const checkIfFollowing = async () => {
     try {
-      // You might need to implement checkFollowStatus in your AppwriteService
-      setIsFollowing(false); // Mock data
+      // For now, set to false since we don't have a follows system yet
+      // You can implement this later with a follows table
+      setIsFollowing(false);
     } catch (error) {
       console.error('Error checking follow status:', error);
     }
   };
 
-  const handleMessage = () => {
-    // Navigate to Chat screen with required parameters
-    navigation.navigate('Chat', {
-      friendId: userId,
-      friendName: user?.name || userName,
-      conversationId: `new_${userId}_${Date.now()}` // Generate new conversation ID
-    });
+  const handleMessage = async () => {
+    try {
+      if (!currentUser) {
+        Alert.alert('Error', 'You must be logged in to send messages');
+        return;
+      }
+
+      // Check if conversation already exists
+      const existingConversations = await conversations.getUserConversations(currentUser.id);
+      const existingConversation = existingConversations.find(conv => 
+        (conv.participant1 === currentUser.id && conv.participant2 === userId) ||
+        (conv.participant1 === userId && conv.participant2 === currentUser.id)
+      );
+
+      let conversationId;
+      
+      if (existingConversation) {
+        conversationId = existingConversation.id;
+      } else {
+        // Create new conversation
+        const newConversation = await conversations.createConversation(currentUser.id, userId);
+        conversationId = newConversation.id;
+      }
+
+      // Navigate to Chat screen
+      navigation.navigate('Chat', {
+        friendId: userId,
+        friendName: user?.name || userName,
+        conversationId: conversationId
+      });
+    } catch (error) {
+      console.error('Error handling message:', error);
+      Alert.alert('Error', 'Failed to start conversation');
+    }
   };
 
   const handleFollowToggle = async () => {
-    // Check if follow system is available
-    if (!COLLECTIONS.FOLLOWS) {
-      Alert.alert('Coming Soon', 'Follow functionality will be available soon!');
-      return;
-    }
+    // Since we don't have a follows system implemented yet, show a message
+    Alert.alert('Coming Soon', 'Follow functionality will be available soon!');
+    return;
 
+    // Future implementation would look like this:
+    /*
     try {
       setFollowLoading(true);
       
@@ -375,6 +325,7 @@ const UserProfileScreen = ({ route, navigation }) => {
     } finally {
       setFollowLoading(false);
     }
+    */
   };
 
   const formatDate = (dateString) => {
@@ -405,20 +356,26 @@ const UserProfileScreen = ({ route, navigation }) => {
   );
 
   const PostItem = ({ item }) => {
-    // Construct image URL if available
-    const getImageUrl = (imageId) => {
-      if (!imageId) return null;
-      if (typeof imageId === 'string' && imageId.startsWith('http')) {
-        return imageId;
+    // Handle image URL for Supabase
+    const getImageUrl = (imageUrl) => {
+      if (!imageUrl) return null;
+      if (typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+        return imageUrl;
       }
-      // Construct URL using same logic as main posts
-      return `https://cloud.appwrite.io/v1/storage/buckets/post_images/files/${imageId}/view?project=67d0bb27002cfc0b22d2`;
+      // Use storage helper to get public URL
+      return storage.getPublicUrl('images', imageUrl);
     };
 
-    const imageUrl = getImageUrl(item.imageUrl || item.image);
+    const imageUrl = getImageUrl(item.image_url || item.image);
 
     return (
-      <TouchableOpacity style={styles.postItem}>
+      <TouchableOpacity 
+        style={styles.postItem}
+        onPress={() => {
+          // Navigate to post detail if you have that screen
+          // navigation.navigate('PostDetail', { postId: item.id });
+        }}
+      >
         {imageUrl && (
           <Image 
             source={{ uri: imageUrl }} 
@@ -429,7 +386,7 @@ const UserProfileScreen = ({ route, navigation }) => {
         <View style={styles.postContent}>
           <Text style={styles.postText} numberOfLines={3}>{item.content}</Text>
           <View style={styles.postMeta}>
-            <Text style={styles.postDate}>{getTimeAgo(item.$createdAt)}</Text>
+            <Text style={styles.postDate}>{getTimeAgo(item.created_at)}</Text>
             <View style={styles.postStats}>
               <View style={styles.postStatItem}>
                 <Ionicons name="heart" size={14} color="#FF6B6B" />
@@ -538,37 +495,39 @@ const UserProfileScreen = ({ route, navigation }) => {
                   <StatItem number={stats.followingCount} label="Following" />
                 </View>
 
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                  <TouchableOpacity
-                    style={[styles.followButton, isFollowing && styles.followingButton]}
-                    onPress={handleFollowToggle}
-                    disabled={followLoading}
-                  >
-                    {followLoading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <>
-                        <Ionicons 
-                          name={isFollowing ? "checkmark" : "add"} 
-                          size={18} 
-                          color="#fff" 
-                        />
-                        <Text style={styles.followButtonText}>
-                          {isFollowing ? 'Following' : 'Follow'}
-                        </Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
+                {/* Action Buttons - Only show if not viewing own profile */}
+                {currentUser && currentUser.id !== userId && (
+                  <View style={styles.actionButtons}>
+                    <TouchableOpacity
+                      style={[styles.followButton, isFollowing && styles.followingButton]}
+                      onPress={handleFollowToggle}
+                      disabled={followLoading}
+                    >
+                      {followLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons 
+                            name={isFollowing ? "checkmark" : "add"} 
+                            size={18} 
+                            color="#fff" 
+                          />
+                          <Text style={styles.followButtonText}>
+                            {isFollowing ? 'Following' : 'Follow'}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
 
-                  <TouchableOpacity 
-                    style={styles.messageButton}
-                    onPress={handleMessage}
-                  >
-                    <Ionicons name="chatbubble-outline" size={18} color={Colors.primary} />
-                    <Text style={styles.messageButtonText}>Message</Text>
-                  </TouchableOpacity>
-                </View>
+                    <TouchableOpacity 
+                      style={styles.messageButton}
+                      onPress={handleMessage}
+                    >
+                      <Ionicons name="chatbubble-outline" size={18} color={Colors.primary} />
+                      <Text style={styles.messageButtonText}>Message</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
 
               {/* Posts Section */}
@@ -580,11 +539,11 @@ const UserProfileScreen = ({ route, navigation }) => {
                     <ActivityIndicator size="small" color={Colors.primary} />
                     <Text style={styles.loadingText}>Loading posts...</Text>
                   </View>
-                ) : posts.length > 0 ? (
+                ) : userPosts.length > 0 ? (
                   <FlatList
-                    data={posts}
+                    data={userPosts}
                     renderItem={({ item }) => <PostItem item={item} />}
-                    keyExtractor={item => item.$id}
+                    keyExtractor={item => item.id.toString()}
                     style={styles.postsList}
                     scrollEnabled={false}
                     refreshing={postsLoading}

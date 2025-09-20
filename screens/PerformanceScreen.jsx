@@ -18,7 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
-import { saveHistory, getUserId } from '../lib/AppwriteService';
+import { getUserId } from '../lib/SupabaseService'; // Updated import
 import { API_CONFIG } from './config';
 import { useUserData, useUserProgress } from '../hooks/useUserData';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -53,6 +53,7 @@ export default function PerformanceScreen() {
         setUserId(id);
       } catch (error) {
         console.error('Error fetching user ID:', error);
+        Alert.alert('Authentication Error', 'Please log in to use performance analysis');
       }
     };
     fetchUserId();
@@ -132,7 +133,31 @@ export default function PerformanceScreen() {
 
   const stats = getPerformanceStats();
 
+  // Save performance analysis history to Supabase (if you want to track this)
+  const saveAnalysisHistory = async (analysisData) => {
+    try {
+      if (!userId) return;
+      
+      // You could create a new table called 'performance_analyses' in Supabase
+      // and save the analysis results there for history tracking
+      // For now, we'll just log it
+      console.log('Analysis completed:', analysisData);
+      
+      // Optional: You could also create a post about the analysis
+      // const posts = require('../lib/SupabaseService').posts;
+      // await posts.createPost(userId, `Completed performance analysis! Similarity: ${analysisData.similarity}%`);
+      
+    } catch (error) {
+      console.error('Error saving analysis history:', error);
+    }
+  };
+
   const handleCompare = useCallback(async () => {
+    if (!userId) {
+      Alert.alert('Authentication Required', 'Please log in to use performance analysis');
+      return;
+    }
+
     if (!pastVideoUri) {
       Alert.alert(
         'Missing Video',
@@ -210,6 +235,21 @@ export default function PerformanceScreen() {
       if (!compareResult.past_video_url || !compareResult.new_video_url) {
         throw new Error('Processed videos were not created successfully');
       }
+
+      // Save analysis history to Supabase
+      await saveAnalysisHistory({
+        userId,
+        similarity: compareResult.similarity,
+        smoothness: compareResult.smoothness,
+        speed: compareResult.speed,
+        cohesion: compareResult.cohesion,
+        accuracy: compareResult.accuracy,
+        improvements: compareResult.improvements,
+        regressions: compareResult.regressions,
+        pastVideoUrl: compareResult.past_video_url,
+        newVideoUrl: compareResult.new_video_url,
+        createdAt: new Date().toISOString()
+      });
   
       // Record this as a workout session in UserDataManager
       if (isInitialized) {
@@ -256,7 +296,7 @@ export default function PerformanceScreen() {
     } finally {
       setLoading(false);
     }
-  }, [pastVideoUri, videoUri, buttonScale, isInitialized, addWorkoutSession]);
+  }, [pastVideoUri, videoUri, buttonScale, isInitialized, addWorkoutSession, userId]);
 
   const pickVideo = async (setVideoFunction) => {
     try {
@@ -556,15 +596,15 @@ export default function PerformanceScreen() {
             <TouchableOpacity 
               style={[
                 styles.compareButton,
-                (!pastVideoUri || !videoUri) && styles.compareButtonDisabled
+                (!pastVideoUri || !videoUri || !userId) && styles.compareButtonDisabled
               ]}
               onPress={handleCompare}
-              disabled={!pastVideoUri || !videoUri || loading}
+              disabled={!pastVideoUri || !videoUri || !userId || loading}
               onPressIn={handlePressIn}
               onPressOut={handlePressOut}
             >
               <LinearGradient
-                colors={(!pastVideoUri || !videoUri) ? ['#666', '#333'] : ['#ff4c48', '#0b0a1f']}
+                colors={(!pastVideoUri || !videoUri || !userId) ? ['#666', '#333'] : ['#ff4c48', '#0b0a1f']}
                 style={styles.compareButtonGradient}
               >
                 <View style={styles.compareButtonContent}>
@@ -577,6 +617,14 @@ export default function PerformanceScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
+
+          {/* Authentication Notice */}
+          {!userId && (
+            <View style={styles.authNotice}>
+              <Ionicons name="lock-closed" size={20} color="#ff4c48" />
+              <Text style={styles.authNoticeText}>Please log in to use performance analysis</Text>
+            </View>
+          )}
 
           {/* Quick Actions */}
           <View style={styles.quickActions}>
@@ -715,7 +763,7 @@ export default function PerformanceScreen() {
                   
                   <TouchableOpacity 
                     style={styles.modalSecondaryButton}
-                    onPress={() => setPastModalVisible(false)}
+                    onPress={() => setPastVideoUri(false)}
                   >
                     <Text style={styles.modalSecondaryButtonText}>Done</Text>
                   </TouchableOpacity>
@@ -1009,7 +1057,6 @@ const styles = StyleSheet.create({
   compareButtonText: {
     color: 'white',
     fontSize: 20,
-    width:'80vw',
     fontWeight: 'bold',
     marginTop: 10,
     letterSpacing: 1,
@@ -1020,6 +1067,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 6,
     textAlign: 'center',
+  },
+  authNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 76, 72, 0.1)',
+    padding: 15,
+    borderRadius: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 76, 72, 0.3)',
+  },
+  authNoticeText: {
+    color: '#ff4c48',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   quickActions: {
     flexDirection: 'row',

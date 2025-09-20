@@ -17,17 +17,15 @@ import {
   Alert,
   Modal
 } from 'react-native';
-import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
+import { auth, getUserId, userProfiles, supabase, conversations } from "../lib/SupabaseService";
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
-const PROJECT_ID = '67d0bb27002cfc0b22d2'; 
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
 const backgroundImage = require('../assets/sfgsdh.png');
 
 export default function FindFriendScreen({ navigation }) {
-  const [conversations, setConversations] = useState([]);
+  const [conversationsData, setConversationsData] = useState([]);
   const [users, setUsers] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +36,7 @@ export default function FindFriendScreen({ navigation }) {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [selectedFriend, setSelectedFriend] = useState(null);
-  const [lastDeleteTime, setLastDeleteTime] = useState(0); // Track last deletion
+  const [lastDeleteTime, setLastDeleteTime] = useState(0);
   const isFocused = useIsFocused();
 
   // Animation values
@@ -99,42 +97,36 @@ export default function FindFriendScreen({ navigation }) {
 
       try {
         setIsLoading(true);
-        const user = await account.get();
-        setCurrentUserId(user.$id);
+        const user = await auth.getCurrentUser();
+        setCurrentUserId(user.id);
         
         console.log('📥 Loading conversations from database...');
-        const userConversations = await getUserConversations(user.$id);
+        const userConversations = await conversations.getUserConversations(user.id);
         console.log(`📥 Loaded ${userConversations.length} conversations`);
         
         // Get participant IDs and fetch their profiles
         const userIds = new Set();
         userConversations.forEach(conv => {
-          if (conv.participant1 !== user.$id) userIds.add(conv.participant1);
-          if (conv.participant2 !== user.$id) userIds.add(conv.participant2);
+          if (conv.participant1 !== user.id) userIds.add(conv.participant1);
+          if (conv.participant2 !== user.id) userIds.add(conv.participant2);
         });
     
         const userMap = {};
         await Promise.all(Array.from(userIds).map(async userId => {
           try {
             const profile = await userProfiles.getProfileByUserId(userId);
-            let avatarUrl = DEFAULT_AVATAR;
-            
-            if (profile.avatar) {
-              // Create direct download URL
-              avatarUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
-            }
             
             userMap[userId] = {
-              $id: userId,
-              name: profile.name,
-              avatar: avatarUrl,
+              id: userId,
+              name: profile.name || 'Unknown User',
+              avatar: profile.avatar || DEFAULT_AVATAR,
               status: profile.status || 'offline'
             };
             console.log(`Loaded user ${userId} with status: ${profile.status || 'offline'}`);
           } catch (err) {
             console.error(`Error loading profile for ${userId}:`, err);
             userMap[userId] = {
-              $id: userId,
+              id: userId,
               name: 'Unknown User',
               avatar: DEFAULT_AVATAR,
               status: 'offline'
@@ -143,7 +135,7 @@ export default function FindFriendScreen({ navigation }) {
         }));
     
         setUsers(userMap);
-        setConversations(userConversations);
+        setConversationsData(userConversations);
         console.log('📥 Data loading completed');
       } catch (err) {
         console.error("Error loading data:", err);
@@ -161,11 +153,11 @@ export default function FindFriendScreen({ navigation }) {
 
   // Optimized status updates with better error handling
   useEffect(() => {
-    if (!currentUserId || conversations.length === 0) return;
+    if (!currentUserId || conversationsData.length === 0) return;
 
     const updateStatuses = async () => {
       try {
-        const userIds = conversations.flatMap(conv => [
+        const userIds = conversationsData.flatMap(conv => [
           conv.participant1,
           conv.participant2
         ].filter(id => id !== currentUserId));
@@ -217,12 +209,12 @@ export default function FindFriendScreen({ navigation }) {
     // Set up periodic updates every 5 seconds
     const interval = setInterval(updateStatuses, 5000);
     return () => clearInterval(interval);
-  }, [conversations, currentUserId]); // Updated dependency
+  }, [conversationsData, currentUserId]);
 
   const getFilteredConversations = () => {
-    if (!searchQuery) return conversations;
+    if (!searchQuery) return conversationsData;
     
-    return conversations.filter(conv => {
+    return conversationsData.filter(conv => {
       const otherUserId = conv.participant1 === currentUserId ? conv.participant2 : conv.participant1;
       const user = users[otherUserId];
       if (!user) return false;
@@ -241,59 +233,52 @@ export default function FindFriendScreen({ navigation }) {
     console.log("[DEBUG] Navigating to Chat with params:", {
       friendId,
       friendName: friend.name,
-      conversationId: conversation.$id,
+      conversationId: conversation.id,
       actualFriendObject: friend
     });
     
     navigation.navigate('Chat', {
       friendId: friendId,
       friendName: friend.name,
-      conversationId: conversation.$id
+      conversationId: conversation.id
     });
   };
 
-  // Add the missing handleForceRefresh function
   const handleForceRefresh = async () => {
     console.log('🔄 Force refresh triggered');
     setIsLoading(true);
     setLastDeleteTime(0); // Reset delete time to allow immediate reload
     
     try {
-      const user = await account.get();
-      setCurrentUserId(user.$id);
+      const user = await auth.getCurrentUser();
+      setCurrentUserId(user.id);
       
       console.log('📥 Force loading conversations from database...');
-      const userConversations = await getUserConversations(user.$id);
+      const userConversations = await conversations.getUserConversations(user.id);
       console.log(`📥 Force loaded ${userConversations.length} conversations`);
       
       // Get participant IDs and fetch their profiles
       const userIds = new Set();
       userConversations.forEach(conv => {
-        if (conv.participant1 !== user.$id) userIds.add(conv.participant1);
-        if (conv.participant2 !== user.$id) userIds.add(conv.participant2);
+        if (conv.participant1 !== user.id) userIds.add(conv.participant1);
+        if (conv.participant2 !== user.id) userIds.add(conv.participant2);
       });
 
       const userMap = {};
       await Promise.all(Array.from(userIds).map(async userId => {
         try {
           const profile = await userProfiles.getProfileByUserId(userId);
-          let avatarUrl = DEFAULT_AVATAR;
-          
-          if (profile.avatar) {
-            // Create direct download URL
-            avatarUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
-          }
           
           userMap[userId] = {
-            $id: userId,
-            name: profile.name,
-            avatar: avatarUrl,
+            id: userId,
+            name: profile.name || 'Unknown User',
+            avatar: profile.avatar || DEFAULT_AVATAR,
             status: profile.status || 'offline'
           };
         } catch (err) {
           console.error(`Error loading profile for ${userId}:`, err);
           userMap[userId] = {
-            $id: userId,
+            id: userId,
             name: 'Unknown User',
             avatar: DEFAULT_AVATAR,
             status: 'offline'
@@ -302,7 +287,7 @@ export default function FindFriendScreen({ navigation }) {
       }));
 
       setUsers(userMap);
-      setConversations(userConversations);
+      setConversationsData(userConversations);
       setError(null); // Clear any previous errors
       console.log('📥 Force refresh completed');
     } catch (err) {
@@ -316,7 +301,7 @@ export default function FindFriendScreen({ navigation }) {
   const deleteConversation = async () => {
     if (!selectedConversation || !selectedFriend) return;
     
-    const conversationId = selectedConversation.$id;
+    const conversationId = selectedConversation.id;
     
     try {
       setDeletingConversations(prev => new Set([...prev, conversationId]));
@@ -324,33 +309,19 @@ export default function FindFriendScreen({ navigation }) {
       
       console.log('🗑️ Starting deletion for conversation:', conversationId);
       
-      // Delete all messages in the conversation first
-      const messagesResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.MESSAGES,
-        [Query.equal('conversationId', conversationId)]
-      );
+      // Delete the conversation and its messages using Supabase
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
 
-      console.log(`🗑️ Found ${messagesResponse.documents.length} messages to delete`);
-
-      // Delete messages in batches
-      await Promise.all(
-        messagesResponse.documents.map(async message => {
-          console.log('🗑️ Deleting message:', message.$id);
-          return databases.deleteDocument(DATABASE_ID, COLLECTIONS.MESSAGES, message.$id);
-        })
-      );
-
-      console.log('🗑️ All messages deleted, now deleting conversation');
-
-      // Delete the conversation
-      await databases.deleteDocument(DATABASE_ID, COLLECTIONS.CONVERSATIONS, conversationId);
+      if (error) throw error;
 
       console.log('🗑️ Conversation deleted from database');
 
       // Update local state - remove the conversation
-      setConversations(prevConversations => {
-        const updatedConversations = prevConversations.filter(conv => conv.$id !== conversationId);
+      setConversationsData(prevConversations => {
+        const updatedConversations = prevConversations.filter(conv => conv.id !== conversationId);
         console.log(`🗑️ Updated conversations: ${prevConversations.length} -> ${updatedConversations.length}`);
         console.log('🗑️ Removed conversation:', conversationId);
         return updatedConversations;
@@ -363,8 +334,8 @@ export default function FindFriendScreen({ navigation }) {
 
       setUsers(prevUsers => {
         // Check if there are other conversations with this user
-        const hasOtherConversations = conversations.some(conv => 
-          conv.$id !== conversationId && 
+        const hasOtherConversations = conversationsData.some(conv => 
+          conv.id !== conversationId && 
           (conv.participant1 === friendId || conv.participant2 === friendId)
         );
 
@@ -381,10 +352,6 @@ export default function FindFriendScreen({ navigation }) {
       console.log('🗑️ Deletion completed successfully');
       setLastDeleteTime(Date.now()); // Mark deletion time to prevent immediate reload
       
-      // Show a brief success message without an alert dialog
-      console.log(`✅ Conversation with ${selectedFriend.name} has been deleted`);
-      
-      // You could add a toast notification here instead of Alert.alert
       Alert.alert('Success', `Conversation with ${selectedFriend.name} deleted successfully`);
       
     } catch (error) {
@@ -392,8 +359,8 @@ export default function FindFriendScreen({ navigation }) {
       Alert.alert('Error', 'Failed to delete conversation. Please try again.');
       
       // Revert the conversation back to the list on error
-      setConversations(prevConversations => {
-        if (!prevConversations.find(conv => conv.$id === conversationId)) {
+      setConversationsData(prevConversations => {
+        if (!prevConversations.find(conv => conv.id === conversationId)) {
           console.log('🗑️ Reverting conversation back to list');
           return [...prevConversations, selectedConversation];
         }
@@ -543,7 +510,7 @@ export default function FindFriendScreen({ navigation }) {
       avatar: DEFAULT_AVATAR 
     };
     
-    const isDeleting = deletingConversations.has(item.$id);
+    const isDeleting = deletingConversations.has(item.id);
     
     return (
       <Animated.View
@@ -762,7 +729,7 @@ export default function FindFriendScreen({ navigation }) {
               </Text>
               <FlatList
                 data={filteredConversations}
-                keyExtractor={(item) => item.$id}
+                keyExtractor={(item) => item.id.toString()}
                 renderItem={renderConversationItem}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
@@ -1220,11 +1187,11 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)', // Much darker overlay
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backdropFilter: 'blur(10px)', // Blur effect (iOS)
+    backdropFilter: 'blur(10px)',
   },
   modalBackdrop: {
     position: 'absolute',
@@ -1235,7 +1202,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   optionsModal: {
-    backgroundColor: 'rgba(20, 25, 35, 0.95)', // Darker, more opaque background
+    backgroundColor: 'rgba(20, 25, 35, 0.95)',
     borderRadius: 20,
     width: '90%',
     maxWidth: 350,
@@ -1249,7 +1216,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 25,
     elevation: 15,
-    // Add backdrop blur for better separation
     backdropFilter: 'blur(20px)',
   },
   modalHeader: {
@@ -1340,7 +1306,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
   },
   deleteModal: {
-    backgroundColor: 'rgba(25, 20, 20, 0.95)', // Darker background with red tint
+    backgroundColor: 'rgba(25, 20, 20, 0.95)',
     borderRadius: 20,
     width: '90%',
     maxWidth: 350,

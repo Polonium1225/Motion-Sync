@@ -3,13 +3,11 @@ import { View, Text, TextInput, TouchableOpacity, FlatList, Image, StyleSheet, A
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import { 
-  getPostById, 
-  addComment, 
-  toggleLike, 
-  checkUserLike, 
-  getLikeCount,
+  posts,
+  comments,
+  likes,
   getUserId
-} from '../lib/AppwriteService';
+} from '../lib/SupabaseService'; // Updated import
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import backgroundImage from '../assets/sfgsdh.png';
 
@@ -33,19 +31,22 @@ const PostDetailScreen = ({ route }) => {
         route.params.onGoBack();
       }
     };
-  }, [route.params?.onGoBack]); // Add dependency here
+  }, [route.params?.onGoBack]);
 
   useEffect(() => {
     const loadPost = async () => {
       try {
-        const postData = await getPostById(postId);
+        const postData = await posts.getPostById(postId);
         setPost(postData);
         
         const userId = await getUserId();
-        setIsLiked(await checkUserLike(postId, userId));
-        setLikeCount(await getLikeCount(postId));
+        if (userId) {
+          setIsLiked(await likes.checkUserLike(postId, userId));
+          setLikeCount(postData.likeCount || 0);
+        }
       } catch (error) {
         console.error('Error loading post:', error);
+        Alert.alert('Error', 'Failed to load post');
       } finally {
         setLoading(false);
       }
@@ -84,15 +85,17 @@ const PostDetailScreen = ({ route }) => {
     return (
       <View style={styles.commentContainer}>
         <Image 
-          source={item.user?.avatar ? { uri: item.user.avatar } : DEFAULT_AVATAR}
+          source={item.user_profiles?.avatar ? { uri: item.user_profiles.avatar } : DEFAULT_AVATAR}
           style={styles.commentAvatar}
           defaultSource={DEFAULT_AVATAR}
         />
         <View style={styles.commentContent}>
           <View style={styles.commentHeader}>
-            <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+            <Text style={styles.commentAuthor}>
+              {item.user_profiles?.name || 'Anonymous'}
+            </Text>
             <Text style={styles.commentDate}>
-              {formatDate(item.$createdAt)}
+              {formatDate(item.created_at)}
             </Text>
           </View>
           <Text style={styles.commentText}>{item.content}</Text>
@@ -104,11 +107,17 @@ const PostDetailScreen = ({ route }) => {
   const handleLike = async () => {
     try {
       const userId = await getUserId();
-      const newLikeCount = await toggleLike(postId, userId);
+      if (!userId) {
+        Alert.alert('Error', 'Please login to like posts');
+        return;
+      }
+      
+      const newLikeCount = await likes.toggleLike(postId, userId);
       setLikeCount(newLikeCount);
       setIsLiked(!isLiked);
     } catch (error) {
       console.error('Error toggling like:', error);
+      Alert.alert('Error', 'Failed to update like');
     }
   };
 
@@ -118,16 +127,17 @@ const PostDetailScreen = ({ route }) => {
     try {
       setCommentLoading(true);
       const userId = await getUserId();
-      const newComment = await addComment(postId, userId, comment);
+      if (!userId) {
+        Alert.alert('Error', 'Please login to comment');
+        return;
+      }
+      
+      const newComment = await comments.addComment(postId, userId, comment);
       
       if (newComment) {
         setPost(prev => ({
           ...prev,
-          comments: [...prev.comments, {
-            ...newComment,
-            $createdAt: new Date().toISOString(),
-            user: newComment.user // This now includes the avatar URL
-          }]
+          comments: [...(prev.comments || []), newComment]
         }));
         setComment('');
       }
@@ -149,25 +159,36 @@ const PostDetailScreen = ({ route }) => {
     );
   }
 
+  if (!post) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <Text style={styles.loadingText}>Post not found</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <ImageBackground source={backgroundImage} style={{ flex: 1 }} resizeMode="cover">
       <SafeAreaView style={{ flex: 1 }}>
         <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           <View style={[styles.container, { paddingTop: 0, paddingBottom: 0 }]}> 
             <View style={styles.postContainer}>
-            <View style={styles.header}>
-              <Image 
-                source={post.user?.avatar ? { uri: post.user.avatar } : DEFAULT_AVATAR}
-                style={styles.avatar}
-                defaultSource={DEFAULT_AVATAR}
-              />
-              <Text style={styles.username}>{post.user?.name}</Text>
-            </View>
+              <View style={styles.header}>
+                <Image 
+                  source={post.user_profiles?.avatar ? { uri: post.user_profiles.avatar } : DEFAULT_AVATAR}
+                  style={styles.avatar}
+                  defaultSource={DEFAULT_AVATAR}
+                />
+                <Text style={styles.username}>
+                  {post.user_profiles?.name || 'Anonymous'}
+                </Text>
+              </View>
               
               <Text style={styles.content}>{post.content}</Text>
               
-              {post.imageUrl && (
-                <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+              {post.image_url && (
+                <Image source={{ uri: post.image_url }} style={styles.postImage} />
               )}
               
               <View style={styles.actions}>
@@ -175,38 +196,50 @@ const PostDetailScreen = ({ route }) => {
                   <Ionicons 
                     name={isLiked ? "heart" : "heart-outline"} 
                     size={24} 
-                    color={isLiked ? "#ff0000" : "#fff"} // Outline is now white
+                    color={isLiked ? "#ff0000" : "#fff"}
                   />
                   <Text style={styles.actionText}>{likeCount}</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity style={styles.actionButton}>
+                  <Ionicons name="chatbubble-outline" size={24} color="#fff" />
+                  <Text style={styles.actionText}>
+                    {post.comments?.length || 0}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
             
             <FlatList
-              data={post.comments}
+              data={post.comments || []}
               renderItem={renderComment}
-              keyExtractor={item => item.$id}
+              keyExtractor={item => item.id.toString()}
               style={styles.commentsList}
+              showsVerticalScrollIndicator={false}
             />
             
             <View style={styles.commentInputContainer}>
               <TextInput
                 style={styles.commentInput}
                 placeholder="Write a comment..."
-                placeholderTextColor="#fff"
+                placeholderTextColor="#999"
                 value={comment}
                 onChangeText={setComment}
+                multiline
               />
-              <TouchableOpacity onPress={handleComment} disabled={commentLoading}>
+              <TouchableOpacity onPress={handleComment} disabled={commentLoading || !comment.trim()}>
                 {commentLoading ? (
                   <ActivityIndicator size="small" color="#007AFF" />
                 ) : (
-                  <Ionicons name="send" size={24} color="#007AFF" />
+                  <Ionicons 
+                    name="send" 
+                    size={24} 
+                    color={comment.trim() ? "#007AFF" : "#999"} 
+                  />
                 )}
               </TouchableOpacity>
             </View>
           </View>
-          
         </Animated.View>
       </SafeAreaView>
     </ImageBackground>
@@ -247,6 +280,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontSize: 15,
     color: Colors.textPrimary,
+    lineHeight: 22,
   },
   postImage: {
     width: '100%',
@@ -278,11 +312,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   commentAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     marginRight: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.primary,
   },
   commentContent: {
@@ -291,6 +325,7 @@ const styles = StyleSheet.create({
   commentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
   commentAuthor: {
@@ -309,23 +344,27 @@ const styles = StyleSheet.create({
   },
   commentsList: {
     flex: 1,
+    marginBottom: 10,
   },
   commentInputContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    paddingTop: 10,
+    paddingTop: 15,
+    paddingBottom: 10,
   },
   commentInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: Colors.primary,
     borderRadius: 20,
-    padding: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
     marginRight: 10,
     color: Colors.textPrimary,
     backgroundColor: Colors.surfaceDark,
+    maxHeight: 100,
   },
   loadingContainer: {
     flex: 1,

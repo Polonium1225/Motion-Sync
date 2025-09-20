@@ -1,5 +1,5 @@
 // screens/SettingsScreen.js
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Component } from 'react';
 import { 
   View, 
   Text, 
@@ -13,11 +13,12 @@ import {
   ScrollView,
   Switch,
   SafeAreaView,
-  Platform 
+  Platform,
+  Modal
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { account, databases, ID, Query, DATABASE_ID, COLLECTIONS, userProfiles } from '../lib/AppwriteService';
-import { useNavigation } from '@react-navigation/native';
+import { auth, userProfiles, storage, getUserId, supabase } from '../lib/SupabaseService';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
@@ -25,7 +26,64 @@ import backgroundImage from '../assets/sfgsdh.png';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUserData, useUserSettings, useUserProgress } from '../hooks/useUserData';
 
-export default function SettingsScreen({ setIsLoggedIn }) {
+// Error Boundary Component
+class SettingsErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('SettingsScreen Error Boundary:', error, errorInfo);
+    this.setState({ errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <SafeAreaView style={styles.errorContainer}>
+          <View style={styles.errorContent}>
+            <Ionicons name="warning" size={48} color="#ff4c48" />
+            <Text style={styles.errorTitle}>Something went wrong</Text>
+            <Text style={styles.errorMessage}>
+              The settings screen encountered an error. Please try again.
+            </Text>
+            <TouchableOpacity 
+              onPress={() => this.setState({ hasError: false, error: null, errorInfo: null })}
+              style={styles.errorButton}
+            >
+              <Text style={styles.errorButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Main Settings Screen Component
+function SettingsScreen({ setIsLoggedIn, route, navigation: propNavigation }) {
+  // Handle navigation from both props and hook
+  const hookNavigation = useNavigation();
+  const navigation = propNavigation || hookNavigation;
+
+  // Handle setIsLoggedIn from both props and route params
+  const routeSetIsLoggedIn = route?.params?.setIsLoggedIn;
+  const handleSetIsLoggedIn = setIsLoggedIn || routeSetIsLoggedIn || (() => {
+    console.warn('setIsLoggedIn function not provided to SettingsScreen');
+    // Fallback - try to navigate to login screen
+    try {
+      navigation?.navigate('Auth');
+    } catch (error) {
+      console.error('Cannot navigate to Auth screen:', error);
+    }
+  });
+
   const [name, setName] = useState('');
   const [image, setImage] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +91,13 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   const [profileDoc, setProfileDoc] = useState(null);
   const [selectedImageObj, setSelectedImageObj] = useState(null);
   
-  // Use UserDataManager hooks
+  // Premium Modal State
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [isPremium, setIsPremium] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState(null);
+  
+  // Use UserDataManager hooks with error handling
   const { 
     userData, 
     isInitialized, 
@@ -41,15 +105,17 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     updateSettings: updateUserSettings,
     exportData,
     resetData,
-    forceSync
+    forceSync,
+    error: userDataError
   } = useUserData();
   
   const { 
     settings, 
-    updateSettings: updateSettingsHook
+    updateSettings: updateSettingsHook,
+    error: settingsError
   } = useUserSettings();
   
-  const { progress } = useUserProgress();
+  const { progress, error: progressError } = useUserProgress();
   
   // Local settings states (synced with UserDataManager)
   const [notifications, setNotifications] = useState(true);
@@ -59,81 +125,156 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   const [voiceInstructions, setVoiceInstructions] = useState(true);
   const [dataSharing, setDataSharing] = useState(false);
 
-  const navigation = useNavigation();
-
-  const PROJECT_ID = '67d0bb27002cfc0b22d2';
-  const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
-
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
+  const premiumModalAnim = useRef(new Animated.Value(0)).current;
+
+  // Premium Plans Configuration
+  const premiumPlans = [
+    {
+      id: 'monthly',
+      name: 'Monthly',
+      price: 50,
+      currency: 'DH',
+      duration: '1 Month',
+      savings: null,
+      popular: false,
+      features: [
+        'Unlimited AI Motion Analysis',
+        'Premium Badge',
+        'Exclusive Community Features',
+        'Competition Entry & Prizes',
+        'Priority Support',
+        'Advanced Analytics'
+      ]
+    },
+    {
+      id: 'quarterly',
+      name: '3 Months',
+      price: 125,
+      currency: 'DH',
+      duration: '3 Months',
+      savings: '17% Off',
+      popular: true,
+      features: [
+        'Everything in Monthly',
+        'Save 25 DH',
+        'Quarterly Progress Reports',
+        'Custom Training Plans',
+        'Early Feature Access'
+      ]
+    },
+    {
+      id: 'yearly',
+      name: 'Annual',
+      price: 449,
+      currency: 'DH',
+      duration: '12 Months',
+      savings: '25% Off',
+      popular: false,
+      features: [
+        'Everything in 3 Months',
+        'Save 151 DH',
+        'Yearly Competition Pass',
+        '1-on-1 Coach Session',
+        'Personalized Nutrition Guide',
+        'VIP Community Status'
+      ]
+    }
+  ];
+
+  // Handle navigation safety check with focus effect
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!navigation) {
+        console.error('Navigation prop is missing in SettingsScreen');
+        return;
+      }
+    }, [navigation])
+  );
+
+  // Handle any errors from hooks
+  useEffect(() => {
+    if (userDataError || settingsError || progressError) {
+      console.error('Hook errors:', { userDataError, settingsError, progressError });
+      Alert.alert(
+        'Data Loading Error',
+        'Some settings data could not be loaded. Please try refreshing.',
+        [{ text: 'OK' }]
+      );
+    }
+  }, [userDataError, settingsError, progressError]);
 
   // Sync local state with UserDataManager settings
   useEffect(() => {
     if (settings && isInitialized) {
-      setNotifications(settings.notifications?.workoutReminders ?? true);
-      setSoundEffects(settings.notifications?.soundEffects ?? true);
-      setHapticFeedback(settings.notifications?.hapticFeedback ?? true);
-      setRealTimeFeedback(settings.motionAnalysis?.realTimeFeedback ?? true);
-      setVoiceInstructions(settings.motionAnalysis?.voiceInstructions ?? true);
-      setDataSharing(settings.privacy?.dataSharing ?? false);
+      try {
+        setNotifications(settings.notifications?.workoutReminders ?? true);
+        setSoundEffects(settings.notifications?.soundEffects ?? true);
+        setHapticFeedback(settings.notifications?.hapticFeedback ?? true);
+        setRealTimeFeedback(settings.motionAnalysis?.realTimeFeedback ?? true);
+        setVoiceInstructions(settings.motionAnalysis?.voiceInstructions ?? true);
+        setDataSharing(settings.privacy?.dataSharing ?? false);
+        
+        // Check premium status
+        setIsPremium(userData?.profile?.isPremium || false);
+        setCurrentPlan(userData?.profile?.subscriptionPlan || null);
+      } catch (error) {
+        console.error('Error syncing settings:', error);
+      }
     }
-  }, [settings, isInitialized]);
+  }, [settings, isInitialized, userData]);
 
-  // Load current user data
+  // Load current user data with better error handling
   useEffect(() => {
     const loadUser = async () => {
       if (!isInitialized) return;
-
+    
       try {
         setLoading(true);
         
-        // Load Appwrite user data
-        const user = await account.get();
-        setUserId(user.$id);
+        // Load Supabase user data with error handling
+        const user = await auth.getCurrentUser();
+        if (!user) {
+          throw new Error('No authenticated user found');
+        }
+        
+        setUserId(user.id);
         
         // Use UserDataManager profile data if available
         if (userData?.profile) {
           const profile = userData.profile;
-          setName(profile.name || user.name || '');
+          setName(profile.name || user.user_metadata?.name || '');
           
           if (profile.avatar && profile.avatar !== 'avatar.png') {
-            try {
-              const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
-              console.log('Loading avatar image from:', imageUrl);
-              setImage(imageUrl);
-            } catch (error) {
-              console.log('Error getting file view:', error);
-            }
+            console.log('Loading avatar image from:', profile.avatar);
+            setImage(profile.avatar);
           }
         } else {
-          // Fallback to direct Appwrite query
-          setName(user.name || '');
+          // Fallback to direct Supabase query
+          setName(user.user_metadata?.name || '');
           
-          const profiles = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.USER_PROFILES,
-            [Query.equal('userId', user.$id)]
-          );
-
-          if (profiles.documents.length > 0) {
-            const profile = profiles.documents[0];
+          try {
+            const profile = await userProfiles.getProfileByUserId(user.id);
             setProfileDoc(profile);
             
-            if (profile.avatar && profile.avatar !== 'avatar.png') {
-              try {
-                const imageUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
-                console.log('Loading avatar image from:', imageUrl);
-                setImage(imageUrl);
-              } catch (error) {
-                console.log('Error getting file view:', error);
-              }
+            if (profile?.avatar && profile.avatar !== 'avatar.png') {
+              console.log('Loading avatar image from:', profile.avatar);
+              setImage(profile.avatar);
             }
+          } catch (profileError) {
+            console.warn('Could not load profile from database:', profileError);
+            // Continue without profile data
           }
         }
         
       } catch (error) {
-        console.log('Load user error:', error);
-        Alert.alert('Error', 'Failed to load profile');
+        console.error('Load user error:', error);
+        Alert.alert(
+          'Profile Load Error', 
+          'Could not load your profile. Some features may not work correctly.',
+          [{ text: 'OK' }]
+        );
       } finally {
         setLoading(false);
       }
@@ -142,6 +283,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     loadUser();
   }, [isInitialized, userData]);
 
+  // Animation effects
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -158,98 +300,165 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     ]).start();
   }, []);
 
+  // Animate premium modal
+  useEffect(() => {
+    if (showPremiumModal) {
+      Animated.spring(premiumModalAnim, {
+        toValue: 1,
+        speed: 14,
+        bounciness: 8,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(premiumModalAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showPremiumModal]);
+
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
+  
       if (status !== 'granted') {
         Alert.alert('Permission required', 'Please allow access to your photos');
         return;
       }
-
+  
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.7,
       });
-
+  
       console.log('Image picker result:', result);
-
+  
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setImage(result.assets[0].uri);
-        setSelectedImageObj(result.assets[0]);
+        const asset = result.assets[0];
+        
+        // Validate file size (5MB limit)
+        if (asset.fileSize && asset.fileSize > 5242880) {
+          Alert.alert(
+            'Image Too Large', 
+            'Please select an image smaller than 5MB',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+        
+        setImage(asset.uri);
+        setSelectedImageObj(asset);
       }
     } catch (error) {
-      console.log('Image picker error:', error);
+      console.error('Image picker error:', error);
       Alert.alert('Error', error.message || 'Failed to pick image');
     }
   };
 
   const uploadImage = async (imageObject) => {
     try {
-      const fileId = ID.unique();
-      console.log('Generated file ID:', fileId);
+      console.log('Starting image upload process...');
       
-      const formData = new FormData();
-      formData.append('fileId', fileId);
-      formData.append('file', {
-        uri: imageObject.uri,
-        type: imageObject.mimeType || 'image/jpeg',
-        name: imageObject.fileName || 'upload.jpg'
-      });
-
-      console.log('FormData prepared with file:', {
-        uri: imageObject.uri,
-        type: imageObject.mimeType || 'image/jpeg',
-        name: imageObject.fileName || 'upload.jpg'
-      });
-      
-      const response = await fetch(
-        `https://cloud.appwrite.io/v1/storage/buckets/profile_images/files`,
-        {
-          method: 'POST',
-          headers: {
-            'X-Appwrite-Project': PROJECT_ID,
-          },
-          body: formData,
-        }
-      );
-
-      const result = await response.json();
-      console.log('Upload response:', result);
-
-      if (response.ok) {
-        return result.$id;
-      } else {
-        throw new Error(result.message || 'Upload failed');
+      if (!userId) {
+        throw new Error('User ID is required for upload');
       }
+
+      // Generate unique filename with proper path
+      const fileExt = imageObject.uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `avatar-${userId}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+      
+      console.log('Upload path:', filePath);
+      
+      // Get the session token for authenticated upload
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session found');
+      }
+      
+      // Read file as blob
+      const response = await fetch(imageObject.uri);
+      if (!response.ok) {
+        throw new Error('Failed to read image file');
+      }
+      
+      const blob = await response.blob();
+      
+      // Upload using Supabase client
+      const { data, error } = await supabase.storage
+        .from('images')
+        .upload(filePath, blob, {
+          contentType: imageObject.mimeType || 'image/jpeg',
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (error) {
+        console.error('Upload error:', error);
+        throw error;
+      }
+
+      console.log('Upload successful:', data);
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('images')
+        .getPublicUrl(filePath);
+
+      return publicUrl;
+      
     } catch (error) {
-      console.error('Upload image error:', error);
-      throw new Error(`Failed to upload image: ${error.message}`);
+      console.error('Upload error details:', error);
+      
+      if (error.message?.includes('Network request failed')) {
+        throw new Error('Cannot connect to server. Please check your internet connection.');
+      }
+      
+      if (error.message?.includes('storage')) {
+        throw new Error('Storage upload failed. This might be a server configuration issue.');
+      }
+      
+      throw new Error(`Upload failed: ${error.message}`);
     }
   };
-
-  // Navigation helper with error handling
+  
+  // Navigation helper with better error handling
   const navigateToScreen = (screenName, params = {}) => {
     try {
+      if (!navigation) {
+        throw new Error('Navigation not available');
+      }
       navigation.navigate(screenName, params);
     } catch (error) {
       console.error(`Navigation error to ${screenName}:`, error);
       Alert.alert(
         'Navigation Error', 
-        `Unable to navigate to ${screenName}. Please ensure the screen is properly configured.`,
+        `Unable to open ${screenName}. The screen might not be available.`,
         [{ text: 'OK', style: 'default' }]
       );
     }
   };
 
-  // Quick navigation functions
+  // Quick navigation functions with fallbacks
   const goToAchievements = () => {
     navigateToScreen('BadgesAndMilestonesScreen');
   };
 
   const goToAIAssistant = () => {
+    if (!isPremium) {
+      Alert.alert(
+        'Premium Feature',
+        'Unlimited AI Assistant access is a premium feature. Upgrade now to unlock!',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => setShowPremiumModal(true) }
+        ]
+      );
+      return;
+    }
     navigateToScreen('aichatscreen');
   };
 
@@ -258,6 +467,17 @@ export default function SettingsScreen({ setIsLoggedIn }) {
   };
 
   const goToMotionAnalysis = () => {
+    if (!isPremium) {
+      Alert.alert(
+        'Premium Feature',
+        'Unlimited Motion Analysis is a premium feature. Upgrade now to unlock!',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => setShowPremiumModal(true) }
+        ]
+      );
+      return;
+    }
     navigateToScreen('image_analyser3d');
   };
 
@@ -265,55 +485,115 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     navigateToScreen('GymFinder');
   };
 
+  const handleSubscribe = async (plan) => {
+    try {
+      setLoading(true);
+      
+      Alert.alert(
+        'Confirm Subscription',
+        `Subscribe to ${plan.name} plan for ${plan.price} ${plan.currency}/${plan.duration}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Subscribe',
+            onPress: async () => {
+              try {
+                // Update user profile with premium status
+                await updateProfile({
+                  isPremium: true,
+                  subscriptionPlan: plan.id,
+                  subscriptionStartDate: new Date().toISOString(),
+                  subscriptionEndDate: calculateEndDate(plan.id),
+                });
+                
+                setIsPremium(true);
+                setCurrentPlan(plan.id);
+                setShowPremiumModal(false);
+                
+                Alert.alert(
+                  'Welcome to Premium!',
+                  `You've successfully subscribed to the ${plan.name} plan. Enjoy all premium features!`,
+                  [{ text: 'Awesome!' }]
+                );
+              } catch (error) {
+                Alert.alert('Subscription Failed', error.message);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process subscription');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateEndDate = (planId) => {
+    const now = new Date();
+    switch (planId) {
+      case 'monthly':
+        now.setMonth(now.getMonth() + 1);
+        break;
+      case 'quarterly':
+        now.setMonth(now.getMonth() + 3);
+        break;
+      case 'yearly':
+        now.setFullYear(now.getFullYear() + 1);
+        break;
+    }
+    return now.toISOString();
+  };
+
   const saveProfile = async () => {
     if (!userId) {
       Alert.alert('Error', 'User not logged in');
       return;
     }
-
+  
     try {
       setLoading(true);
       
-      await account.updateName(name);
-      
-      let avatarId = profileDoc?.avatar || userData?.profile?.avatar;
-      if (image && selectedImageObj && !image.includes('profile_images')) {
+      let avatarUrl = profileDoc?.avatar || userData?.profile?.avatar;
+      if (image && selectedImageObj && !image.includes('supabase')) {
         console.log('Uploading new image...');
-        avatarId = await uploadImage(selectedImageObj);
-        console.log('Image uploaded with ID:', avatarId);
+        try {
+          avatarUrl = await uploadImage(selectedImageObj);
+          console.log('Image uploaded with URL:', avatarUrl);
+        } catch (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          Alert.alert(
+            'Upload Failed',
+            'Could not upload image. Profile will be saved without image changes.',
+            [{ text: 'OK' }]
+          );
+        }
       }
       
       const updateData = { 
         name,
-        userId,
-        status: profileDoc?.status || userData?.profile?.status || 'online',
+        user_id: userId,
       };
-
-      if (avatarId) {
-        updateData.avatar = avatarId;
+  
+      if (avatarUrl) {
+        updateData.avatar = avatarUrl;
       }
       
-      if (profileDoc) {
-        console.log('Updating existing profile:', profileDoc.$id);
-        await databases.updateDocument(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          profileDoc.$id,
-          updateData
-        );
-      } else {
-        console.log('Creating new profile');
-        await databases.createDocument(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          ID.unique(),
-          updateData
-        );
+      // Update profile in Supabase
+      try {
+        await userProfiles.updateProfile(userId, updateData);
+      } catch (dbError) {
+        console.warn('Database update failed:', dbError);
+        // Continue with UserDataManager update
       }
 
       // Update UserDataManager profile
-      await updateProfile({ name, avatar: avatarId });
-
+      try {
+        await updateProfile({ name, avatar: avatarUrl });
+      } catch (udmError) {
+        console.warn('UserDataManager update failed:', udmError);
+      }
+  
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error) {
       console.error('Save profile error:', error);
@@ -386,12 +666,12 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                 Alert.alert(
                   'Export Complete',
                   `Your data has been exported successfully!\n\n` +
-                  `📊 Level: ${summary.level}\n` +
-                  `⭐ Total XP: ${summary.totalXP.toLocaleString()}\n` +
-                  `🏋️ Sessions: ${summary.totalSessions}\n` +
-                  `🏆 Badges: ${summary.badgesEarned}\n` +
-                  `🔥 Streak: ${summary.streak} days\n` +
-                  `📈 Avg Score: ${summary.averageScore}%`,
+                  `Level: ${summary.level}\n` +
+                  `Total XP: ${summary.totalXP.toLocaleString()}\n` +
+                  `Sessions: ${summary.totalSessions}\n` +
+                  `Badges: ${summary.badgesEarned}\n` +
+                  `Streak: ${summary.streak} days\n` +
+                  `Avg Score: ${summary.averageScore}%`,
                   [{ text: 'OK' }]
                 );
               } catch (error) {
@@ -454,7 +734,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     }
   };
 
-  // Handle Logout
+  // Handle Logout with better error handling
   const handleLogout = async () => {
     Alert.alert(
       'Logout',
@@ -468,20 +748,30 @@ export default function SettingsScreen({ setIsLoggedIn }) {
             try {
               setLoading(true);
               
+              // Update user status to offline
               try {
-                const user = await account.get();
-                await userProfiles.safeUpdateStatus(user.$id, 'offline');
+                const user = await auth.getCurrentUser();
+                if (user?.id) {
+                  await userProfiles.updateStatus(user.id, 'offline');
+                }
               } catch (error) {
                 console.log('Error setting offline status:', error);
               }
-
-              await AsyncStorage.clear();
-              await account.deleteSessions();
-
-              setIsLoggedIn(false);
+  
+              // Clear AsyncStorage and sign out
+              try {
+                await AsyncStorage.clear();
+                await auth.signOut();
+              } catch (error) {
+                console.log('Error during logout:', error);
+              }
+  
+              // Call the logout handler
+              handleSetIsLoggedIn(false);
             } catch (error) {
               console.error('Logout error:', error);
-              setIsLoggedIn(false);
+              // Still try to logout even if there were errors
+              handleSetIsLoggedIn(false);
             } finally {
               setLoading(false);
             }
@@ -527,6 +817,149 @@ export default function SettingsScreen({ setIsLoggedIn }) {
     </TouchableOpacity>
   );
 
+  // Premium Modal Component
+  const PremiumModal = () => (
+    <Modal
+      visible={showPremiumModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowPremiumModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <Animated.View 
+          style={[
+            styles.premiumModalContainer,
+            {
+              opacity: premiumModalAnim,
+              transform: [{
+                scale: premiumModalAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.9, 1],
+                })
+              }]
+            }
+          ]}
+        >
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Header */}
+            <View style={styles.premiumHeader}>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowPremiumModal(false)}
+              >
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+              
+              <View style={styles.premiumIconContainer}>
+                <Ionicons name="diamond" size={50} color="#FFD700" />
+              </View>
+              
+              <Text style={styles.premiumTitle}>Unlock Premium</Text>
+              <Text style={styles.premiumSubtitle}>
+                Take your fitness journey to the next level
+              </Text>
+            </View>
+
+            {/* Premium Features */}
+            <View style={styles.premiumFeatures}>
+              <Text style={styles.featuresTitle}>Premium Benefits</Text>
+              <View style={styles.featureItem}>
+                <Ionicons name="infinite" size={20} color="#ff4c48" />
+                <Text style={styles.featureText}>Unlimited AI Motion Analysis</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="medal" size={20} color="#ff4c48" />
+                <Text style={styles.featureText}>Exclusive Premium Badge</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="people" size={20} color="#ff4c48" />
+                <Text style={styles.featureText}>VIP Community Features</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="trophy" size={20} color="#ff4c48" />
+                <Text style={styles.featureText}>Compete for Prizes in Competitions</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="flash" size={20} color="#ff4c48" />
+                <Text style={styles.featureText}>Priority Support & Early Access</Text>
+              </View>
+            </View>
+
+            {/* Plans */}
+            <View style={styles.plansContainer}>
+              {premiumPlans.map((plan) => (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[
+                    styles.planCard,
+                    selectedPlan?.id === plan.id && styles.selectedPlan,
+                    plan.popular && styles.popularPlan
+                  ]}
+                  onPress={() => setSelectedPlan(plan)}
+                >
+                  {plan.popular && (
+                    <View style={styles.popularBadge}>
+                      <Text style={styles.popularText}>MOST POPULAR</Text>
+                    </View>
+                  )}
+                  
+                  <Text style={styles.planName}>{plan.name}</Text>
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.planPrice}>{plan.price}</Text>
+                    <Text style={styles.planCurrency}>{plan.currency}</Text>
+                  </View>
+                  <Text style={styles.planDuration}>{plan.duration}</Text>
+                  
+                  {plan.savings && (
+                    <View style={styles.savingsBadge}>
+                      <Text style={styles.savingsText}>{plan.savings}</Text>
+                    </View>
+                  )}
+                  
+                  <View style={styles.planFeatures}>
+                    {plan.features.slice(0, 3).map((feature, index) => (
+                      <Text key={index} style={styles.planFeatureText}>• {feature}</Text>
+                    ))}
+                  </View>
+                  
+                  {selectedPlan?.id === plan.id && (
+                    <View style={styles.selectedIndicator}>
+                      <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Subscribe Button */}
+            <TouchableOpacity
+              style={[
+                styles.subscribeButton,
+                !selectedPlan && styles.disabledButton
+              ]}
+              onPress={() => selectedPlan && handleSubscribe(selectedPlan)}
+              disabled={!selectedPlan || loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.subscribeButtonText}>
+                  {selectedPlan ? `Subscribe - ${selectedPlan.price} ${selectedPlan.currency}` : 'Select a Plan'}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Terms */}
+            <Text style={styles.termsText}>
+              By subscribing, you agree to our Terms of Service and Privacy Policy.
+              Subscriptions auto-renew unless cancelled.
+            </Text>
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+
   // Show loading state while UserDataManager initializes
   if (!isInitialized) {
     return (
@@ -534,6 +967,7 @@ export default function SettingsScreen({ setIsLoggedIn }) {
         <ImageBackground source={backgroundImage} style={styles.backgroundImage} resizeMode="cover">
           <View style={styles.overlay}>
             <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#ff4c48" />
               <Text style={styles.loadingText}>Loading settings...</Text>
             </View>
           </View>
@@ -557,7 +991,10 @@ export default function SettingsScreen({ setIsLoggedIn }) {
           >
             {/* Header */}
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <TouchableOpacity 
+                onPress={() => navigation?.goBack ? navigation.goBack() : navigation?.navigate('home')} 
+                style={styles.backButton}
+              >
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Profile & Settings</Text>
@@ -567,6 +1004,37 @@ export default function SettingsScreen({ setIsLoggedIn }) {
             </View>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+              {/* Premium Status Banner */}
+              {!isPremium && (
+                <TouchableOpacity 
+                  style={styles.premiumBanner}
+                  onPress={() => setShowPremiumModal(true)}
+                >
+                  <View style={styles.premiumBannerContent}>
+                    <View style={styles.premiumBannerLeft}>
+                      <Ionicons name="diamond" size={30} color="#FFD700" />
+                      <View style={styles.premiumBannerText}>
+                        <Text style={styles.premiumBannerTitle}>Go Premium</Text>
+                        <Text style={styles.premiumBannerSubtitle}>Unlock all features</Text>
+                      </View>
+                    </View>
+                    <View style={styles.premiumBannerRight}>
+                      <Text style={styles.premiumBannerPrice}>From 50 DH/month</Text>
+                      <Ionicons name="arrow-forward" size={20} color="#FFD700" />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Premium Member Badge */}
+              {isPremium && (
+                <View style={styles.premiumMemberBadge}>
+                  <Ionicons name="diamond" size={24} color="#FFD700" />
+                  <Text style={styles.premiumMemberText}>Premium Member</Text>
+                  <Text style={styles.premiumPlanText}>{currentPlan?.toUpperCase()} PLAN</Text>
+                </View>
+              )}
+
               {/* Profile Section */}
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Profile</Text>
@@ -577,6 +1045,11 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                     ) : (
                       <View style={styles.placeholderImage}>
                         <Text style={styles.placeholderText}>{name.charAt(0) || 'U'}</Text>
+                      </View>
+                    )}
+                    {isPremium && (
+                      <View style={styles.premiumProfileBadge}>
+                        <Ionicons name="diamond" size={12} color="#FFD700" />
                       </View>
                     )}
                     <View style={styles.editIconContainer}>
@@ -663,18 +1136,20 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                     <Text style={styles.quickActionText}>Achievements</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.quickActionButton}
+                    style={[styles.quickActionButton, !isPremium && styles.premiumFeature]}
                     onPress={goToAIAssistant}
                   >
                     <Ionicons name="chatbubbles" size={24} color="#ff4c48" />
                     <Text style={styles.quickActionText}>AI Assistant</Text>
+                    {!isPremium && <Ionicons name="lock-closed" size={16} color="#FFD700" style={styles.lockIcon} />}
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={styles.quickActionButton}
+                    style={[styles.quickActionButton, !isPremium && styles.premiumFeature]}
                     onPress={goToMotionAnalysis}
                   >
                     <Ionicons name="camera" size={24} color="#ff4c48" />
                     <Text style={styles.quickActionText}>Motion Analysis</Text>
+                    {!isPremium && <Ionicons name="lock-closed" size={16} color="#FFD700" style={styles.lockIcon} />}
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.quickActionButton}
@@ -685,6 +1160,41 @@ export default function SettingsScreen({ setIsLoggedIn }) {
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Subscription Management */}
+              {!isPremium && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Premium</Text>
+                  <TouchableOpacity 
+                    style={styles.premiumUpgradeButton}
+                    onPress={() => setShowPremiumModal(true)}
+                  >
+                    <Ionicons name="diamond" size={24} color="#FFD700" />
+                    <Text style={styles.premiumUpgradeText}>Upgrade to Premium</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFD700" />
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {isPremium && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Subscription</Text>
+                  <View style={styles.settingsContainer}>
+                    <SettingItem
+                      title="Current Plan"
+                      subtitle={`Premium ${currentPlan?.charAt(0).toUpperCase()}${currentPlan?.slice(1) || ''}`}
+                      type="button"
+                      onPress={() => setShowPremiumModal(true)}
+                    />
+                    <SettingItem
+                      title="Manage Subscription"
+                      subtitle="Change or cancel your plan"
+                      type="button"
+                      onPress={() => Alert.alert('Manage Subscription', 'Subscription management coming soon!')}
+                    />
+                  </View>
+                </View>
+              )}
 
               {/* Motion Analysis Settings */}
               <View style={styles.section}>
@@ -820,21 +1330,73 @@ export default function SettingsScreen({ setIsLoggedIn }) {
           </Animated.View>
         </View>
       </ImageBackground>
+      
+      {/* Premium Modal */}
+      <PremiumModal />
     </SafeAreaView>
   );
 }
 
+// Export with Error Boundary wrapper
+export default function SettingsScreenWrapper(props) {
+  return (
+    <SettingsErrorBoundary>
+      <SettingsScreen {...props} />
+    </SettingsErrorBoundary>
+  );
+}
+
+// StyleSheet
 const styles = StyleSheet.create({
+  // Error Boundary Styles
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#1a1a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContent: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorMessage: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  errorButton: {
+    backgroundColor: '#ff4c48',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Main Component Styles
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#1a1a1a',
   },
   backgroundImage: {
     flex: 1,
+    width: '100%',
+    height: '100%',
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
   content: {
     flex: 1,
@@ -843,59 +1405,127 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   loadingText: {
     color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    marginTop: 16,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 10 : 40,
-    paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingBottom: 20,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   syncButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
   },
   scrollView: {
     flex: 1,
   },
-  section: {
-    margin: 20,
-    marginBottom: 10,
+  
+  // Premium Banner
+  premiumBanner: {
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
   },
-  sectionTitle: {
+  premiumBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  premiumBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  premiumBannerText: {
+    marginLeft: 12,
+  },
+  premiumBannerTitle: {
+    color: '#FFD700',
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 15,
   },
+  premiumBannerSubtitle: {
+    color: 'rgba(255, 215, 0, 0.8)',
+    fontSize: 14,
+  },
+  premiumBannerRight: {
+    alignItems: 'flex-end',
+  },
+  premiumBannerPrice: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Premium Member Badge
+  premiumMemberBadge: {
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumMemberText: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  premiumPlanText: {
+    color: 'rgba(255, 215, 0, 0.8)',
+    fontSize: 12,
+    marginLeft: 8,
+  },
+
+  // Sections
+  section: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+
+  // Profile Section
   profileSection: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
+    borderRadius: 16,
     padding: 20,
     alignItems: 'center',
   },
@@ -907,46 +1537,58 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#ff4c48',
   },
   placeholderImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#ff4c48',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#ff4c48',
   },
   placeholderText: {
-    fontSize: 36,
     color: '#fff',
-    fontWeight: '600',
+    fontSize: 36,
+    fontWeight: 'bold',
+  },
+  premiumProfileBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FFD700',
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
   },
   editIconContainer: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
     backgroundColor: '#ff4c48',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 16,
+    padding: 8,
+    borderWidth: 2,
+    borderColor: '#1a1a1a',
   },
   input: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 76, 72, 0.3)',
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     color: '#fff',
+    fontSize: 16,
     width: '100%',
-    marginBottom: 15,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
+
+  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -954,40 +1596,34 @@ const styles = StyleSheet.create({
   },
   statCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
-    padding: 15,
+    borderRadius: 12,
+    padding: 16,
     width: '48%',
-    marginBottom: 10,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
   statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 76, 72, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginRight: 12,
   },
   statContent: {
     flex: 1,
   },
   statValue: {
+    color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#fff',
   },
   statTitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 12,
-    color: '#fff',
-    opacity: 0.8,
   },
   statSubtitle: {
+    color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 10,
-    color: '#ff4c48',
-    marginTop: 2,
   },
+
+  // Quick Actions
   quickActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -995,29 +1631,59 @@ const styles = StyleSheet.create({
   },
   quickActionButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
-    padding: 20,
-    alignItems: 'center',
+    borderRadius: 12,
+    padding: 16,
     width: '48%',
-    marginBottom: 10,
+    marginBottom: 12,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  premiumFeature: {
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 76, 72, 0.3)',
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  lockIcon: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
   },
   quickActionText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
     marginTop: 8,
+    textAlign: 'center',
   },
+
+  // Premium Upgrade Button
+  premiumUpgradeButton: {
+    backgroundColor: 'linear-gradient(45deg, #FFD700, #FFA500)',
+    borderRadius: 12,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumUpgradeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginHorizontal: 12,
+  },
+
+  // Settings
   settingsContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 15,
+    borderRadius: 16,
     overflow: 'hidden',
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
@@ -1025,39 +1691,216 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingTitle: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
   },
   settingSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 14,
-    color: '#fff',
-    opacity: 0.7,
     marginTop: 2,
   },
+
+  // Action Buttons
   actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: 15,
-    paddingHorizontal: 25,
-    borderColor: '#ff4c48',
-    borderWidth: 2,
-    borderRadius: 25,
+    backgroundColor: '#ff4c48',
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 10,
-  },
-  logoutButton: {
-    borderColor: '#FF3B30',
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-  },
-  disabledButton: {
-    opacity: 0.7,
+    marginBottom: 12,
   },
   actionButtonText: {
     color: '#fff',
-    fontWeight: '600',
     fontSize: 16,
+    fontWeight: 'bold',
+  },
+  logoutButton: {
+    backgroundColor: 'rgba(220, 38, 38, 0.8)',
+  },
+  disabledButton: {
+    backgroundColor: 'rgba(255, 76, 72, 0.5)',
+  },
+
+  // Premium Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumModalContainer: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '90%',
+    maxWidth: 400,
+  },
+  premiumHeader: {
+    alignItems: 'center',
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  premiumTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  premiumSubtitle: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  premiumFeatures: {
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  featuresTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featureText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    marginLeft: 12,
+  },
+  plansContainer: {
+    padding: 24,
+  },
+  planCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+  },
+  selectedPlan: {
+    borderColor: '#4CAF50',
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  },
+  popularPlan: {
+    borderColor: '#FFD700',
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -8,
+    left: 16,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  popularText: {
+    color: '#000',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  planName: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 4,
+  },
+  planPrice: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  planCurrency: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 16,
+    marginLeft: 4,
+  },
+  planDuration: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  savingsBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+  },
+  savingsText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  planFeatures: {
+    marginBottom: 16,
+  },
+  planFeatureText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  selectedIndicator: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+  },
+  subscribeButton: {
+    backgroundColor: '#ff4c48',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginHorizontal: 24,
+    marginBottom: 16,
+  },
+  subscribeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  termsText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 12,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    lineHeight: 18,
   },
   bottomPadding: {
-    height: 50,
+    height: 40,
   },
 });

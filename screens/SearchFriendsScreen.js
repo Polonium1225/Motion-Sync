@@ -3,16 +3,18 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, SafeAreaView, StatusBar, Image, Animated
 } from 'react-native';
-import { account, databases, DATABASE_ID, Query, userProfiles, COLLECTIONS } from "../lib/AppwriteService";
+import { 
+  userProfiles,
+  getUserId,
+  supabase,
+  conversations
+} from "../lib/SupabaseService"; // Updated imports
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../constants/Colors';
 import ImageBackground from 'react-native/Libraries/Image/ImageBackground';
 import backgroundImage from '../assets/sfgsdh.png';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
-const PROJECT_ID = '67d0bb27002cfc0b22d2';
-const BUCKET_ID = 'profile_images';
 
 export default function SearchFriendsScreen({ navigation }) {
   const [users, setUsers] = useState([]);
@@ -55,34 +57,59 @@ export default function SearchFriendsScreen({ navigation }) {
     const fetchUsers = async () => {
       try {
         setIsLoading(true);
-        const user = await account.get();
-        setCurrentUserId(user.$id);
+        const userId = await getUserId();
+        
+        if (!userId) {
+          setError("Please log in to find friends");
+          setIsLoading(false);
+          return;
+        }
+
+        setCurrentUserId(userId);
 
         console.log("Fetching user profiles..."); // Debug log
 
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          [
-            Query.notEqual('userId', user.$id),
-            Query.select(['userId', 'name', 'avatar', 'status'])
-          ]
-        );
+        // Get all user profiles except current user
+        const { data: profiles, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('user_id, name, avatar, status')
+          .neq('user_id', userId);
 
-        console.log("Received profiles:", response.documents); // Debug log
+        if (profilesError) {
+          console.error("Error fetching profiles:", profilesError);
+          setError("Couldn't load users. Please try again later.");
+          return;
+        }
 
-        const mappedUsers = response.documents.map(doc => {
-          let avatarUrl = DEFAULT_AVATAR;
+        console.log("Received profiles:", profiles); // Debug log
 
-          if (doc.avatar) {
-            avatarUrl = `${API_ENDPOINT}/storage/buckets/${BUCKET_ID}/files/${doc.avatar}/view?project=${PROJECT_ID}`;
+        const mappedUsers = profiles.map(profile => {
+          let avatarSource = DEFAULT_AVATAR;
+
+          // If avatar is a URL (Supabase storage URL), use it directly
+          if (profile.avatar) {
+            if (profile.avatar.startsWith('http')) {
+              avatarSource = { uri: profile.avatar };
+            } else {
+              // If it's a file path, construct the URL using your storage service
+              // This depends on how your storage.getPublicUrl works
+              try {
+                const { data } = supabase.storage
+                  .from('images')
+                  .getPublicUrl(profile.avatar);
+                avatarSource = { uri: data.publicUrl };
+              } catch (storageError) {
+                console.warn("Error getting avatar URL:", storageError);
+                avatarSource = DEFAULT_AVATAR;
+              }
+            }
           }
 
           return {
-            $id: doc.userId,
-            name: doc.name || 'Unknown User', // Fallback for name
-            avatar: avatarUrl,
-            status: doc.status || 'offline' // Fallback for status
+            id: profile.user_id,
+            name: profile.name || 'Unknown User',
+            avatar: avatarSource,
+            status: profile.status || 'offline'
           };
         });
 
@@ -101,29 +128,29 @@ export default function SearchFriendsScreen({ navigation }) {
 
   // Real-time status updates
   useEffect(() => {
+    if (!currentUserId) return;
+
     const updateStatuses = async () => {
       try {
-        const response = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          [
-            Query.notEqual('userId', currentUserId),
-            Query.select(['userId', 'status'])
-          ]
-        );
+        const { data: profiles, error } = await supabase
+          .from('user_profiles')
+          .select('user_id, status')
+          .neq('user_id', currentUserId);
 
-        setUsers(prevUsers =>
-          prevUsers.map(user => {
-            const updatedUser = response.documents.find(doc => doc.userId === user.$id);
-            return updatedUser ? {...user, status: updatedUser.status} : user;
-          })
-        );
+        if (!error && profiles) {
+          setUsers(prevUsers =>
+            prevUsers.map(user => {
+              const updatedUser = profiles.find(profile => profile.user_id === user.id);
+              return updatedUser ? {...user, status: updatedUser.status} : user;
+            })
+          );
+        }
       } catch (error) {
         console.error("Error updating statuses:", error);
       }
     };
 
-    const interval = setInterval(updateStatuses, 10000);
+    const interval = setInterval(updateStatuses, 15000); // Check every 15 seconds
     return () => clearInterval(interval);
   }, [currentUserId]);
 
@@ -160,14 +187,14 @@ export default function SearchFriendsScreen({ navigation }) {
       >
         <TouchableOpacity
           style={styles.userCard}
-          onPress={() => startConversation(item.$id, item.name)}
+          onPress={() => startConversation(item.id, item.name)}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
         >
           <View style={styles.userContent}>
             <View style={styles.avatarContainer}>
               <Image
-                source={typeof item.avatar === 'string' ? { uri: item.avatar } : item.avatar}
+                source={item.avatar}
                 style={styles.avatarImage}
                 defaultSource={DEFAULT_AVATAR}
               />
@@ -215,7 +242,7 @@ export default function SearchFriendsScreen({ navigation }) {
         navigation.navigate('Chat', {
           friendId,
           friendName,
-          conversationId: existingConversation.$id
+          conversationId: existingConversation.id
         });
       } else {
         navigation.navigate('Chat', {
@@ -226,40 +253,45 @@ export default function SearchFriendsScreen({ navigation }) {
       }
     } catch (error) {
       console.error("Error starting conversation:", error);
+      // Still navigate even if there's an error - the chat screen can handle creating new conversation
+      navigation.navigate('Chat', {
+        friendId,
+        friendName,
+        conversationId: `new_${currentUserId}_${friendId}`
+      });
     }
   };
 
   // Find if a conversation already exists between the two users
   const findExistingConversation = async (userId, friendId) => {
     try {
-      // First query for participant1=userId and participant2=friendId
-      const response1 = await databases.listDocuments(
-        DATABASE_ID,
-        '67edc4ef0032ae87bfe4', // conversations collection
-        [
-          Query.equal('participant1', userId),
-          Query.equal('participant2', friendId)
-        ]
-      );
+      console.log(`[DEBUG] Looking for conversation between ${userId} and ${friendId}`);
 
-      if (response1.documents.length > 0) {
-        console.log("[DEBUG] Found existing conversation (1):", response1.documents[0].$id);
-        return response1.documents[0];
+      // Check both possible participant combinations
+      const { data: conversations1, error: error1 } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('participant1', userId)
+        .eq('participant2', friendId);
+
+      if (conversations1 && conversations1.length > 0) {
+        console.log("[DEBUG] Found existing conversation (1):", conversations1[0].id);
+        return conversations1[0];
       }
 
-      // If not found, try the opposite: participant1=friendId and participant2=userId
-      const response2 = await databases.listDocuments(
-        DATABASE_ID,
-        '67edc4ef0032ae87bfe4', // conversations collection
-        [
-          Query.equal('participant1', friendId),
-          Query.equal('participant2', userId)
-        ]
-      );
+      const { data: conversations2, error: error2 } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('participant1', friendId)
+        .eq('participant2', userId);
 
-      if (response2.documents.length > 0) {
-        console.log("[DEBUG] Found existing conversation (2):", response2.documents[0].$id);
-        return response2.documents[0];
+      if (conversations2 && conversations2.length > 0) {
+        console.log("[DEBUG] Found existing conversation (2):", conversations2[0].id);
+        return conversations2[0];
+      }
+
+      if (error1 || error2) {
+        console.error("[DEBUG] Error finding existing conversation:", error1 || error2);
       }
 
       return null;
@@ -272,6 +304,11 @@ export default function SearchFriendsScreen({ navigation }) {
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const refreshUsers = async () => {
+    setError(null);
+    await fetchUsers();
+  };
 
   if (isLoading) {
     return (
@@ -306,7 +343,7 @@ export default function SearchFriendsScreen({ navigation }) {
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
               style={styles.retryButton}
-              onPress={() => navigation.replace('SearchFriends')}
+              onPress={refreshUsers}
             >
               <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
@@ -342,7 +379,12 @@ export default function SearchFriendsScreen({ navigation }) {
               <Ionicons name="arrow-back" size={24} color="white" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Find Friends</Text>
-            <View style={styles.headerSpacer} />
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={refreshUsers}
+            >
+              <Ionicons name="refresh" size={24} color="white" />
+            </TouchableOpacity>
           </View>
 
           {/* Search Bar */}
@@ -374,9 +416,16 @@ export default function SearchFriendsScreen({ navigation }) {
 
           {/* Results Section */}
           <View style={styles.resultsContainer}>
-            <Text style={styles.sectionTitle}>
-              {searchQuery ? `${filteredUsers.length} Results` : `${users.length} Available Users`}
-            </Text>
+            <View style={styles.resultsHeader}>
+              <Text style={styles.sectionTitle}>
+                {searchQuery ? `${filteredUsers.length} Results` : `${users.length} Available Users`}
+              </Text>
+              {users.length > 0 && (
+                <Text style={styles.onlineCount}>
+                  {users.filter(u => u.status === 'online').length} online
+                </Text>
+              )}
+            </View>
 
             {filteredUsers.length === 0 ? (
               <View style={styles.emptyContainer}>
@@ -395,12 +444,19 @@ export default function SearchFriendsScreen({ navigation }) {
                       : "Check back later for new users to connect with"
                     }
                   </Text>
-                  {searchQuery && (
+                  {searchQuery ? (
                     <TouchableOpacity 
                       style={styles.clearSearchButton}
                       onPress={() => setSearchQuery('')}
                     >
                       <Text style={styles.clearSearchButtonText}>Clear Search</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity 
+                      style={styles.clearSearchButton}
+                      onPress={refreshUsers}
+                    >
+                      <Text style={styles.clearSearchButtonText}>Refresh</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -409,9 +465,11 @@ export default function SearchFriendsScreen({ navigation }) {
               <FlatList
                 data={filteredUsers}
                 renderItem={renderUserItem}
-                keyExtractor={item => item.$id}
+                keyExtractor={item => item.id}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}
+                refreshing={isLoading}
+                onRefresh={refreshUsers}
               />
             )}
           </View>
@@ -510,8 +568,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginLeft: 15,
   },
-  headerSpacer: {
+  refreshButton: {
     width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchContainer: {
     marginBottom: 25,
@@ -537,11 +600,21 @@ const styles = StyleSheet.create({
   resultsContainer: {
     flex: 1,
   },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   sectionTitle: {
     color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 15,
+  },
+  onlineCount: {
+    color: '#00FF94',
+    fontSize: 14,
+    fontWeight: '600',
   },
   listContent: {
     paddingBottom: 20,

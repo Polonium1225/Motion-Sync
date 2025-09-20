@@ -15,17 +15,15 @@ import {
   SafeAreaView,
   Animated
 } from 'react-native';
-import { account, getUserConversations, databases, DATABASE_ID, Query, userProfiles } from "../lib/AppwriteService";
+import { auth, userProfiles, conversations, getProfileImageUrl } from "../lib/SupabaseService";
 import { useIsFocused } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 const DEFAULT_AVATAR = require('../assets/avatar.png');
-const PROJECT_ID = '67d0bb27002cfc0b22d2'; 
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1';
 const backgroundImage = require('../assets/sfgsdh.png');
 
 export default function FindFriendScreen({ navigation }) {
-  const [conversations, setConversations] = useState([]);
+  const [conversationsList, setConversationsList] = useState([]);
   const [users, setUsers] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -82,16 +80,24 @@ export default function FindFriendScreen({ navigation }) {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        const user = await account.get();
-        setCurrentUserId(user.$id);
+        setError(null);
         
-        const userConversations = await getUserConversations(user.$id);
+        // Get current user from Supabase
+        const user = await auth.getCurrentUser();
+        if (!user) {
+          throw new Error('No authenticated user found');
+        }
+        
+        setCurrentUserId(user.id);
+        
+        // Get user conversations from Supabase
+        const userConversations = await conversations.getUserConversations(user.id);
         
         // Get participant IDs and fetch their profiles
         const userIds = new Set();
         userConversations.forEach(conv => {
-          if (conv.participant1 !== user.$id) userIds.add(conv.participant1);
-          if (conv.participant2 !== user.$id) userIds.add(conv.participant2);
+          if (conv.participant1 !== user.id) userIds.add(conv.participant1);
+          if (conv.participant2 !== user.id) userIds.add(conv.participant2);
         });
     
         const userMap = {};
@@ -100,13 +106,16 @@ export default function FindFriendScreen({ navigation }) {
             const profile = await userProfiles.getProfileByUserId(userId);
             let avatarUrl = DEFAULT_AVATAR;
             
+            // Handle Supabase avatar URLs
             if (profile.avatar) {
-              // Create direct download URL
-              avatarUrl = `${API_ENDPOINT}/storage/buckets/profile_images/files/${profile.avatar}/view?project=${PROJECT_ID}`;
+              const profileImageUrl = getProfileImageUrl(profile.avatar);
+              if (profileImageUrl) {
+                avatarUrl = profileImageUrl;
+              }
             }
             
             userMap[userId] = {
-              $id: userId,
+              id: userId, // Supabase uses 'id' instead of '$id'
               name: profile.name,
               avatar: avatarUrl,
               status: profile.status || 'offline'
@@ -115,7 +124,7 @@ export default function FindFriendScreen({ navigation }) {
           } catch (err) {
             console.error(`Error loading profile for ${userId}:`, err);
             userMap[userId] = {
-              $id: userId,
+              id: userId,
               name: 'Unknown User',
               avatar: DEFAULT_AVATAR,
               status: 'offline'
@@ -124,7 +133,23 @@ export default function FindFriendScreen({ navigation }) {
         }));
     
         setUsers(userMap);
-        setConversations(userConversations);
+        
+        // Transform conversations to match expected format
+        const transformedConversations = userConversations.map(conv => ({
+          id: conv.id, // Supabase uses 'id' instead of '$id'
+          participant1: conv.participant1,
+          participant2: conv.participant2,
+          lastMessage: conv.messages && conv.messages.length > 0 
+            ? conv.messages[conv.messages.length - 1].content 
+            : null,
+          lastMessageAt: conv.messages && conv.messages.length > 0 
+            ? conv.messages[conv.messages.length - 1].created_at 
+            : conv.created_at,
+          createdAt: conv.created_at,
+          updatedAt: conv.updated_at
+        }));
+        
+        setConversationsList(transformedConversations);
       } catch (err) {
         console.error("Error loading data:", err);
         setError("Failed to load conversations. Please try again.");
@@ -142,7 +167,7 @@ export default function FindFriendScreen({ navigation }) {
 
     const updateStatuses = async () => {
       try {
-        const userIds = conversations.flatMap(conv => [
+        const userIds = conversationsList.flatMap(conv => [
           conv.participant1,
           conv.participant2
         ].filter(id => id !== currentUserId));
@@ -194,12 +219,12 @@ export default function FindFriendScreen({ navigation }) {
     // Set up periodic updates every 5 seconds
     const interval = setInterval(updateStatuses, 5000);
     return () => clearInterval(interval);
-  }, [conversations, currentUserId]);
+  }, [conversationsList, currentUserId]);
 
   const getFilteredConversations = () => {
-    if (!searchQuery) return conversations;
+    if (!searchQuery) return conversationsList;
     
-    return conversations.filter(conv => {
+    return conversationsList.filter(conv => {
       const otherUserId = conv.participant1 === currentUserId ? conv.participant2 : conv.participant1;
       const user = users[otherUserId];
       if (!user) return false;
@@ -218,14 +243,14 @@ export default function FindFriendScreen({ navigation }) {
     console.log("[DEBUG] Navigating to Chat with params:", {
       friendId,
       friendName: friend.name,
-      conversationId: conversation.$id,
+      conversationId: conversation.id, // Use 'id' instead of '$id'
       actualFriendObject: friend
     });
     
     navigation.navigate('Chat', {
       friendId: friendId,
       friendName: friend.name,
-      conversationId: conversation.$id
+      conversationId: conversation.id // Use 'id' instead of '$id'
     });
   };
 
@@ -425,7 +450,11 @@ export default function FindFriendScreen({ navigation }) {
                 <Text style={styles.errorText}>{error}</Text>
                 <TouchableOpacity 
                   style={styles.retryButton}
-                  onPress={() => window.location.reload()}
+                  onPress={() => {
+                    setError(null);
+                    // Trigger a reload by toggling the focused state effect
+                    setIsLoading(true);
+                  }}
                 >
                   <Text style={styles.retryButtonText}>Try Again</Text>
                 </TouchableOpacity>
@@ -466,7 +495,7 @@ export default function FindFriendScreen({ navigation }) {
               </Text>
               <FlatList
                 data={filteredConversations}
-                keyExtractor={(item) => item.$id}
+                keyExtractor={(item) => item.id.toString()} // Convert to string for safety
                 renderItem={renderConversationItem}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContent}

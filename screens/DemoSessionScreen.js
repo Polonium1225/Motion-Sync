@@ -17,7 +17,7 @@ import WebView from 'react-native-webview';
 import { Camera, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av'; // Add this import for audio
+import { Audio } from 'expo-av';
 import { API_CONFIG } from './config';
 import Colors from '../constants/Colors';
 import backgroundImage from '../assets/sfgsdh.png';
@@ -63,7 +63,7 @@ export default function DemoSessionScreen() {
     return () => {
       // Cleanup audio on unmount
       Object.values(audioRefs.current).forEach(audio => {
-        if (audio) {
+        if (audio && typeof audio.unloadAsync === 'function') {
           audio.unloadAsync().catch(e => console.log('Audio cleanup error:', e));
         }
       });
@@ -77,19 +77,18 @@ export default function DemoSessionScreen() {
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
-        interruptionModeIOS: Audio.InterruptionModeIOS.DoNotMix,
-        interruptionModeAndroid: Audio.InterruptionModeAndroid.DoNotMix,
         shouldDuckAndroid: false,
         playThroughEarpieceAndroid: false,
+      }).catch((e) => {
+        console.log('Audio mode setup warning:', e.message);
       });
 
-      // Create simple audio objects without external files for now
-      // Using system sounds or creating simple audio programmatically
+      // Load audio files from assets/sounds/ directory (static requires only)
       const audioFiles = {
-        success: { uri: 'data:audio/wav;base64,UklGRl4GAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YToGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2+LDcSUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCSCG3/DHeyMFMIzP8OCRRAI+ytjmhkQSClc=' },
-        tick: { uri: 'data:audio/wav;base64,UklGRkoFAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSYFAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2+LDcSUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCSCG3/DHeyMFMIzP8OCRRA' },
-        start: { uri: 'data:audio/wav;base64,UklGRjIEAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQ4EAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2+LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCVqFhYKfHzNgOpOhpJFfNSxdo9vdqmEWAjiV2fLLeSEFKnnC8eGNP' },
-        complete: { uri: 'data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmIdCSCG3/DHeyMFMIzP8OCRR' },
+        success: require('../assets/sounds/success.wav'),
+        tick: require('../assets/sounds/tick.wav'),
+        start: require('../assets/sounds/start.wav'),
+        complete: require('../assets/sounds/complete.wav'),
       };
 
       // Load all audio files
@@ -100,48 +99,90 @@ export default function DemoSessionScreen() {
             volume: 1.0,
           });
           audioRefs.current[key] = sound;
+          console.log(`✅ Loaded ${key} audio successfully`);
         } catch (error) {
-          console.log(`Failed to load ${key} audio:`, error);
+          console.log(`❌ Failed to load ${key} audio:`, error.message);
         }
       }
 
-      setAudioEnabled(true);
-      console.log('Audio setup completed successfully');
+      // Check if at least some audio files loaded
+      const loadedSounds = Object.values(audioRefs.current).filter(sound => sound && !sound.fallback);
+      if (loadedSounds.length > 0) {
+        setAudioEnabled(true);
+        console.log(`✅ Audio setup completed: ${loadedSounds.length}/4 sounds loaded`);
+      } else {
+        console.warn('⚠️ No audio files could be loaded - continuing without sound');
+        setAudioEnabled(false);
+        // Create fallback placeholders
+        audioRefs.current = {
+          success: { fallback: true },
+          tick: { fallback: true },
+          start: { fallback: true },
+          complete: { fallback: true }
+        };
+      }
     } catch (error) {
       console.error('Audio setup failed:', error);
-      // Continue without audio if setup fails
       setAudioEnabled(false);
-      
-      // Create a simple fallback audio system using native device sounds
+      // Create fallback placeholders
       audioRefs.current = {
         success: { fallback: true },
         tick: { fallback: true },
         start: { fallback: true },
         complete: { fallback: true }
       };
-      setAudioEnabled(true);
     }
   };
 
   const playSound = async (soundType) => {
-    if (!audioEnabled || !audioRefs.current[soundType]) {
-      console.log(`Audio not available for: ${soundType}`);
+    if (!audioRefs.current[soundType]) {
+      console.log(`❌ Sound not loaded: ${soundType}`);
       return;
     }
 
     try {
       const sound = audioRefs.current[soundType];
       
-      // If it's a fallback, just log the sound that would play
+      // Check if it's a fallback placeholder
       if (sound.fallback) {
-        console.log(`🔊 Playing ${soundType} sound (fallback mode)`);
+        console.log(`🔇 ${soundType} sound (fallback mode - no audio)`);
         return;
       }
       
-      await sound.replayAsync();
-      console.log(`🔊 Played sound: ${soundType}`);
+      // Check if it's a valid Audio.Sound object
+      if (sound && sound._loaded) {
+        // Reset position and play
+        await sound.setPositionAsync(0);
+        await sound.playAsync();
+        console.log(`🔊 Played sound: ${soundType}`);
+      } else if (sound && typeof sound.replayAsync === 'function') {
+        // Try replayAsync method
+        await sound.replayAsync();
+        console.log(`🔊 Played sound: ${soundType} (replay)`);
+      } else {
+        console.log(`❓ Sound object exists but can't play: ${soundType}`);
+        // Try to reload the sound
+        if (sound.unloadAsync && sound.loadAsync) {
+          await sound.unloadAsync();
+          await sound.loadAsync();
+          await sound.playAsync();
+          console.log(`🔊 Reloaded and played sound: ${soundType}`);
+        }
+      }
     } catch (error) {
-      console.log(`Error playing sound ${soundType}:`, error);
+      console.log(`❌ Error playing sound ${soundType}:`, error.message);
+      // Try to recover by resetting the sound
+      try {
+        const sound = audioRefs.current[soundType];
+        if (sound && sound.stopAsync) {
+          await sound.stopAsync();
+          await sound.setPositionAsync(0);
+          await sound.playAsync();
+          console.log(`🔊 Recovered and played sound: ${soundType}`);
+        }
+      } catch (recoveryError) {
+        console.log(`❌ Recovery failed for ${soundType}:`, recoveryError.message);
+      }
     }
   };
 

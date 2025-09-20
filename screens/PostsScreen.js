@@ -17,29 +17,27 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PostItem from './PostItem';
-import { getPostsWithUsers, databases, Query, DATABASE_ID, COLLECTIONS } from '../lib/AppwriteService';
+import { 
+  posts, 
+  userProfiles, 
+  storage, 
+  getUserId,
+  auth
+} from '../lib/SupabaseService';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { createPost, getUserId, uploadPostImage } from '../lib/AppwriteService';
 import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 import backgroundImage from '../assets/sfgsdh.png';
 
-// Add your Appwrite project configurations (should match PostItem.js)
-const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Main project ID
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Main endpoint
-
-// Comment system seems to use different Appwrite instance
-const COMMENT_PROJECT_ID = '685ebdb90007d578e80d'; // From comment avatar URLs
-const COMMENT_API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // From comment avatar URLs
-
 const PostsScreen = ({ navigation }) => {
-  const [posts, setPosts] = useState([]);
+  const [postsData, setPostsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [content, setContent] = useState('');
   const [imageObj, setImageObj] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -50,6 +48,9 @@ const PostsScreen = ({ navigation }) => {
   const createButtonPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    // Initialize current user
+    initializeUser();
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -90,6 +91,16 @@ const PostsScreen = ({ navigation }) => {
     };
   }, []);
 
+  // Initialize current user
+  const initializeUser = async () => {
+    try {
+      const user = await auth.getCurrentUser();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error getting current user:', error);
+    }
+  };
+
   // Request permissions
   useEffect(() => {
     (async () => {
@@ -108,10 +119,30 @@ const PostsScreen = ({ navigation }) => {
 
   const loadPosts = async () => {
     try {
-      const fetchedPosts = await getPostsWithUsers();
-      setPosts(fetchedPosts);
+      setLoading(true);
+      const fetchedPosts = await posts.getPostsWithUsers();
+      
+      // Transform the data to match expected structure
+      const transformedPosts = fetchedPosts.map(post => ({
+        ...post,
+        // Ensure user data is properly structured
+        user: post.user_profiles || {
+          name: 'Unknown User',
+          avatar: null
+        },
+        // Calculate counts from arrays if they exist
+        likesCount: Array.isArray(post.likes) ? post.likes.length : (post.likes?.count || 0),
+        commentsCount: Array.isArray(post.comments) ? post.comments.length : (post.comments?.count || 0),
+        // Ensure proper date format
+        created_at: post.created_at,
+        // Image URL handling
+        imageUrl: post.image_url
+      }));
+
+      setPostsData(transformedPosts);
     } catch (error) {
       console.error('Error loading posts:', error);
+      Alert.alert('Error', 'Failed to load posts. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -123,42 +154,23 @@ const PostsScreen = ({ navigation }) => {
       const currentUserId = await getUserId();
       
       if (!currentUserId) {
-        Alert.alert('Error', 'Unable to load your profile');
+        Alert.alert('Error', 'Please log in to view your profile');
         return;
       }
 
-      // Try to get current user's profile information
+      // Get current user's profile information from Supabase
       let userName = 'Your Profile';
       let userAvatar = null;
 
       try {
-        const profileResponse = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.USER_PROFILES,
-          [Query.equal('userId', currentUserId)]
-        );
-
-        if (profileResponse.documents.length > 0) {
-          const profile = profileResponse.documents[0];
+        const profile = await userProfiles.getProfileByUserId(currentUserId);
+        
+        if (profile) {
           userName = profile.name || 'Your Profile';
-          
-          // If avatar exists, construct the proper URL
-          if (profile.avatar) {
-            // Try multiple possible avatar URL constructions
-            const avatarId = profile.avatar;
-            console.log('Raw avatar ID from profile:', avatarId);
-            
-            // Check if it's already a full URL
-            if (typeof avatarId === 'string' && avatarId.startsWith('http')) {
-              userAvatar = avatarId;
-            } else {
-              // Try the comment project endpoint first (since posts show they're using this)
-              userAvatar = `${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatarId}/view?project=${COMMENT_PROJECT_ID}`;
-            }
-            
-            console.log('Constructed avatar URL:', userAvatar);
-          }
+          userAvatar = profile.avatar || null;
         }
+        
+        console.log('Profile loaded:', { userName, userAvatar });
       } catch (profileError) {
         console.log('Could not load profile details:', profileError);
         // Continue with default values
@@ -251,21 +263,26 @@ const PostsScreen = ({ navigation }) => {
   };
 
   const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'We need camera access to take photos');
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'We need camera access to take photos');
+        return;
+      }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.8,
-    });
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
 
-    if (!result.canceled) {
-      setImageObj(result.assets[0]);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setImageObj(result.assets[0]);
+      }
+    } catch (error) {
+      console.error('Camera error:', error);
+      Alert.alert('Error', 'Failed to take photo');
     }
   };
 
@@ -278,18 +295,42 @@ const PostsScreen = ({ navigation }) => {
     try {
       setUploading(true);
       const userId = await getUserId();
-      let imageFileId = null;
-
-      if (imageObj) {
-        imageFileId = await uploadPostImage(imageObj);
+      
+      if (!userId) {
+        Alert.alert('Error', 'You must be logged in to create a post');
+        return;
       }
 
-      await createPost(userId, content, imageFileId);
+      let imageUrl = null;
+
+      // Upload image to Supabase storage if present
+      if (imageObj) {
+        try {
+          console.log('Starting image upload...');
+          const uploadResult = await storage.uploadImage(imageObj);
+          imageUrl = uploadResult.publicUrl;
+          console.log('Image uploaded successfully:', imageUrl);
+        } catch (uploadError) {
+          console.error('Image upload failed:', uploadError);
+          Alert.alert('Upload Error', 'Failed to upload image. Creating post with text only.');
+          // Continue without image
+        }
+      }
+
+      // Create post in Supabase
+      console.log('Creating post with:', { userId, content: content.trim(), imageUrl });
+      await posts.createPost(userId, content.trim(), imageUrl);
+      
+      // Reload posts to show the new one
       await loadPosts();
+      
+      // Close modal and reset form
       hideModal();
+      
+      Alert.alert('Success', 'Post created successfully!');
     } catch (error) {
       console.error('Post creation failed:', error);
-      Alert.alert('Error', error.message || 'Failed to create post');
+      Alert.alert('Error', error.message || 'Failed to create post. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -369,7 +410,7 @@ const PostsScreen = ({ navigation }) => {
           </Animated.View>
 
           {/* Posts List */}
-          {posts.length === 0 ? (
+          {postsData.length === 0 ? (
             <View style={styles.emptyContainer}>
               <View style={styles.emptyContent}>
                 <Ionicons name="chatbubbles-outline" size={64} color="rgba(255, 255, 255, 0.4)" />
@@ -388,11 +429,20 @@ const PostsScreen = ({ navigation }) => {
             </View>
           ) : (
             <FlatList
-              data={posts}
-              renderItem={({ item, index }) => <PostItem post={item} navigation={navigation} index={index} />}
-              keyExtractor={item => item.$id}
+              data={postsData}
+              renderItem={({ item, index }) => (
+                <PostItem 
+                  post={item} 
+                  navigation={navigation} 
+                  index={index}
+                  onPostUpdate={loadPosts} // Pass refresh function
+                />
+              )}
+              keyExtractor={(item) => item.id ? item.id.toString() : `post-${Math.random()}`}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
+              refreshing={loading}
+              onRefresh={loadPosts}
             />
           )}
         </Animated.View>
@@ -420,6 +470,7 @@ const PostsScreen = ({ navigation }) => {
                   <TouchableOpacity 
                     style={styles.modalCloseButton}
                     onPress={hideModal}
+                    disabled={uploading}
                   >
                     <Ionicons name="close" size={24} color="white" />
                   </TouchableOpacity>
@@ -456,6 +507,8 @@ const PostsScreen = ({ navigation }) => {
                     value={content}
                     onChangeText={setContent}
                     textAlignVertical="top"
+                    maxLength={500}
+                    editable={!uploading}
                   />
                 </View>
 
@@ -470,6 +523,7 @@ const PostsScreen = ({ navigation }) => {
                     <TouchableOpacity
                       style={styles.removeImageButton}
                       onPress={() => setImageObj(null)}
+                      disabled={uploading}
                     >
                       <Ionicons name="close" size={18} color="white" />
                     </TouchableOpacity>
@@ -479,8 +533,9 @@ const PostsScreen = ({ navigation }) => {
                 {/* Action Buttons */}
                 <View style={styles.actionButtonsContainer}>
                   <TouchableOpacity 
-                    style={styles.actionButton} 
+                    style={[styles.actionButton, uploading && styles.actionButtonDisabled]} 
                     onPress={pickImage}
+                    disabled={uploading}
                     onPressIn={handlePressIn}
                     onPressOut={handlePressOut}
                   >
@@ -491,8 +546,9 @@ const PostsScreen = ({ navigation }) => {
                   </TouchableOpacity>
 
                   <TouchableOpacity 
-                    style={styles.actionButton} 
+                    style={[styles.actionButton, uploading && styles.actionButtonDisabled]} 
                     onPress={takePhoto}
+                    disabled={uploading}
                     onPressIn={handlePressIn}
                     onPressOut={handlePressOut}
                   >
@@ -505,7 +561,10 @@ const PostsScreen = ({ navigation }) => {
 
                 {/* Character Count */}
                 <View style={styles.characterCount}>
-                  <Text style={styles.characterCountText}>
+                  <Text style={[
+                    styles.characterCountText,
+                    content.length > 450 && styles.characterCountWarning
+                  ]}>
                     {content.length}/500
                   </Text>
                 </View>
@@ -751,6 +810,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
   actionButtonIcon: {
     width: 32,
     height: 32,
@@ -774,6 +836,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.6)',
     fontWeight: '500',
+  },
+  characterCountWarning: {
+    color: '#ff6b6b',
   },
 });
 

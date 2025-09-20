@@ -13,19 +13,20 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, databases, ID, userProfiles, DATABASE_ID, COLLECTIONS } from "../lib/AppwriteService";
+// UPDATED: Import from Supabase service instead of Appwrite
+import { auth, userProfiles } from "../lib/SupabaseService";
 import { useNavigation } from "@react-navigation/native";
-import bcrypt from 'react-native-bcrypt';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import Colors from '../constants/Colors';
 import backgroundImage from '../assets/sfgsdh.png';
 
+WebBrowser.maybeCompleteAuthSession();
+
 export default function SignUp({ setIsLoggedIn }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [id , setId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigation = useNavigation();
@@ -41,7 +42,6 @@ export default function SignUp({ setIsLoggedIn }) {
   React.useEffect(() => {
     if (response?.type === 'success') {
       const { authentication } = response;
-      // Use the authentication object to sign in the user
       console.log("Google Sign-In Success:", authentication);
       handleGoogleSignIn(authentication);
     }
@@ -59,65 +59,137 @@ export default function SignUp({ setIsLoggedIn }) {
       const userInfo = await userInfoResponse.json();
       console.log("Google User Info:", userInfo);
 
-      // Extract user details
+      // UPDATED: Use Supabase OAuth instead of manual handling
+      // For now, we'll use the email/password flow with Google data
+      // In production, you'd want to set up proper Google OAuth with Supabase
       const { name, email } = userInfo;
 
-      // Store user details in your database or state
-      setName(name);
-      setEmail(email);
-
-      // Optionally, log the user in automatically
-      setIsLoggedIn(true);
-      Alert.alert("Success", "Signed in with Google successfully!");
+      // Check if user already exists
+      const existingUser = await auth.signIn(email, 'temp-password').catch(() => null);
+      
+      if (existingUser) {
+        setIsLoggedIn(true);
+        Alert.alert("Success", "Signed in with Google successfully!");
+      } else {
+        // Create new account with Google info
+        await handleSignUp(email, 'temp-google-password', name, true);
+      }
     } catch (error) {
       console.error("Google Sign-In Error:", error);
-      Alert.alert("Error", "Failed to sign in with Google.");
+      Alert.alert("Error", "Failed to sign in with Google. Please try manual sign up.");
     }
   };
 
-  const handleSignUp = async () => {
+  const handleSignUp = async (signUpEmail = null, signUpPassword = null, signUpName = null, isGoogleSignUp = false) => {
     try {
-      if (!name || !email || !password) {
+      const finalEmail = signUpEmail || email;
+      const finalPassword = signUpPassword || password;
+      const finalName = signUpName || name;
+
+      if (!finalName || !finalEmail || !finalPassword) {
         Alert.alert("Error", "Please fill in all fields");
         return;
       }
 
-      // Clear sessions
-      await account.deleteSessions().catch(() => {});
+      // UPDATED: Use Supabase auth instead of Appwrite
+      const result = await auth.signUp(finalEmail, finalPassword, {
+        name: finalName,
+        // Add any additional user metadata
+        full_name: finalName
+      });
 
-      // Create account
-      const userId = ID.unique();
-      const user = await account.create(userId, email, password, name);
+      console.log('SignUp result:', result);
 
-      // Create profile with online status
-      await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.USER_PROFILES,
-        ID.unique(),
-        {
-          userId: userId,
-          name: name,
-          status: 'online',
-          avatar: 'avatar.png',
-          lastSeen: new Date()
+      // Handle different possible response structures
+      const data = result?.data || result;
+      const error = result?.error;
+
+      if (error) {
+        throw error;
+      }
+
+      // Check if we have user data
+      if (!data || !data.user) {
+        throw new Error('Failed to create account. Please try again.');
+      }
+
+      // Check if email confirmation is required
+      if (data.user && !data.user.email_confirmed_at && !isGoogleSignUp) {
+        // Instead of showing email confirmation, automatically sign them in
+        console.log('User created but not confirmed, attempting auto sign-in...');
+        
+        try {
+          // Try to sign in immediately (works if email confirmation is disabled)
+          const signInResult = await auth.signIn(finalEmail, finalPassword);
+          if (signInResult.data?.user) {
+            // Success - proceed with profile creation
+            await userProfiles.ensureProfile(signInResult.data.user.id, {
+              name: finalName,
+              email: finalEmail,
+              status: 'online'
+            });
+
+            await AsyncStorage.setItem('profile_name', finalName);
+            setIsLoggedIn(true);
+            Alert.alert("Success", "Account created successfully!");
+            return;
+          }
+        } catch (signInError) {
+          console.log('Auto sign-in failed, showing email confirmation message');
         }
-      ).catch(() => {}); // Silently ignore if fails
+        
+        // Fallback: Show email confirmation message
+        Alert.alert(
+          "Check Your Email", 
+          "We've sent you a confirmation link. Please check your email and click the link to verify your account.",
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.navigate("SignIn")
+            }
+          ]
+        );
+        return;
+      }
 
-      // Create session
-      await account.createEmailPasswordSession(email, password);
-      await AsyncStorage.setItem('profile_name', name);
-      setIsLoggedIn(true);
+      // If email is confirmed or it's a Google signup, proceed
+      if (data.user && (data.user.email_confirmed_at || isGoogleSignUp)) {
+        // UPDATED: Create user profile with Supabase
+        await userProfiles.ensureProfile(data.user.id, {
+          name: finalName,
+          email: finalEmail,
+          status: 'online'
+        });
+
+        // Save profile name locally
+        await AsyncStorage.setItem('profile_name', finalName);
+        
+        // Set logged in state
+        setIsLoggedIn(true);
+
+        if (!isGoogleSignUp) {
+          Alert.alert("Success", "Account created successfully!");
+        }
+      }
 
     } catch (error) {
       console.error("SignUp Error Details:", {
         message: error.message,
-        code: error.code,
+        code: error.code || error.status,
         type: error.type
       });
 
       let errorMessage = error.message;
-      if (error.code === 409) { // User already exists
-        errorMessage = "This email is already registered";
+      
+      // UPDATED: Handle Supabase error messages
+      if (error.message?.includes('User already registered')) {
+        errorMessage = "This email is already registered. Please sign in instead.";
+      } else if (error.message?.includes('Password should be at least')) {
+        errorMessage = "Password should be at least 6 characters long";
+      } else if (error.message?.includes('Invalid email')) {
+        errorMessage = "Please enter a valid email address";
+      } else if (error.message?.includes('Signup is disabled')) {
+        errorMessage = "Account creation is currently disabled. Please contact support.";
       }
 
       Alert.alert("Sign Up Error", errorMessage);
@@ -186,7 +258,7 @@ export default function SignUp({ setIsLoggedIn }) {
                 <Octicons name="lock" size={20} color="#ff4c48" />
                 <TextInput
                   style={[styles.input]}
-                  placeholder="Enter Your Password"
+                  placeholder="Enter Your Password (min 6 characters)"
                   placeholderTextColor={Colors.textSecondary}
                   cursorColor={Colors.primary}
                   secureTextEntry={!showPassword}
@@ -210,6 +282,7 @@ export default function SignUp({ setIsLoggedIn }) {
             <TouchableOpacity
               style={styles.googleButton}
               onPress={() => promptAsync()}
+              disabled={!request}
             >
               <Ionicons name="logo-google" size={20} color={Colors.textPrimary} style={styles.googleIcon} />
               <Text style={styles.googleButtonText}>Sign up with Google</Text>
@@ -230,7 +303,7 @@ export default function SignUp({ setIsLoggedIn }) {
               end={{ x: 0.3, y: 1 }}
               style={[styles.signUpButton, styles.androidShadow]}
             >
-              <TouchableOpacity style={styles.buttonInner} onPress={handleSignUp}>
+              <TouchableOpacity style={styles.buttonInner} onPress={() => handleSignUp()}>
                 <Ionicons name="arrow-forward" size={28} color={Colors.textPrimary} />
               </TouchableOpacity>
             </LinearGradient>

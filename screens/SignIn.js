@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import { Octicons, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { account, userProfiles } from "../lib/AppwriteService";
+// UPDATED: Import from Supabase service instead of Appwrite
+import { auth, userProfiles } from "../lib/SupabaseService";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../constants/Colors';
@@ -74,27 +75,38 @@ export default function SignIn({ setIsLoggedIn }) {
 
   const performLogin = async (loginEmail, loginPassword, showAlert = true) => {
     try {
-      // Clear existing sessions
-      await account.deleteSessions().catch(() => {});
+      // UPDATED: Use Supabase auth instead of Appwrite
+      // Sign out any existing sessions first
+      await auth.signOut().catch(() => {});
 
-      // Create new session
-      await account.createEmailPasswordSession(loginEmail, loginPassword);
-      const user = await account.get();
+      // Sign in with Supabase
+      const { data, error } = await auth.signIn(loginEmail, loginPassword);
+      
+      if (error) throw error;
 
-      // Update status to online (silently fail if it doesn't work)
-      await userProfiles.safeUpdateStatus(user.$id, 'online');
+      const user = data.user;
+
+      // UPDATED: Create/update user profile with Supabase
+      await userProfiles.ensureProfile(user.id, {
+        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
+        email: user.email,
+        status: 'online'
+      });
+
+      // Update status to online
+      await userProfiles.updateStatus(user.id, 'online');
 
       // Save credentials if remember me is checked
       await saveCredentials(loginEmail, loginPassword, rememberMe);
 
       // Complete login
-      await AsyncStorage.setItem('profile_name', user.name);
+      await AsyncStorage.setItem('profile_name', user.user_metadata?.name || user.email?.split('@')[0] || 'User');
       setIsLoggedIn(true);
 
     } catch (error) {
       console.error("Login Error Details:", {
         message: error.message,
-        code: error.code,
+        code: error.code || error.status,
         type: error.type
       });
 
@@ -106,10 +118,16 @@ export default function SignIn({ setIsLoggedIn }) {
 
       if (showAlert) {
         let errorMessage = "Invalid email or password";
-        if (error.code === 401) {
-          errorMessage = "Invalid credentials";
-        } else if (error.code === 404) {
-          errorMessage = "Account not found";
+        
+        // UPDATED: Handle Supabase error codes
+        if (error.message?.includes('Invalid login credentials')) {
+          errorMessage = "Invalid email or password";
+        } else if (error.message?.includes('Email not confirmed')) {
+          errorMessage = "Please check your email and confirm your account";
+        } else if (error.message?.includes('Too many requests')) {
+          errorMessage = "Too many login attempts. Please wait a moment and try again";
+        } else if (error.message) {
+          errorMessage = error.message;
         }
 
         Alert.alert("Login Error", errorMessage);

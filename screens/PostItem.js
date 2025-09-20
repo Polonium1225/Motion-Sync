@@ -1,20 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Animated, TextInput, FlatList, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { checkUserLike, toggleLike, getLikeCount, getCommentsCount, getUserId, databases, Query, DATABASE_ID, COLLECTIONS, getPostById, addComment } from '../lib/AppwriteService';
+import { 
+  likes,
+  comments,
+  posts,
+  getUserId,
+  getProfileImageUrl
+} from '../lib/SupabaseService';
 import DEFAULT_AVATAR from '../assets/avatar.png';
 import Colors from '../constants/Colors';
 import Fonts from '../constants/fonts';
 
-// Add your Appwrite project ID and endpoint (should match AppwriteService.js)
-const PROJECT_ID = '67d0bb27002cfc0b22d2'; // Main project ID
-const API_ENDPOINT = 'https://cloud.appwrite.io/v1'; // Main endpoint
-
-// Comment system seems to use different Appwrite instance
-const COMMENT_PROJECT_ID = '685ebdb90007d578e80d'; // From comment avatar URLs
-const COMMENT_API_ENDPOINT = 'https://fra.cloud.appwrite.io/v1'; // From comment avatar URLs
-
-const PostItem = ({ post, navigation, index = 0 }) => {
+const PostItem = ({ post, navigation, index = 0, onPostUpdate }) => {
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [commentCount, setCommentCount] = useState(0);
@@ -23,7 +21,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   
   // Comment expansion state
   const [commentsExpanded, setCommentsExpanded] = useState(false);
-  const [comments, setComments] = useState([]);
+  const [commentsData, setCommentsData] = useState([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
@@ -59,16 +57,20 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   const loadData = async () => {
     try {
       const userId = await getUserId();
-      setIsLiked(await checkUserLike(post.$id, userId));
-      setLikeCount(await getLikeCount(post.$id));
-      setCommentCount(await getCommentsCount(post.$id));
+      
+      if (userId && post.id) {
+        // Load like status and counts
+        setIsLiked(await likes.checkUserLike(post.id, userId));
+        setLikeCount(await likes.getLikeCount(post.id));
+        setCommentCount(await comments.getCommentsCount(post.id));
+      }
 
-      // Load avatar URL if available
-      if (post.user?.avatar) {
+      // Load avatar URL using centralized helper
+      if (post.user_profiles?.avatar && post.user_profiles.avatar !== 'avatar.png') {
         setLoadingAvatar(true);
         try {
-          // Construct direct download URL for the avatar
-          const url = `${API_ENDPOINT}/storage/buckets/profile_images/files/${post.user.avatar}/view?project=${PROJECT_ID}`;
+          const url = getProfileImageUrl(post.user_profiles.avatar);
+          console.log('Generated post avatar URL:', url);
           setAvatarUrl(url);
         } catch (error) {
           console.log('Error getting avatar URL:', error);
@@ -83,12 +85,12 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   };
 
   const loadComments = async () => {
-    if (comments.length > 0) return; // Don't reload if already loaded
+    if (commentsData.length > 0) return; // Don't reload if already loaded
     
     try {
       setLoadingComments(true);
-      const postData = await getPostById(post.$id);
-      setComments(postData.comments || []);
+      const postData = await posts.getPostById(post.id);
+      setCommentsData(postData.comments || []);
     } catch (error) {
       console.error('Error loading comments:', error);
     } finally {
@@ -98,7 +100,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
 
   useEffect(() => {
     loadData();
-  }, [post.$id]);
+  }, [post.id]);
 
   const handleLike = async () => {
     try {
@@ -136,7 +138,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
       }
 
       const userId = await getUserId();
-      const newLikeCount = await toggleLike(post.$id, userId);
+      const newLikeCount = await likes.toggleLike(post.id, userId);
       setLikeCount(newLikeCount);
     } catch (error) {
       console.error('Error toggling like:', error);
@@ -175,10 +177,10 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   const handleViewProfile = () => {
     setMoreMenuVisible(false);
     
-    // Get the correct user ID - note the capital U in UserId
-    const postUserId = post.UserId || post.userId || post.user?.userId || post.user?.$id || post.$userId;
+    // Get the user ID from Supabase structure
+    const postUserId = post.user_id || post.user_profiles?.user_id;
     
-    console.log('Found userId:', postUserId, 'from field: UserId');
+    console.log('Found userId:', postUserId, 'from Supabase post');
     
     if (!postUserId) {
       console.error('❌ No userId found in post object');
@@ -190,7 +192,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     
     navigation.navigate('UserProfileScreen', {
       userId: postUserId,
-      userName: post.user?.name || 'Unknown User',
+      userName: post.user_profiles?.name || 'Unknown User',
       userAvatar: avatarUrl
     });
   };
@@ -198,9 +200,9 @@ const PostItem = ({ post, navigation, index = 0 }) => {
   const handleSendMessage = () => {
     setMoreMenuVisible(false);
     navigation.navigate('Chat', {
-      friendId: post.UserId,
-      friendName: post.user?.name || 'Unknown User',
-      conversationId: `new_${post.UserId}_${Date.now()}`
+      friendId: post.user_id,
+      friendName: post.user_profiles?.name || 'Unknown User',
+      conversationId: `new_${post.user_id}_${Date.now()}`
     });
   };
 
@@ -234,20 +236,24 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     try {
       setCommentLoading(true);
       const userId = await getUserId();
-      const commentData = await addComment(post.$id, userId, newComment);
+      const commentData = await comments.addComment(post.id, userId, newComment);
       
       if (commentData) {
         const newCommentWithUser = {
           ...commentData,
-          $createdAt: new Date().toISOString(),
-          user: commentData.user
+          created_at: new Date().toISOString(),
+          user_profiles: commentData.user_profiles
         };
         
-        setComments(prev => [...prev, newCommentWithUser]);
+        setCommentsData(prev => [...prev, newCommentWithUser]);
         setCommentCount(prev => prev + 1);
         setNewComment('');
         
-        // Show success feedback
+        // Trigger post update if callback provided
+        if (onPostUpdate) {
+          onPostUpdate();
+        }
+        
         console.log('Comment added successfully');
       }
     } catch (error) {
@@ -307,70 +313,25 @@ const PostItem = ({ post, navigation, index = 0 }) => {
     });
   };
 
-  // Custom Avatar Component with fallback logic
+  // Simplified Avatar Component using centralized helper
   const CommentAvatar = ({ user, style }) => {
     const [currentImageUrl, setCurrentImageUrl] = useState(null);
-    const [imageIndex, setImageIndex] = useState(0);
 
     useEffect(() => {
-      if (!user?.avatar) {
+      if (!user?.avatar || user.avatar === 'avatar.png') {
         setCurrentImageUrl(null);
         return;
       }
 
-      const generateAvatarUrls = (avatar) => {
-        const urls = [];
-        
-        // If it's already a full URL, try it first
-        if (typeof avatar === 'string' && avatar.startsWith('http')) {
-          urls.push(avatar);
-          
-          // Also try constructing with main project credentials
-          const fileIdMatch = avatar.match(/files\/([^\/]+)\//);
-          if (fileIdMatch) {
-            const fileId = fileIdMatch[1];
-            urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`);
-          }
-        } else {
-          // If it's just an ID, try both projects
-          urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${PROJECT_ID}`);
-          urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${avatar}/view?project=${COMMENT_PROJECT_ID}`);
-        }
-        
-        return urls;
-      };
-
-      const possibleUrls = generateAvatarUrls(user.avatar);
-      if (possibleUrls[imageIndex]) {
-        setCurrentImageUrl(possibleUrls[imageIndex]);
-      }
-    }, [user?.avatar, imageIndex]);
+      // Use the centralized helper from SupabaseService
+      const url = getProfileImageUrl(user.avatar);
+      setCurrentImageUrl(url);
+      console.log('Comment avatar URL generated:', url);
+    }, [user?.avatar]);
 
     const handleImageError = () => {
-      const possibleUrls = user?.avatar ? (() => {
-        const urls = [];
-        if (typeof user.avatar === 'string' && user.avatar.startsWith('http')) {
-          urls.push(user.avatar);
-          const fileIdMatch = user.avatar.match(/files\/([^\/]+)\//);
-          if (fileIdMatch) {
-            const fileId = fileIdMatch[1];
-            urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${fileId}/view?project=${PROJECT_ID}`);
-          }
-        } else {
-          urls.push(`${API_ENDPOINT}/storage/buckets/profile_images/files/${user.avatar}/view?project=${PROJECT_ID}`);
-          urls.push(`${COMMENT_API_ENDPOINT}/storage/buckets/profile_images/files/${user.avatar}/view?project=${COMMENT_PROJECT_ID}`);
-        }
-        return urls;
-      })() : [];
-
-      const nextIndex = imageIndex + 1;
-      if (nextIndex < possibleUrls.length) {
-        console.log(`❌ Avatar failed, trying fallback ${nextIndex + 1}/${possibleUrls.length}`);
-        setImageIndex(nextIndex);
-      } else {
-        console.log('❌ All avatar URLs failed, using default');
-        setCurrentImageUrl(null);
-      }
+      console.log('❌ Comment avatar failed, using default');
+      setCurrentImageUrl(null);
     };
 
     const handleImageLoad = () => {
@@ -390,12 +351,12 @@ const PostItem = ({ post, navigation, index = 0 }) => {
 
   const renderComment = ({ item }) => (
     <View style={styles.commentContainer}>
-      <CommentAvatar user={item.user} style={styles.commentAvatar} />
+      <CommentAvatar user={item.user_profiles} style={styles.commentAvatar} />
       <View style={styles.commentContent}>
         <View style={styles.commentHeader}>
-          <Text style={styles.commentAuthor}>{item.user?.name || 'Anonymous'}</Text>
+          <Text style={styles.commentAuthor}>{item.user_profiles?.name || 'Anonymous'}</Text>
           <Text style={styles.commentDate}>
-            {formatDate(item.$createdAt)}
+            {formatDate(item.created_at)}
           </Text>
         </View>
         <Text style={styles.commentText}>{item.content}</Text>
@@ -427,8 +388,11 @@ const PostItem = ({ post, navigation, index = 0 }) => {
                 style={styles.avatar}
                 defaultSource={DEFAULT_AVATAR}
                 onError={(e) => {
-                  console.log('Failed to load avatar:', e.nativeEvent.error);
+                  console.log('Failed to load post avatar:', e.nativeEvent.error);
                   setAvatarUrl(null);
+                }}
+                onLoad={() => {
+                  console.log('✅ Post avatar loaded successfully:', avatarUrl);
                 }}
               />
             )}
@@ -436,8 +400,8 @@ const PostItem = ({ post, navigation, index = 0 }) => {
           </View>
           
           <View style={styles.userDetails}>
-            <Text style={styles.username}>{post.user?.name || 'Unknown User'}</Text>
-            <Text style={styles.timeStamp}>{getTimeAgo(post.$createdAt)}</Text>
+            <Text style={styles.username}>{post.user_profiles?.name || 'Unknown User'}</Text>
+            <Text style={styles.timeStamp}>{getTimeAgo(post.created_at)}</Text>
           </View>
         </View>
 
@@ -452,7 +416,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
       </View>
 
       {/* Post Image */}
-      {post.imageUrl && (
+      {post.image_url && (
         <TouchableOpacity 
           style={styles.imageContainer}
           onPressIn={handlePressIn}
@@ -460,7 +424,7 @@ const PostItem = ({ post, navigation, index = 0 }) => {
         >
           <Animated.View style={[{ transform: [{ scale: buttonScale }] }]}>
             <Image
-              source={{ uri: post.imageUrl }}
+              source={{ uri: post.image_url }}
               style={styles.postImage}
               resizeMode="cover"
             />
@@ -576,11 +540,11 @@ const PostItem = ({ post, navigation, index = 0 }) => {
                 <ActivityIndicator size="small" color={Colors.primary} />
                 <Text style={styles.loadingCommentsText}>Loading comments...</Text>
               </View>
-            ) : comments.length > 0 ? (
+            ) : commentsData.length > 0 ? (
               <FlatList
-                data={comments}
+                data={commentsData}
                 renderItem={renderComment}
-                keyExtractor={item => item.$id}
+                keyExtractor={item => item.id.toString()}
                 style={styles.commentsList}
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled={true}
